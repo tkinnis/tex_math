@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:isolate';
 import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui' as ui;
@@ -42,15 +43,15 @@ enum StudioDiffTarget {
 @immutable
 final class PixelDiffResult {
   /// Creates a pixel diff result.
-  const PixelDiffResult({
+  PixelDiffResult({
     required this.width,
     required this.height,
     required this.totalPixels,
     required this.diffPixelCount,
     required this.exactMatchRatio,
     required this.maxChannelDelta,
-    required this.diffRgba,
-  });
+    required Uint8List diffRgba,
+  }) : diffRgba = diffRgba.asUnmodifiableView();
 
   /// Image width in pixels.
   final int width;
@@ -70,11 +71,59 @@ final class PixelDiffResult {
   /// Maximum per-channel absolute difference across all pixels (`0..255`).
   final int maxChannelDelta;
 
-  /// Highlighted RGBA8888 visualization buffer (`diff` pixels in magenta).
+  /// Unmodifiable highlighted RGBA8888 visualization buffer (`diff` pixels in
+  /// magenta).
   final Uint8List diffRgba;
 
   /// Percentage of matching pixels in `[0.0, 100.0]`.
   double get matchPercentage => exactMatchRatio * 100.0;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is PixelDiffResult &&
+          width == other.width &&
+          height == other.height &&
+          totalPixels == other.totalPixels &&
+          diffPixelCount == other.diffPixelCount &&
+          exactMatchRatio == other.exactMatchRatio &&
+          maxChannelDelta == other.maxChannelDelta &&
+          (identical(diffRgba, other.diffRgba) ||
+              _bytesEqual(diffRgba, other.diffRgba));
+
+  @override
+  int get hashCode {
+    int hash = Object.hash(
+      width,
+      height,
+      totalPixels,
+      diffPixelCount,
+      exactMatchRatio,
+      maxChannelDelta,
+      diffRgba.length,
+    );
+    if (diffRgba.isEmpty) {
+      return hash;
+    }
+    final int len = diffRgba.length;
+    final int step = len <= 64 ? 1 : len ~/ 64;
+    for (int i = 0; i < len; i += step) {
+      hash = Object.hash(hash, diffRgba[i]);
+    }
+    return Object.hash(hash, diffRgba[len - 1]);
+  }
+}
+
+bool _bytesEqual(Uint8List a, Uint8List b) {
+  if (a.length != b.length) {
+    return false;
+  }
+  for (int i = 0; i < a.length; i++) {
+    if (a[i] != b[i]) {
+      return false;
+    }
+  }
+  return true;
 }
 
 /// Pair of same-dimension captures ready for pixel diffing and curtain wipe.
@@ -95,6 +144,17 @@ final class StudioCapturedPair {
 
   /// External reference engine represented by [targetImage].
   final StudioDiffTarget target;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is StudioCapturedPair &&
+          texMathImage == other.texMathImage &&
+          targetImage == other.targetImage &&
+          target == other.target;
+
+  @override
+  int get hashCode => Object.hash(texMathImage, targetImage, target);
 }
 
 /// Computes per-pixel RGBA difference between equally sized buffers [a] and
@@ -229,8 +289,65 @@ StudioCapturedImage _padCentered(
   return StudioCapturedImage(width: targetW, height: targetH, rgbaBytes: out);
 }
 
+/// Offloads [alignCapturedPair] and [computePixelDiff] to a background worker
+/// isolate via [Isolate.run] to keep desktop UI frames responsive.
+Future<
+  ({StudioCapturedImage left, StudioCapturedImage right, PixelDiffResult diff})
+>
+computeAlignedPixelDiffAsync(
+  StudioCapturedImage texMathImage,
+  StudioCapturedImage targetImage, {
+  required Color backgroundColor,
+  int channelTolerance = 0,
+}) {
+  final int bgArgb = backgroundColor.toARGB32();
+  return Isolate.run(
+    () => _alignAndDiff(
+      texMathImage,
+      targetImage,
+      bgArgb: bgArgb,
+      channelTolerance: channelTolerance,
+    ),
+  );
+}
+
+({StudioCapturedImage left, StudioCapturedImage right, PixelDiffResult diff})
+_alignAndDiff(
+  StudioCapturedImage texMathImage,
+  StudioCapturedImage targetImage, {
+  required int bgArgb,
+  required int channelTolerance,
+}) {
+  final ({StudioCapturedImage left, StudioCapturedImage right}) aligned =
+      alignCapturedPair(
+        texMathImage,
+        targetImage,
+        backgroundColor: Color(bgArgb),
+      );
+  final PixelDiffResult diff = computePixelDiff(
+    aligned.left.rgbaBytes,
+    aligned.right.rgbaBytes,
+    aligned.left.width,
+    aligned.left.height,
+    channelTolerance: channelTolerance,
+  );
+  return (left: aligned.left, right: aligned.right, diff: diff);
+}
+
 /// Decodes packed RGBA8888 bytes into a Flutter [ui.Image].
 Future<ui.Image> rgbaToUiImage(Uint8List rgba, int width, int height) {
+  if (width <= 0 || height <= 0) {
+    return Future<ui.Image>.error(
+      ArgumentError('Image dimensions must be positive ($width x $height).'),
+    );
+  }
+  if (rgba.length != width * height * 4) {
+    return Future<ui.Image>.error(
+      ArgumentError(
+        'RGBA byte length (${rgba.length}) does not match ${width * height * 4}.',
+      ),
+    );
+  }
   final Completer<ui.Image> completer = Completer<ui.Image>();
   ui.decodeImageFromPixels(
     rgba,
@@ -258,6 +375,7 @@ final class StudioComparisonView extends StatefulWidget {
     required this.onCaptureRequested,
     this.capturedPair,
     this.isCapturing = false,
+    this.isolateDiffPixelThreshold = 4096,
   });
 
   /// Active comparison display mode.
@@ -290,6 +408,10 @@ final class StudioComparisonView extends StatefulWidget {
   /// Whether a capture operation is currently running.
   final bool isCapturing;
 
+  /// Pixel count threshold above which diff alignment and pixel comparison
+  /// run in [Isolate.run].
+  final int isolateDiffPixelThreshold;
+
   @override
   State<StudioComparisonView> createState() => _StudioComparisonViewState();
 }
@@ -304,22 +426,29 @@ final class _StudioComparisonViewState extends State<StudioComparisonView> {
   PixelDiffResult? _diffResult;
   int _decodeGeneration = 0;
 
+  bool _hasComputedDiff = false;
+  StudioCapturedPair? _lastComputedPair;
+  Color? _lastComputedBg;
+  int? _lastComputedTolerance;
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    _recomputeSyncDiffAndDecode();
+    _scheduleDiffAndDecodeIfChanged();
   }
 
   @override
   void didUpdateWidget(StudioComparisonView oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.capturedPair != widget.capturedPair) {
-      _recomputeSyncDiffAndDecode();
+    if (oldWidget.capturedPair != widget.capturedPair ||
+        oldWidget.diffTarget != widget.diffTarget) {
+      _scheduleDiffAndDecodeIfChanged();
     }
   }
 
   @override
   void dispose() {
+    _decodeGeneration++;
     _disposeDecodedImages();
     super.dispose();
   }
@@ -333,36 +462,102 @@ final class _StudioComparisonViewState extends State<StudioComparisonView> {
     _diffImage = null;
   }
 
-  void _recomputeSyncDiffAndDecode() {
-    final int gen = ++_decodeGeneration;
+  StudioCapturedPair? get _effectivePair {
     final StudioCapturedPair? pair = widget.capturedPair;
-    if (pair == null ||
-        pair.texMathImage.width <= 0 ||
+    if (pair == null || pair.target != widget.diffTarget) {
+      return null;
+    }
+    if (pair.texMathImage.width <= 0 ||
         pair.texMathImage.height <= 0 ||
         pair.targetImage.width <= 0 ||
         pair.targetImage.height <= 0) {
+      return null;
+    }
+    return pair;
+  }
+
+  void _scheduleDiffAndDecodeIfChanged() {
+    final StudioCapturedPair? pair = _effectivePair;
+    final Color bg = _paneCanvasBackground(context);
+    if (_hasComputedDiff &&
+        _lastComputedPair == pair &&
+        _lastComputedBg == bg &&
+        _lastComputedTolerance == _channelTolerance) {
+      return;
+    }
+    _hasComputedDiff = true;
+    _lastComputedPair = pair;
+    _lastComputedBg = bg;
+    _lastComputedTolerance = _channelTolerance;
+
+    final int gen = ++_decodeGeneration;
+    if (pair == null) {
       _disposeDecodedImages();
       _diffResult = null;
       return;
     }
 
-    final Color bg = _paneCanvasBackground(context);
-    final ({StudioCapturedImage left, StudioCapturedImage right}) aligned =
-        alignCapturedPair(
-          pair.texMathImage,
-          pair.targetImage,
-          backgroundColor: bg,
-        );
-    final PixelDiffResult diff = computePixelDiff(
-      aligned.left.rgbaBytes,
-      aligned.right.rgbaBytes,
-      aligned.left.width,
-      aligned.left.height,
-      channelTolerance: _channelTolerance,
+    final int maxPixels = math.max(
+      pair.texMathImage.width * pair.texMathImage.height,
+      pair.targetImage.width * pair.targetImage.height,
     );
-    _diffResult = diff;
+    if (maxPixels <= widget.isolateDiffPixelThreshold) {
+      final ({
+        StudioCapturedImage left,
+        StudioCapturedImage right,
+        PixelDiffResult diff,
+      })
+      computed = _alignAndDiff(
+        pair.texMathImage,
+        pair.targetImage,
+        bgArgb: bg.toARGB32(),
+        channelTolerance: _channelTolerance,
+      );
+      _diffResult = computed.diff;
+      unawaited(
+        _decodeImagesAsync(gen, computed.left, computed.right, computed.diff),
+      );
+      return;
+    }
 
-    unawaited(_decodeImagesAsync(gen, aligned.left, aligned.right, diff));
+    _disposeDecodedImages();
+    _diffResult = null;
+    unawaited(_computeDiffAndDecodeAsync(gen, pair, bg, _channelTolerance));
+  }
+
+  Future<void> _computeDiffAndDecodeAsync(
+    int gen,
+    StudioCapturedPair pair,
+    Color bg,
+    int channelTolerance,
+  ) async {
+    try {
+      final ({
+        StudioCapturedImage left,
+        StudioCapturedImage right,
+        PixelDiffResult diff,
+      })
+      computed = await computeAlignedPixelDiffAsync(
+        pair.texMathImage,
+        pair.targetImage,
+        backgroundColor: bg,
+        channelTolerance: channelTolerance,
+      );
+      if (!mounted || gen != _decodeGeneration) {
+        return;
+      }
+      setState(() {
+        _diffResult = computed.diff;
+      });
+      await _decodeImagesAsync(
+        gen,
+        computed.left,
+        computed.right,
+        computed.diff,
+      );
+    } on Object {
+      // Ignore canceled or failed background diff passes.
+    }
   }
 
   Future<void> _decodeImagesAsync(
@@ -371,27 +566,65 @@ final class _StudioComparisonViewState extends State<StudioComparisonView> {
     StudioCapturedImage right,
     PixelDiffResult diff,
   ) async {
-    final List<ui.Image> decoded = await Future.wait<ui.Image>(
-      <Future<ui.Image>>[
-        rgbaToUiImage(left.rgbaBytes, left.width, left.height),
-        rgbaToUiImage(right.rgbaBytes, right.width, right.height),
-        rgbaToUiImage(diff.diffRgba, diff.width, diff.height),
-      ],
-    );
+    bool batchAborted = false;
+    ui.Image? leftImg;
+    ui.Image? rightImg;
+    ui.Image? diffImg;
 
-    if (!mounted || gen != _decodeGeneration) {
-      for (final ui.Image img in decoded) {
+    Future<ui.Image> trackedDecode(
+      Uint8List bytes,
+      int width,
+      int height,
+      void Function(ui.Image) assign,
+    ) async {
+      final ui.Image img = await rgbaToUiImage(bytes, width, height);
+      if (batchAborted || !mounted || gen != _decodeGeneration) {
         img.dispose();
+        throw StateError('Image decode batch superseded.');
       }
-      return;
+      assign(img);
+      return img;
     }
 
-    setState(() {
-      _disposeDecodedImages();
-      _leftImage = decoded[0];
-      _rightImage = decoded[1];
-      _diffImage = decoded[2];
-    });
+    try {
+      await Future.wait<ui.Image>(<Future<ui.Image>>[
+        trackedDecode(
+          left.rgbaBytes,
+          left.width,
+          left.height,
+          (ui.Image img) => leftImg = img,
+        ),
+        trackedDecode(
+          right.rgbaBytes,
+          right.width,
+          right.height,
+          (ui.Image img) => rightImg = img,
+        ),
+        trackedDecode(
+          diff.diffRgba,
+          diff.width,
+          diff.height,
+          (ui.Image img) => diffImg = img,
+        ),
+      ]);
+      if (!mounted || gen != _decodeGeneration) {
+        leftImg?.dispose();
+        rightImg?.dispose();
+        diffImg?.dispose();
+        return;
+      }
+      setState(() {
+        _disposeDecodedImages();
+        _leftImage = leftImg;
+        _rightImage = rightImg;
+        _diffImage = diffImg;
+      });
+    } on Object {
+      batchAborted = true;
+      leftImg?.dispose();
+      rightImg?.dispose();
+      diffImg?.dispose();
+    }
   }
 
   @override
@@ -496,7 +729,7 @@ final class _StudioComparisonViewState extends State<StudioComparisonView> {
                   }
                   setState(() {
                     _channelTolerance = value;
-                    _recomputeSyncDiffAndDecode();
+                    _scheduleDiffAndDecodeIfChanged();
                   });
                 },
                 items: const <DropdownMenuItem<int>>[
@@ -558,7 +791,20 @@ final class _StudioComparisonViewState extends State<StudioComparisonView> {
                   ],
                 ),
               ),
-            ] else
+            ] else if (_effectivePair != null)
+              const Expanded(
+                child: Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: <Widget>[
+                      CircularProgressIndicator(),
+                      SizedBox(height: 8.0),
+                      Text('Computing RGBA diff…'),
+                    ],
+                  ),
+                ),
+              )
+            else
               Expanded(
                 child: Center(
                   child: SingleChildScrollView(
@@ -589,34 +835,62 @@ final class _StudioComparisonViewState extends State<StudioComparisonView> {
   }
 
   Widget _buildCurtainDiff(BuildContext context) {
-    final StudioWebPaneController targetController =
-        widget.diffTarget == StudioDiffTarget.mathJax
-        ? widget.mathJaxController
-        : widget.katexController;
+    final StudioCapturedPair? pair = _effectivePair;
+    if (pair == null) {
+      return Card(
+        clipBehavior: Clip.antiAlias,
+        child: Padding(
+          padding: const EdgeInsets.all(12.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: <Widget>[
+              _buildTargetBar(context),
+              const Divider(height: 12.0),
+              Expanded(
+                child: Center(
+                  child: SingleChildScrollView(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: <Widget>[
+                        const Text(
+                          'Capture live panes to inspect interactive curtain diff.',
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 8.0),
+                        OutlinedButton.icon(
+                          onPressed: widget.isCapturing
+                              ? null
+                              : widget.onCaptureRequested,
+                          icon: const Icon(Icons.compare),
+                          label: const Text('Capture for Curtain Diff'),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
 
-    final Widget leftOverlay = _leftImage != null
-        ? Container(
-            color: Theme.of(context).colorScheme.surface,
-            alignment: Alignment.center,
-            child: RawImage(image: _leftImage, fit: BoxFit.contain),
-          )
-        : Container(
-            color: Theme.of(context).colorScheme.surface,
-            alignment: Alignment.center,
-            child: widget.texMathPane,
-          );
+    final Color surfaceColor = Theme.of(context).colorScheme.surface;
+    final Widget leftOverlay = Container(
+      color: surfaceColor,
+      alignment: Alignment.center,
+      child: _leftImage != null
+          ? RawImage(image: _leftImage, fit: BoxFit.contain)
+          : const SizedBox.shrink(),
+    );
 
-    final Widget rightUnderlay = _rightImage != null
-        ? Container(
-            color: Theme.of(context).colorScheme.surface,
-            alignment: Alignment.center,
-            child: RawImage(image: _rightImage, fit: BoxFit.contain),
-          )
-        : Container(
-            color: Theme.of(context).colorScheme.surface,
-            alignment: Alignment.center,
-            child: targetController.buildView(context),
-          );
+    final Widget rightUnderlay = Container(
+      color: surfaceColor,
+      alignment: Alignment.center,
+      child: _rightImage != null
+          ? RawImage(image: _rightImage, fit: BoxFit.contain)
+          : const SizedBox.shrink(),
+    );
 
     return Card(
       clipBehavior: Clip.antiAlias,
@@ -827,7 +1101,10 @@ final class _PaneCard extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
-                ?trailing,
+                if (trailing != null) ...<Widget>[
+                  const SizedBox(width: 8.0),
+                  Flexible(child: trailing!),
+                ],
               ],
             ),
             const Divider(height: 12.0),
@@ -856,6 +1133,8 @@ final class _WebPaneCard extends StatelessWidget {
           title: controller.engineKind.title,
           trailing: Text(
             subtitle,
+            overflow: TextOverflow.ellipsis,
+            maxLines: 1,
             style: Theme.of(context).textTheme.labelSmall,
           ),
           child: controller.buildView(context),

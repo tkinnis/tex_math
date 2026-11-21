@@ -1,7 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:isolate';
 
-import 'package:flutter/foundation.dart' show immutable;
+import 'package:flutter/foundation.dart' show immutable, listEquals;
 
 /// Canonical ordered tier labels displayed in the studio corpus browser.
 const List<String> canonicalCorpusTiers = <String>[
@@ -51,7 +52,7 @@ enum StudioCorpusGrouping {
 @immutable
 final class StudioCorpusEntry {
   /// Creates an immutable studio corpus entry.
-  const StudioCorpusEntry({
+  StudioCorpusEntry({
     required this.id,
     required this.relativePath,
     required this.tier,
@@ -61,13 +62,20 @@ final class StudioCorpusEntry {
     required this.accepted,
     required this.tex,
     this.errorClass,
-    this.packages,
+    List<String>? packages,
     this.expectationStatus,
     this.oracleBoxWidthEm,
     this.oracleBoxHeightEm,
     this.oracleBoxDepthEm,
     this.isEmbeddedFallback = false,
-  });
+  }) : packages = packages == null ? null : List<String>.unmodifiable(packages),
+       _idLower = id.toLowerCase(),
+       _tierLower = tier.toLowerCase(),
+       _packageLower = package.toLowerCase(),
+       _featureLower = feature.toLowerCase(),
+       _texLower = tex.toLowerCase(),
+       _errorClassLower = errorClass?.toLowerCase(),
+       _expectationStatusLower = expectationStatus?.toLowerCase();
 
   /// Unique corpus case identifier (for example `tier1_core/base/fraction_basic`).
   final String id;
@@ -114,6 +122,14 @@ final class StudioCorpusEntry {
   /// Whether this entry comes from embedded fallback presets rather than disk.
   final bool isEmbeddedFallback;
 
+  final String _idLower;
+  final String _tierLower;
+  final String _packageLower;
+  final String _featureLower;
+  final String _texLower;
+  final String? _errorClassLower;
+  final String? _expectationStatusLower;
+
   /// Short readable display name derived from [id].
   String get shortName {
     final int slashIndex = id.lastIndexOf('/');
@@ -126,17 +142,60 @@ final class StudioCorpusEntry {
   /// Returns `true` when [query] matches any metadata field or TeX source.
   bool matchesQuery(String query) {
     final String normalized = query.trim().toLowerCase();
+    return _matchesNormalizedQuery(normalized);
+  }
+
+  bool _matchesNormalizedQuery(String normalized) {
     if (normalized.isEmpty) {
       return true;
     }
-    return id.toLowerCase().contains(normalized) ||
-        tier.toLowerCase().contains(normalized) ||
-        package.toLowerCase().contains(normalized) ||
-        feature.toLowerCase().contains(normalized) ||
-        tex.toLowerCase().contains(normalized) ||
-        (errorClass?.toLowerCase().contains(normalized) ?? false) ||
-        (expectationStatus?.toLowerCase().contains(normalized) ?? false);
+    return _idLower.contains(normalized) ||
+        _tierLower.contains(normalized) ||
+        _packageLower.contains(normalized) ||
+        _featureLower.contains(normalized) ||
+        _texLower.contains(normalized) ||
+        (_errorClassLower?.contains(normalized) ?? false) ||
+        (_expectationStatusLower?.contains(normalized) ?? false);
   }
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is StudioCorpusEntry &&
+          id == other.id &&
+          relativePath == other.relativePath &&
+          tier == other.tier &&
+          package == other.package &&
+          feature == other.feature &&
+          display == other.display &&
+          accepted == other.accepted &&
+          tex == other.tex &&
+          errorClass == other.errorClass &&
+          listEquals(packages, other.packages) &&
+          expectationStatus == other.expectationStatus &&
+          oracleBoxWidthEm == other.oracleBoxWidthEm &&
+          oracleBoxHeightEm == other.oracleBoxHeightEm &&
+          oracleBoxDepthEm == other.oracleBoxDepthEm &&
+          isEmbeddedFallback == other.isEmbeddedFallback;
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    relativePath,
+    tier,
+    package,
+    feature,
+    display,
+    accepted,
+    tex,
+    errorClass,
+    packages == null ? null : Object.hashAll(packages!),
+    expectationStatus,
+    oracleBoxWidthEm,
+    oracleBoxHeightEm,
+    oracleBoxDepthEm,
+    isEmbeddedFallback,
+  );
 }
 
 /// Collection of loaded corpus cases with filtering and grouping helpers.
@@ -149,105 +208,106 @@ final class StudioCorpusCatalog {
     this.corpusRootPath,
   }) : entries = List<StudioCorpusEntry>.unmodifiable(entries);
 
+  static final StudioCorpusCatalog _embeddedFallbackCatalog =
+      StudioCorpusCatalog(
+        isFromDisk: false,
+        entries: <StudioCorpusEntry>[
+          StudioCorpusEntry(
+            id: 'tier1_core/base/fraction_basic',
+            relativePath: 'corpus/tier1_core/base/fraction_basic.tex',
+            tier: 'Tier 1',
+            package: 'base',
+            feature: 'fractions',
+            display: true,
+            accepted: true,
+            tex: r'\frac{a + b}{c - d}',
+            isEmbeddedFallback: true,
+          ),
+          StudioCorpusEntry(
+            id: 'tier1_core/base/gaussian_integral',
+            relativePath: 'corpus/tier1_core/base/gaussian_integral.tex',
+            tier: 'Tier 1',
+            package: 'base',
+            feature: 'integrals',
+            display: true,
+            accepted: true,
+            tex: r'\int_{-\infty}^{\infty} e^{-x^2}\,dx = \sqrt{\pi}',
+            isEmbeddedFallback: true,
+          ),
+          StudioCorpusEntry(
+            id: 'tier1_core/ams/identity_matrix',
+            relativePath: 'corpus/tier1_core/ams/identity_matrix.tex',
+            tier: 'Tier 1',
+            package: 'ams',
+            feature: 'matrices',
+            display: true,
+            accepted: true,
+            tex: r'\begin{pmatrix} 1 & 0 \\ 0 & 1 \end{pmatrix}',
+            isEmbeddedFallback: true,
+          ),
+          StudioCorpusEntry(
+            id: 'tier2_jupyter/mhchem/boudouard_reaction',
+            relativePath: 'corpus/tier2_jupyter/mhchem/boudouard_reaction.tex',
+            tier: 'Tier 2',
+            package: 'mhchem',
+            feature: 'chemistry',
+            display: true,
+            accepted: true,
+            tex: r'\ce{CO2 + C -> 2CO}',
+            isEmbeddedFallback: true,
+          ),
+          StudioCorpusEntry(
+            id: 'tier3_extended/physics/inner_product',
+            relativePath: 'corpus/tier3_extended/physics/inner_product.tex',
+            tier: 'Tier 3',
+            package: 'physics',
+            feature: 'braket',
+            display: true,
+            accepted: true,
+            packages: const <String>['base', 'physics'],
+            tex: r'\braket{\psi}{\phi} = \dv{t}\mel{n}{\hat{H}}{m}',
+            isEmbeddedFallback: true,
+          ),
+          StudioCorpusEntry(
+            id: 'stretchy/delimiters/nested_middle',
+            relativePath: 'corpus/stretchy/delimiters/nested_middle.tex',
+            tier: 'Stretchy',
+            package: 'base',
+            feature: 'stretchy_delimiters',
+            display: true,
+            accepted: true,
+            tex: r'\left\{ \frac{x^2}{y^3} \,\middle|\, \sqrt{\sum_{k=1}^n a_k} \right\}',
+            isEmbeddedFallback: true,
+          ),
+          StudioCorpusEntry(
+            id: 'notebooks/quantum/schrodinger',
+            relativePath: 'corpus/notebooks/quantum/schrodinger.tex',
+            tier: 'Notebooks',
+            package: 'ams',
+            feature: 'notebook_equation',
+            display: true,
+            accepted: true,
+            tex: r'i\hbar \frac{\partial \Psi}{\partial t} = -\frac{\hbar^2}{2m}\nabla^2\Psi + V\Psi',
+            isEmbeddedFallback: true,
+          ),
+          StudioCorpusEntry(
+            id: 'errors/undefined_command_sample',
+            relativePath: 'corpus/errors/undefined_command_sample.tex',
+            tier: 'Errors',
+            package: 'base',
+            feature: 'undefinedControlSequence',
+            display: true,
+            accepted: false,
+            errorClass: 'undefinedControlSequence',
+            tex: r'\undefinedcmd + x',
+            isEmbeddedFallback: true,
+          ),
+        ],
+      );
+
   /// Fallback presets displayed when the repository `corpus/` directory is
   /// unavailable at runtime.
-  factory StudioCorpusCatalog.embeddedFallback() {
-    return StudioCorpusCatalog(
-      isFromDisk: false,
-      entries: const <StudioCorpusEntry>[
-        StudioCorpusEntry(
-          id: 'tier1_core/base/fraction_basic',
-          relativePath: 'corpus/tier1_core/base/fraction_basic.tex',
-          tier: 'Tier 1',
-          package: 'base',
-          feature: 'fractions',
-          display: true,
-          accepted: true,
-          tex: r'\frac{a + b}{c - d}',
-          isEmbeddedFallback: true,
-        ),
-        StudioCorpusEntry(
-          id: 'tier1_core/base/gaussian_integral',
-          relativePath: 'corpus/tier1_core/base/gaussian_integral.tex',
-          tier: 'Tier 1',
-          package: 'base',
-          feature: 'integrals',
-          display: true,
-          accepted: true,
-          tex: r'\int_{-\infty}^{\infty} e^{-x^2}\,dx = \sqrt{\pi}',
-          isEmbeddedFallback: true,
-        ),
-        StudioCorpusEntry(
-          id: 'tier1_core/ams/identity_matrix',
-          relativePath: 'corpus/tier1_core/ams/identity_matrix.tex',
-          tier: 'Tier 1',
-          package: 'ams',
-          feature: 'matrices',
-          display: true,
-          accepted: true,
-          tex: r'\begin{pmatrix} 1 & 0 \\ 0 & 1 \end{pmatrix}',
-          isEmbeddedFallback: true,
-        ),
-        StudioCorpusEntry(
-          id: 'tier2_jupyter/mhchem/boudouard_reaction',
-          relativePath: 'corpus/tier2_jupyter/mhchem/boudouard_reaction.tex',
-          tier: 'Tier 2',
-          package: 'mhchem',
-          feature: 'chemistry',
-          display: true,
-          accepted: true,
-          tex: r'\ce{CO2 + C -> 2CO}',
-          isEmbeddedFallback: true,
-        ),
-        StudioCorpusEntry(
-          id: 'tier3_extended/physics/inner_product',
-          relativePath: 'corpus/tier3_extended/physics/inner_product.tex',
-          tier: 'Tier 3',
-          package: 'physics',
-          feature: 'braket',
-          display: true,
-          accepted: true,
-          packages: <String>['base', 'physics'],
-          tex: r'\braket{\psi}{\phi} = \dv{t}\mel{n}{\hat{H}}{m}',
-          isEmbeddedFallback: true,
-        ),
-        StudioCorpusEntry(
-          id: 'stretchy/delimiters/nested_middle',
-          relativePath: 'corpus/stretchy/delimiters/nested_middle.tex',
-          tier: 'Stretchy',
-          package: 'base',
-          feature: 'stretchy_delimiters',
-          display: true,
-          accepted: true,
-          tex: r'\left\{ \frac{x^2}{y^3} \,\middle|\, \sqrt{\sum_{k=1}^n a_k} \right\}',
-          isEmbeddedFallback: true,
-        ),
-        StudioCorpusEntry(
-          id: 'notebooks/quantum/schrodinger',
-          relativePath: 'corpus/notebooks/quantum/schrodinger.tex',
-          tier: 'Notebooks',
-          package: 'ams',
-          feature: 'notebook_equation',
-          display: true,
-          accepted: true,
-          tex: r'i\hbar \frac{\partial \Psi}{\partial t} = -\frac{\hbar^2}{2m}\nabla^2\Psi + V\Psi',
-          isEmbeddedFallback: true,
-        ),
-        StudioCorpusEntry(
-          id: 'errors/undefined_command_sample',
-          relativePath: 'corpus/errors/undefined_command_sample.tex',
-          tier: 'Errors',
-          package: 'base',
-          feature: 'undefinedControlSequence',
-          display: true,
-          accepted: false,
-          errorClass: 'undefinedControlSequence',
-          tex: r'\undefinedcmd + x',
-          isEmbeddedFallback: true,
-        ),
-      ],
-    );
-  }
+  factory StudioCorpusCatalog.embeddedFallback() => _embeddedFallbackCatalog;
 
   /// Immutable list of corpus entries in deterministic order.
   final List<StudioCorpusEntry> entries;
@@ -275,7 +335,7 @@ final class StudioCorpusCatalog {
         ordered.add(tier);
       }
     }
-    return ordered;
+    return List<String>.unmodifiable(ordered);
   }
 
   /// Sorted list of distinct primary package names across [entries].
@@ -283,7 +343,7 @@ final class StudioCorpusCatalog {
     final List<String> packages =
         entries.map((StudioCorpusEntry e) => e.package).toSet().toList()
           ..sort();
-    return packages;
+    return List<String>.unmodifiable(packages);
   }
 
   /// Filters [entries] by search [query], optional [tier], optional [package],
@@ -294,27 +354,30 @@ final class StudioCorpusCatalog {
     String? package,
     StudioCorpusAcceptanceFilter acceptance = StudioCorpusAcceptanceFilter.all,
   }) {
-    return entries.where((StudioCorpusEntry entry) {
-      if (tier != null && tier.isNotEmpty && entry.tier != tier) {
-        return false;
-      }
-      if (package != null && package.isNotEmpty && entry.package != package) {
-        return false;
-      }
-      switch (acceptance) {
-        case StudioCorpusAcceptanceFilter.all:
-          break;
-        case StudioCorpusAcceptanceFilter.accepted:
-          if (!entry.accepted) {
-            return false;
-          }
-        case StudioCorpusAcceptanceFilter.refused:
-          if (entry.accepted) {
-            return false;
-          }
-      }
-      return entry.matchesQuery(query);
-    }).toList();
+    final String normalizedQuery = query.trim().toLowerCase();
+    return List<StudioCorpusEntry>.unmodifiable(
+      entries.where((StudioCorpusEntry entry) {
+        if (tier != null && tier.isNotEmpty && entry.tier != tier) {
+          return false;
+        }
+        if (package != null && package.isNotEmpty && entry.package != package) {
+          return false;
+        }
+        switch (acceptance) {
+          case StudioCorpusAcceptanceFilter.all:
+            break;
+          case StudioCorpusAcceptanceFilter.accepted:
+            if (!entry.accepted) {
+              return false;
+            }
+          case StudioCorpusAcceptanceFilter.refused:
+            if (entry.accepted) {
+              return false;
+            }
+        }
+        return entry._matchesNormalizedQuery(normalizedQuery);
+      }),
+    );
   }
 
   /// Groups [items] according to [grouping] in deterministic key order.
@@ -356,10 +419,25 @@ final class StudioCorpusCatalog {
         ];
     }
 
-    return <String, List<StudioCorpusEntry>>{
-      for (final String key in sortedKeys) key: buckets[key]!,
-    };
+    return Map<String, List<StudioCorpusEntry>>.unmodifiable(
+      <String, List<StudioCorpusEntry>>{
+        for (final String key in sortedKeys)
+          key: List<StudioCorpusEntry>.unmodifiable(buckets[key]!),
+      },
+    );
   }
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is StudioCorpusCatalog &&
+          isFromDisk == other.isFromDisk &&
+          corpusRootPath == other.corpusRootPath &&
+          listEquals(entries, other.entries);
+
+  @override
+  int get hashCode =>
+      Object.hash(isFromDisk, corpusRootPath, Object.hashAll(entries));
 }
 
 /// Locates the `tex_math` repository root relative to the current working
@@ -415,6 +493,26 @@ bool _looksLikeRepositoryRoot(Directory dir) {
 /// the repository tree.
 final class StudioCorpusLoader {
   const StudioCorpusLoader._();
+
+  static final RegExp _headerPattern = RegExp(
+    r'^%\s*([a-zA-Z0-9_]+)\s*:\s*(.*)$',
+  );
+  static final RegExp _texExtensionPattern = RegExp(r'\.tex$');
+
+  /// Discovers and loads the studio corpus catalog off the UI thread using
+  /// [Isolate.run], keeping startup non-blocking while matching [load].
+  static Future<StudioCorpusCatalog> loadAsync({
+    Directory? startDirectory,
+    bool includeExpectations = true,
+  }) {
+    final String? startPath = startDirectory?.path;
+    return Isolate.run(
+      () => load(
+        startDirectory: startPath == null ? null : Directory(startPath),
+        includeExpectations: includeExpectations,
+      ),
+    );
+  }
 
   /// Discovers and loads the studio corpus catalog relative to [startDirectory]
   /// (defaulting to [Directory.current]).
@@ -536,12 +634,11 @@ final class StudioCorpusLoader {
     try {
       final List<String> lines = file.readAsLinesSync();
       final Map<String, String> headers = <String, String>{};
-      final RegExp headerPattern = RegExp(r'^%\s*([a-zA-Z0-9_]+)\s*:\s*(.*)$');
 
       int bodyStart = 0;
       for (int i = 0; i < lines.length; i++) {
         final String line = lines[i];
-        final RegExpMatch? match = headerPattern.firstMatch(line);
+        final RegExpMatch? match = _headerPattern.firstMatch(line);
         if (match != null) {
           headers[match.group(1)!.trim().toLowerCase()] = match
               .group(2)!
@@ -565,7 +662,7 @@ final class StudioCorpusLoader {
           ? headers['id']!
           : relativePath
                 .replaceFirst('corpus/', '')
-                .replaceFirst(RegExp(r'\.tex$'), '');
+                .replaceFirst(_texExtensionPattern, '');
       final String rawTier = headers['tier'] ?? '';
       final String tier = _canonicalizeTier(rawTier, relativePath);
       final String package = headers['package']?.isNotEmpty == true
@@ -589,8 +686,10 @@ final class StudioCorpusLoader {
                 .toList();
 
       final Map<String, Object?>? expectation = expectationsById[id];
-      final String? expectationStatus =
-          expectation?['texMathStatus'] as String?;
+      final Object? rawExpectationStatus = expectation?['texMathStatus'];
+      final String? expectationStatus = rawExpectationStatus is String
+          ? rawExpectationStatus
+          : null;
       final Object? rawBox = expectation?['box'];
       double? boxW;
       double? boxH;

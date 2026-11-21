@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math' show Random;
 import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
@@ -30,13 +31,13 @@ enum StudioEngineKind {
 @immutable
 final class StudioWebRenderRequest {
   /// Creates an immutable web render request.
-  const StudioWebRenderRequest({
+  StudioWebRenderRequest({
     required this.source,
     required this.displayMode,
     required this.isDarkTheme,
     this.fontSize = 22.0,
-    this.packages,
-  });
+    List<String>? packages,
+  }) : packages = packages == null ? null : List<String>.unmodifiable(packages);
 
   /// TeX expression source string.
   final String source;
@@ -50,7 +51,7 @@ final class StudioWebRenderRequest {
   /// Base CSS font size in logical pixels.
   final double fontSize;
 
-  /// Optional MathJax package list from corpus metadata.
+  /// Optional unmodifiable MathJax package list from corpus metadata.
   final List<String>? packages;
 
   @override
@@ -147,6 +148,35 @@ final class StudioWebRenderTelemetry {
       statusSummary: statusSummary ?? this.statusSummary,
     );
   }
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is StudioWebRenderTelemetry &&
+          engineKind == other.engineKind &&
+          isReady == other.isReady &&
+          isRendering == other.isRendering &&
+          errorMessage == other.errorMessage &&
+          svgXml == other.svgXml &&
+          widthPx == other.widthPx &&
+          heightPx == other.heightPx &&
+          renderTimeMs == other.renderTimeMs &&
+          assetsAvailable == other.assetsAvailable &&
+          statusSummary == other.statusSummary;
+
+  @override
+  int get hashCode => Object.hash(
+    engineKind,
+    isReady,
+    isRendering,
+    errorMessage,
+    svgXml,
+    widthPx,
+    heightPx,
+    renderTimeMs,
+    assetsAvailable,
+    statusSummary,
+  );
 }
 
 /// Raw RGBA pixel capture of a rendered pane used by pixel and curtain diffs.
@@ -156,13 +186,14 @@ final class StudioCapturedImage {
   StudioCapturedImage({
     required this.width,
     required this.height,
-    required this.rgbaBytes,
+    required Uint8List rgbaBytes,
   }) : assert(width >= 0, 'width must be non-negative'),
        assert(height >= 0, 'height must be non-negative'),
        assert(
          rgbaBytes.length == width * height * 4,
          'rgbaBytes length must equal width * height * 4',
-       );
+       ),
+       rgbaBytes = rgbaBytes.asUnmodifiableView();
 
   /// Image width in pixels.
   final int width;
@@ -170,8 +201,43 @@ final class StudioCapturedImage {
   /// Image height in pixels.
   final int height;
 
-  /// Packed RGBA8888 pixel buffer (`width * height * 4` bytes).
+  /// Unmodifiable packed RGBA8888 pixel buffer (`width * height * 4` bytes).
   final Uint8List rgbaBytes;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is StudioCapturedImage &&
+          width == other.width &&
+          height == other.height &&
+          (identical(rgbaBytes, other.rgbaBytes) ||
+              _uint8ListEquals(rgbaBytes, other.rgbaBytes));
+
+  @override
+  int get hashCode {
+    int hash = Object.hash(width, height, rgbaBytes.length);
+    if (rgbaBytes.isEmpty) {
+      return hash;
+    }
+    final int len = rgbaBytes.length;
+    final int step = len <= 64 ? 1 : len ~/ 64;
+    for (int i = 0; i < len; i += step) {
+      hash = Object.hash(hash, rgbaBytes[i]);
+    }
+    return Object.hash(hash, rgbaBytes[len - 1]);
+  }
+}
+
+bool _uint8ListEquals(Uint8List a, Uint8List b) {
+  if (a.length != b.length) {
+    return false;
+  }
+  for (int i = 0; i < a.length; i++) {
+    if (a[i] != b[i]) {
+      return false;
+    }
+  }
+  return true;
 }
 
 /// Resolved filesystem handles for MathJax `4.1.3` and KaTeX `0.19.1` bundles
@@ -224,6 +290,31 @@ final class StudioOracleAssets {
       katexCssFile != null &&
       katexJsFile!.existsSync() &&
       katexCssFile!.existsSync();
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is StudioOracleAssets &&
+          nodeModulesDir.path == other.nodeModulesDir.path &&
+          mathJaxBundleFile?.path == other.mathJaxBundleFile?.path &&
+          mathJaxDir?.path == other.mathJaxDir?.path &&
+          mathJaxNewcmDynamicDir?.path == other.mathJaxNewcmDynamicDir?.path &&
+          katexDistDir?.path == other.katexDistDir?.path &&
+          katexJsFile?.path == other.katexJsFile?.path &&
+          katexCssFile?.path == other.katexCssFile?.path &&
+          katexMhchemJsFile?.path == other.katexMhchemJsFile?.path;
+
+  @override
+  int get hashCode => Object.hash(
+    nodeModulesDir.path,
+    mathJaxBundleFile?.path,
+    mathJaxDir?.path,
+    mathJaxNewcmDynamicDir?.path,
+    katexDistDir?.path,
+    katexJsFile?.path,
+    katexCssFile?.path,
+    katexMhchemJsFile?.path,
+  );
 }
 
 /// Locates third-party JS/font assets under `tool/oracle/node_modules/` relative
@@ -285,6 +376,12 @@ final class StudioOracleAssetLocator {
 final class StudioWebHarnessBuilder {
   const StudioWebHarnessBuilder._();
 
+  /// Restrictive Content-Security-Policy enforced on local harness HTML pages.
+  static const String harnessContentSecurityPolicy =
+      "default-src 'self'; script-src 'self' 'unsafe-inline'; "
+      "style-src 'self' 'unsafe-inline'; font-src 'self'; "
+      "img-src 'self' data: blob:; connect-src 'none'; frame-ancestors 'none'";
+
   /// Default JupyterLab active MathJax TeX packages excluding `noerrors` and
   /// `noundefined`.
   static const List<String> defaultMathJaxPackages = <String>[
@@ -319,9 +416,59 @@ final class StudioWebHarnessBuilder {
     'require',
   ];
 
+  /// Allowlisted safe MathJax TeX extension package names accepted in
+  /// `studioRender` requests (explicitly excluding `texhtml` and arbitrary
+  /// loader paths).
+  static final Set<String> allowedMathJaxPackages = Set<String>.unmodifiable(
+    <String>{
+      ...defaultMathJaxPackages,
+      'autoload',
+      'bbm',
+      'bboldx',
+      'begingroup',
+      'colorv2',
+      'dsfont',
+      'fontsizev3',
+      'noerrors',
+      'noundefined',
+      'physics',
+      'setoptions',
+      'units',
+    },
+  );
+
+  /// Filters [packages] against [allowedMathJaxPackages], falling back to
+  /// [defaultMathJaxPackages] when empty.
+  static List<String> sanitizePackages(Iterable<String> packages) {
+    final List<String> filtered = <String>[];
+    final Set<String> seen = <String>{};
+    for (final String pkg in packages) {
+      if (allowedMathJaxPackages.contains(pkg) && seen.add(pkg)) {
+        filtered.add(pkg);
+      }
+    }
+    return filtered.isEmpty ? defaultMathJaxPackages : filtered;
+  }
+
   /// Generates the MathJax `4.1.3` SVG HTML harness page.
-  static String buildMathJaxHtml({required String origin}) {
+  ///
+  /// When [sessionToken] is supplied, all script and asset requests are scoped
+  /// under `<origin>/s/<sessionToken>/...`.
+  static String buildMathJaxHtml({
+    required String origin,
+    String? sessionToken,
+  }) {
+    final String baseUrl = sessionToken != null && sessionToken.isNotEmpty
+        ? '$origin/s/$sessionToken'
+        : origin;
     final String defaultPackagesJson = jsonEncode(defaultMathJaxPackages);
+    final String allowedPackagesJson = jsonEncode(
+      allowedMathJaxPackages.toList()..sort(),
+    );
+    final String mathjaxPathJson = jsonEncode('$baseUrl/mathjax');
+    final String fontsPathJson = jsonEncode('$baseUrl/fonts');
+    // MathJax 4 provides the safe-mode extension at `ui/safe` (`mathjax/ui/safe.js`)
+    // rather than `[tex]/safe`.
     return '''<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -363,9 +510,11 @@ final class StudioWebHarnessBuilder {
 <script>
 window.__mjReady = false;
 window.__pendingRender = null;
+window.__latestRenderSeq = 0;
 window.__currentFg = '#111827';
 window.__currentBg = '#ffffff';
 window.__defaultPackages = $defaultPackagesJson;
+window.__allowedPackages = new Set($allowedPackagesJson);
 
 function postBridge(payload) {
   if (window.StudioBridge && typeof window.StudioBridge.postMessage === 'function') {
@@ -376,10 +525,28 @@ function postBridge(payload) {
 window.MathJax = {
   loader: {
     paths: {
-      mathjax: '$origin/mathjax',
-      tex: '[mathjax]/input/tex/extensions'
+      mathjax: $mathjaxPathJson,
+      tex: '[mathjax]/input/tex/extensions',
+      fonts: $fontsPathJson
     },
-    load: window.__defaultPackages.filter(p => p !== 'base').map(p => '[tex]/' + p)
+    load: ['ui/safe', ...window.__defaultPackages.filter(p => p !== 'base').map(p => '[tex]/' + p)]
+  },
+  options: {
+    safeOptions: {
+      allow: {
+        URLs: 'safe',
+        classes: 'safe',
+        cssIDs: 'safe',
+        styles: 'safe'
+      },
+      safeProtocols: {
+        http: true,
+        https: true,
+        file: false,
+        javascript: false,
+        data: false
+      }
+    }
   },
   tex: {
     packages: window.__defaultPackages.slice(),
@@ -408,8 +575,11 @@ window.studioRender = async function(req) {
     window.__pendingRender = req;
     return;
   }
+  const seq = typeof req.seq === 'number' ? req.seq : null;
+  if (seq !== null) {
+    window.__latestRenderSeq = seq;
+  }
   const t0 = performance.now();
-  const stage = document.getElementById('stage');
   const out = document.getElementById('math-out');
   const errBox = document.getElementById('error-box');
 
@@ -422,8 +592,11 @@ window.studioRender = async function(req) {
   document.documentElement.style.setProperty('--err-bg', req.dark ? 'rgba(220,38,38,0.16)' : '#fef2f2');
   out.style.fontSize = (req.fontSize || 22) + 'px';
 
-  const targetPackages = Array.isArray(req.packages) && req.packages.length > 0
-    ? req.packages
+  const sanitized = Array.isArray(req.packages)
+    ? req.packages.filter(p => typeof p === 'string' && window.__allowedPackages.has(p))
+    : [];
+  const targetPackages = sanitized.length > 0
+    ? sanitized
     : window.__defaultPackages;
 
   try {
@@ -431,6 +604,9 @@ window.studioRender = async function(req) {
       .filter(p => p !== 'base')
       .map(p => '[tex]/' + p);
     await MathJax.loader.load(...toLoad);
+    if (seq !== null && seq !== window.__latestRenderSeq) {
+      return;
+    }
 
     const prevPackages = (MathJax.config.tex && MathJax.config.tex.packages) || [];
     if (JSON.stringify(prevPackages) !== JSON.stringify(targetPackages)) {
@@ -448,6 +624,9 @@ window.studioRender = async function(req) {
       MathJax.texReset();
     }
     const wrapper = await MathJax.tex2svgPromise(req.source || '', { display: !!req.display });
+    if (seq !== null && seq !== window.__latestRenderSeq) {
+      return;
+    }
     const svg = wrapper.querySelector('svg');
     out.innerHTML = '';
     out.appendChild(wrapper);
@@ -458,12 +637,16 @@ window.studioRender = async function(req) {
     const svgXml = svg ? new XMLSerializer().serializeToString(svg) : '';
     postBridge({
       type: 'rendered',
+      seq: seq,
       svgXml: svgXml,
       widthPx: rect.width,
       heightPx: rect.height,
       renderTimeMs: performance.now() - t0
     });
   } catch (err) {
+    if (seq !== null && seq !== window.__latestRenderSeq) {
+      return;
+    }
     out.innerHTML = '';
     out.style.display = 'none';
     const message = err && err.message ? String(err.message) : String(err);
@@ -471,6 +654,7 @@ window.studioRender = async function(req) {
     errBox.style.display = 'block';
     postBridge({
       type: 'error',
+      seq: seq,
       errorMessage: message,
       renderTimeMs: performance.now() - t0
     });
@@ -525,7 +709,7 @@ window.studioCapturePng = function(targetW, targetH) {
   });
 };
 </script>
-<script src="$origin/mathjax/tex-svg.js"></script>
+<script src="$baseUrl/mathjax/tex-svg.js"></script>
 </head>
 <body>
   <div id="stage">
@@ -537,13 +721,19 @@ window.studioCapturePng = function(targetW, targetH) {
   }
 
   /// Generates the KaTeX `0.19.1` HTML harness page.
-  static String buildKatexHtml({required String origin}) {
+  ///
+  /// When [sessionToken] is supplied, all stylesheet and script requests are
+  /// scoped under `<origin>/s/<sessionToken>/...`.
+  static String buildKatexHtml({required String origin, String? sessionToken}) {
+    final String baseUrl = sessionToken != null && sessionToken.isNotEmpty
+        ? '$origin/s/$sessionToken'
+        : origin;
     return '''<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<link rel="stylesheet" href="$origin/katex/katex.min.css">
+<link rel="stylesheet" href="$baseUrl/katex/katex.min.css">
 <style>
   :root { --fg: #111827; --bg: #ffffff; --err-fg: #dc2626; --err-bg: #fef2f2; }
   html, body {
@@ -577,8 +767,8 @@ window.studioCapturePng = function(targetW, targetH) {
     max-width: 100%;
   }
 </style>
-<script src="$origin/katex/katex.min.js"></script>
-<script src="$origin/katex/contrib/mhchem.min.js"></script>
+<script src="$baseUrl/katex/katex.min.js"></script>
+<script src="$baseUrl/katex/contrib/mhchem.min.js"></script>
 <script>
 window.__currentFg = '#111827';
 window.__currentBg = '#ffffff';
@@ -590,6 +780,7 @@ function postBridge(payload) {
 }
 
 window.studioRender = function(req) {
+  const seq = typeof req.seq === 'number' ? req.seq : null;
   const t0 = performance.now();
   const out = document.getElementById('math-out');
   const errBox = document.getElementById('error-box');
@@ -614,6 +805,7 @@ window.studioRender = function(req) {
     const rect = out.getBoundingClientRect();
     postBridge({
       type: 'rendered',
+      seq: seq,
       widthPx: rect.width,
       heightPx: rect.height,
       renderTimeMs: performance.now() - t0
@@ -626,6 +818,7 @@ window.studioRender = function(req) {
     errBox.style.display = 'block';
     postBridge({
       type: 'error',
+      seq: seq,
       errorMessage: message,
       renderTimeMs: performance.now() - t0
     });
@@ -701,34 +894,97 @@ window.addEventListener('load', () => {
 /// CSS, font, and HTML harness files from [assets] on an ephemeral port.
 final class StudioLocalAssetServer {
   /// Creates an asset server backed by [assets].
-  StudioLocalAssetServer(this.assets);
+  StudioLocalAssetServer(this.assets) : _sessionToken = _generateSessionToken();
+
+  static final RegExp _unsafeRawPercentPattern = RegExp(
+    r'%(?:00|2f|5c)',
+    caseSensitive: false,
+  );
 
   /// Resolved MathJax and KaTeX filesystem bundles.
   final StudioOracleAssets assets;
 
+  final String _sessionToken;
   HttpServer? _server;
   int? _port;
+  Future<String>? _startFuture;
+  bool _closed = false;
+
+  static String _generateSessionToken() {
+    final Random rng = Random.secure();
+    final StringBuffer buffer = StringBuffer();
+    for (int i = 0; i < 24; i++) {
+      buffer.write(rng.nextInt(256).toRadixString(16).padLeft(2, '0'));
+    }
+    return buffer.toString();
+  }
+
+  /// Per-instance cryptographically random session token required in `/s/<token>/...`.
+  String get sessionToken => _sessionToken;
 
   /// Bound loopback HTTP origin URL (`http://127.0.0.1:<port>`), or `null`
-  /// before [start] completes.
+  /// before [start] completes or after [close].
   String? get origin => _port == null ? null : 'http://127.0.0.1:$_port';
 
+  /// Tokenized loopback base URL (`http://127.0.0.1:<port>/s/<token>`), or
+  /// `null` before [start] completes or after [close].
+  String? get tokenizedOrigin =>
+      _port == null ? null : 'http://127.0.0.1:$_port/s/$_sessionToken';
+
   /// Whether the loopback server is actively listening.
-  bool get isRunning => _server != null && _port != null;
+  bool get isRunning => !_closed && _server != null && _port != null;
+
+  /// Returns the tokenized harness URI for [engineKind], or `null` when the
+  /// server is not running.
+  Uri? harnessUriFor(StudioEngineKind engineKind) {
+    final String? base = tokenizedOrigin;
+    if (base == null || _closed) {
+      return null;
+    }
+    final String route = engineKind == StudioEngineKind.mathJax
+        ? 'mathjax-harness.html'
+        : 'katex-harness.html';
+    return Uri.parse('$base/$route');
+  }
 
   /// Starts listening on `127.0.0.1` using ephemeral port `0`.
-  Future<String> start() async {
-    if (_server != null && _port != null) {
-      return origin!;
+  ///
+  /// Concurrent calls share the same in-flight bind future without leaking sockets.
+  Future<String> start() {
+    if (_closed) {
+      return Future<String>.error(
+        StateError('StudioLocalAssetServer has been closed.'),
+      );
     }
-    final HttpServer server = await HttpServer.bind(
-      InternetAddress.loopbackIPv4,
-      0,
-    );
-    _server = server;
-    _port = server.port;
-    unawaited(_serveRequests(server));
-    return origin!;
+    if (_server != null && _port != null) {
+      return Future<String>.value(origin!);
+    }
+    final Future<String>? existing = _startFuture;
+    if (existing != null) {
+      return existing;
+    }
+    final Future<String> pending = _bindAndStart();
+    _startFuture = pending;
+    return pending;
+  }
+
+  Future<String> _bindAndStart() async {
+    try {
+      final HttpServer server = await HttpServer.bind(
+        InternetAddress.loopbackIPv4,
+        0,
+      );
+      if (_closed) {
+        await server.close(force: true);
+        throw StateError('StudioLocalAssetServer was closed during startup.');
+      }
+      _server = server;
+      _port = server.port;
+      unawaited(_serveRequests(server));
+      return origin!;
+    } finally {
+      _startFuture = null;
+    }
   }
 
   Future<void> _serveRequests(HttpServer server) async {
@@ -746,33 +1002,129 @@ final class StudioLocalAssetServer {
     }
   }
 
+  bool _isAllowedHostHeader(HttpRequest request) {
+    final int? activePort = _port;
+    if (activePort == null) {
+      return false;
+    }
+    final List<String>? hostValues = request.headers[HttpHeaders.hostHeader];
+    if (hostValues == null || hostValues.length != 1) {
+      return false;
+    }
+    final String host = hostValues.first.trim().toLowerCase();
+    return host == '127.0.0.1:$activePort' || host == 'localhost:$activePort';
+  }
+
+  static bool _constantTimeEquals(String a, String b) {
+    if (a.length != b.length) {
+      return false;
+    }
+    int diff = 0;
+    for (int i = 0; i < a.length; i++) {
+      diff |= a.codeUnitAt(i) ^ b.codeUnitAt(i);
+    }
+    return diff == 0;
+  }
+
   Future<void> _handleRequest(HttpRequest request) async {
-    final String path = request.uri.path;
+    if (!_isAllowedHostHeader(request)) {
+      request.response
+        ..statusCode = HttpStatus.forbidden
+        ..headers.set('X-Content-Type-Options', 'nosniff');
+      await request.response.close();
+      return;
+    }
+
+    final String method = request.method.toUpperCase();
+    if (method != 'GET' && method != 'HEAD') {
+      request.response
+        ..statusCode = HttpStatus.methodNotAllowed
+        ..headers.set('X-Content-Type-Options', 'nosniff');
+      await request.response.close();
+      return;
+    }
+
+    final String rawPath = request.uri.path;
+    if (!rawPath.startsWith('/s/')) {
+      request.response
+        ..statusCode = HttpStatus.forbidden
+        ..headers.set('X-Content-Type-Options', 'nosniff');
+      await request.response.close();
+      return;
+    }
+
+    final int nextSlash = rawPath.indexOf('/', 3);
+    if (nextSlash < 0) {
+      request.response
+        ..statusCode = HttpStatus.forbidden
+        ..headers.set('X-Content-Type-Options', 'nosniff');
+      await request.response.close();
+      return;
+    }
+
+    final String providedToken = rawPath.substring(3, nextSlash);
+    if (!_constantTimeEquals(providedToken, _sessionToken)) {
+      request.response
+        ..statusCode = HttpStatus.forbidden
+        ..headers.set('X-Content-Type-Options', 'nosniff');
+      await request.response.close();
+      return;
+    }
+
+    final String assetPath = rawPath.substring(nextSlash);
     final String activeOrigin = origin ?? 'http://127.0.0.1';
 
-    if (path == '/mathjax-harness.html') {
+    if (assetPath == '/mathjax-harness.html') {
       request.response
         ..statusCode = HttpStatus.ok
         ..headers.contentType = ContentType.html
         ..headers.set('Cache-Control', 'no-store')
-        ..write(StudioWebHarnessBuilder.buildMathJaxHtml(origin: activeOrigin));
+        ..headers.set('X-Content-Type-Options', 'nosniff')
+        ..headers.set(
+          'Content-Security-Policy',
+          StudioWebHarnessBuilder.harnessContentSecurityPolicy,
+        )
+        ..headers.set('Referrer-Policy', 'no-referrer');
+      if (method == 'GET') {
+        request.response.write(
+          StudioWebHarnessBuilder.buildMathJaxHtml(
+            origin: activeOrigin,
+            sessionToken: _sessionToken,
+          ),
+        );
+      }
       await request.response.close();
       return;
     }
 
-    if (path == '/katex-harness.html') {
+    if (assetPath == '/katex-harness.html') {
       request.response
         ..statusCode = HttpStatus.ok
         ..headers.contentType = ContentType.html
         ..headers.set('Cache-Control', 'no-store')
-        ..write(StudioWebHarnessBuilder.buildKatexHtml(origin: activeOrigin));
+        ..headers.set('X-Content-Type-Options', 'nosniff')
+        ..headers.set(
+          'Content-Security-Policy',
+          StudioWebHarnessBuilder.harnessContentSecurityPolicy,
+        )
+        ..headers.set('Referrer-Policy', 'no-referrer');
+      if (method == 'GET') {
+        request.response.write(
+          StudioWebHarnessBuilder.buildKatexHtml(
+            origin: activeOrigin,
+            sessionToken: _sessionToken,
+          ),
+        );
+      }
       await request.response.close();
       return;
     }
 
-    final File? file = resolveAssetFile(path);
+    final File? file = resolveAssetFile(assetPath);
     if (file == null || !file.existsSync()) {
-      request.response.statusCode = HttpStatus.notFound;
+      request.response
+        ..statusCode = HttpStatus.notFound
+        ..headers.set('X-Content-Type-Options', 'nosniff');
       await request.response.close();
       return;
     }
@@ -780,28 +1132,73 @@ final class StudioLocalAssetServer {
     request.response
       ..statusCode = HttpStatus.ok
       ..headers.contentType = _contentTypeForPath(file.path)
-      ..headers.set('Access-Control-Allow-Origin', '*');
-    await request.response.addStream(file.openRead());
+      ..headers.set('Cache-Control', 'no-store')
+      ..headers.set('X-Content-Type-Options', 'nosniff');
+    if (method == 'GET') {
+      await request.response.addStream(file.openRead());
+    }
     await request.response.close();
   }
 
-  /// Resolves an HTTP request [requestPath] safely inside [assets], rejecting
-  /// path-traversal segments.
+  static bool _hasControlChars(String text) {
+    for (int i = 0; i < text.length; i++) {
+      final int code = text.codeUnitAt(i);
+      if (code < 0x20 || code == 0x7F) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /// Resolves an HTTP asset [requestPath] safely inside [assets], rejecting
+  /// path-traversal, encoded separators, NUL bytes, and escaping symlinks.
   File? resolveAssetFile(String requestPath) {
-    final String rawPath = requestPath.split('?').first.split('#').first;
-    final List<String> rawSegments = rawPath
-        .split('/')
-        .where((String segment) => segment.isNotEmpty)
-        .map(Uri.decodeComponent)
-        .toList();
-    if (rawSegments.isEmpty ||
-        rawSegments.any(
-          (String segment) =>
-              segment == '..' || segment == '.' || segment.contains('\\'),
-        )) {
+    if (requestPath.isEmpty ||
+        requestPath.contains('\x00') ||
+        requestPath.contains('\\') ||
+        _hasControlChars(requestPath) ||
+        _unsafeRawPercentPattern.hasMatch(requestPath)) {
       return null;
     }
-    final List<String> segments = rawSegments;
+
+    final String rawPath = requestPath.split('?').first.split('#').first;
+    if (rawPath.isEmpty ||
+        rawPath.contains('\x00') ||
+        rawPath.contains('\\') ||
+        _unsafeRawPercentPattern.hasMatch(rawPath)) {
+      return null;
+    }
+
+    final List<String> rawParts = rawPath
+        .split('/')
+        .where((String segment) => segment.isNotEmpty)
+        .toList();
+    if (rawParts.isEmpty) {
+      return null;
+    }
+
+    final List<String> segments = <String>[];
+    for (final String rawSegment in rawParts) {
+      if (rawSegment == '.' || rawSegment == '..') {
+        return null;
+      }
+      final String decoded;
+      try {
+        decoded = Uri.decodeComponent(rawSegment);
+      } on ArgumentError {
+        return null;
+      }
+      if (decoded.isEmpty ||
+          decoded == '.' ||
+          decoded == '..' ||
+          decoded.contains('/') ||
+          decoded.contains('\\') ||
+          decoded.contains('\x00') ||
+          _hasControlChars(decoded)) {
+        return null;
+      }
+      segments.add(decoded);
+    }
 
     const List<String> mjDynamicJsPrefix = <String>[
       'mathjax',
@@ -871,18 +1268,38 @@ final class StudioLocalAssetServer {
   }
 
   static File? _safeChildFile(Directory root, List<String> tailSegments) {
-    if (tailSegments.isEmpty) {
+    if (tailSegments.isEmpty || !root.existsSync()) {
+      return null;
+    }
+    final String canonicalRoot;
+    try {
+      canonicalRoot = root.resolveSymbolicLinksSync();
+    } on FileSystemException {
       return null;
     }
     final String sep = Platform.pathSeparator;
     final String candidatePath = '${root.path}$sep${tailSegments.join(sep)}';
-    final File file = File(candidatePath);
-    final String rootNorm = root.absolute.path.replaceAll('\\', '/');
-    final String fileNorm = file.absolute.path.replaceAll('\\', '/');
-    if (!fileNorm.startsWith('$rootNorm/')) {
+    final File candidate = File(candidatePath);
+    if (!candidate.existsSync()) {
       return null;
     }
-    return file;
+    final String canonicalTarget;
+    try {
+      canonicalTarget = candidate.resolveSymbolicLinksSync();
+    } on FileSystemException {
+      return null;
+    }
+    final String rootNorm = canonicalRoot.replaceAll('\\', '/');
+    final String rootPrefix = rootNorm.endsWith('/') ? rootNorm : '$rootNorm/';
+    final String targetNorm = canonicalTarget.replaceAll('\\', '/');
+    if (!targetNorm.startsWith(rootPrefix)) {
+      return null;
+    }
+    if (FileSystemEntity.typeSync(canonicalTarget, followLinks: false) !=
+        FileSystemEntityType.file) {
+      return null;
+    }
+    return File(canonicalTarget);
   }
 
   static ContentType _contentTypeForPath(String path) {
@@ -911,13 +1328,18 @@ final class StudioLocalAssetServer {
     return ContentType.binary;
   }
 
-  /// Shuts down the loopback HTTP server.
+  /// Shuts down the loopback HTTP server and waits for any in-flight bind to clean up.
   Future<void> close() async {
+    _closed = true;
+    final Future<String>? pendingStart = _startFuture;
     final HttpServer? server = _server;
     _server = null;
     _port = null;
     if (server != null) {
       await server.close(force: true);
+    }
+    if (pendingStart != null) {
+      await pendingStart.then<void>((_) {}, onError: (_, _) {});
     }
   }
 }
@@ -956,6 +1378,101 @@ typedef StudioWebPaneControllerFactory = StudioWebPaneController Function(
   StudioLocalAssetServer? server,
 );
 
+/// Abstract driver wrapping [WebViewController] so `WKWebView` lifecycle,
+/// navigation gating, and JS bridge races can be unit-tested without native views.
+@visibleForTesting
+abstract interface class StudioWebViewDriver {
+  /// Configures JavaScript execution mode.
+  Future<void> setJavaScriptMode(JavaScriptMode mode);
+
+  /// Sets the native view background color when supported by the platform.
+  Future<void> setBackgroundColor(Color color);
+
+  /// Registers a JS bridge channel handler.
+  Future<void> addJavaScriptChannel(
+    String name, {
+    required void Function(JavaScriptMessage) onMessageReceived,
+  });
+
+  /// Registers navigation policy and resource error handlers.
+  Future<void> setNavigationCallbacks({
+    required NavigationRequestCallback onNavigationRequest,
+    required WebResourceErrorCallback onWebResourceError,
+  });
+
+  /// Enables or disables WebKit inspector debugging.
+  Future<void> setInspectable(bool inspectable);
+
+  /// Navigates the web view to [uri].
+  Future<void> loadRequest(Uri uri);
+
+  /// Executes [javaScript] inside the active document.
+  Future<void> runJavaScript(String javaScript);
+
+  /// Builds the Flutter widget hosting the platform web view.
+  Widget buildWidget(BuildContext context);
+}
+
+final class _PlatformStudioWebViewDriver implements StudioWebViewDriver {
+  _PlatformStudioWebViewDriver(this.controller);
+
+  final WebViewController controller;
+
+  @override
+  Future<void> setJavaScriptMode(JavaScriptMode mode) {
+    return controller.setJavaScriptMode(mode);
+  }
+
+  @override
+  Future<void> setBackgroundColor(Color color) {
+    return controller.setBackgroundColor(color);
+  }
+
+  @override
+  Future<void> addJavaScriptChannel(
+    String name, {
+    required void Function(JavaScriptMessage) onMessageReceived,
+  }) {
+    return controller.addJavaScriptChannel(
+      name,
+      onMessageReceived: onMessageReceived,
+    );
+  }
+
+  @override
+  Future<void> setNavigationCallbacks({
+    required NavigationRequestCallback onNavigationRequest,
+    required WebResourceErrorCallback onWebResourceError,
+  }) {
+    return controller.setNavigationDelegate(
+      NavigationDelegate(
+        onNavigationRequest: onNavigationRequest,
+        onWebResourceError: onWebResourceError,
+      ),
+    );
+  }
+
+  @override
+  Future<void> setInspectable(bool inspectable) async {
+    if (controller.platform case final WebKitWebViewController wkController) {
+      await wkController.setInspectable(inspectable);
+    }
+  }
+
+  @override
+  Future<void> loadRequest(Uri uri) => controller.loadRequest(uri);
+
+  @override
+  Future<void> runJavaScript(String javaScript) {
+    return controller.runJavaScript(javaScript);
+  }
+
+  @override
+  Widget buildWidget(BuildContext context) {
+    return WebViewWidget(controller: controller);
+  }
+}
+
 /// Production macOS `WKWebView` implementation of [StudioWebPaneController]
 /// powered by `webview_flutter` and `webview_flutter_wkwebview`.
 final class WkWebViewStudioPaneController implements StudioWebPaneController {
@@ -963,6 +1480,7 @@ final class WkWebViewStudioPaneController implements StudioWebPaneController {
   WkWebViewStudioPaneController({
     required this.engineKind,
     required this.assetServer,
+    @visibleForTesting this.driverFactory,
   }) : _telemetry = ValueNotifier<StudioWebRenderTelemetry>(
          StudioWebRenderTelemetry(
            engineKind: engineKind,
@@ -979,11 +1497,17 @@ final class WkWebViewStudioPaneController implements StudioWebPaneController {
   /// Local loopback HTTP server serving MathJax/KaTeX JS and fonts.
   final StudioLocalAssetServer? assetServer;
 
+  /// Optional driver override used by headless unit tests.
+  @visibleForTesting
+  final StudioWebViewDriver Function()? driverFactory;
   final ValueNotifier<StudioWebRenderTelemetry> _telemetry;
   final Map<int, Completer<String?>> _pendingCaptures =
       <int, Completer<String?>>{};
   int _nextCaptureId = 1;
-  WebViewController? _webController;
+  int _nextRenderSeq = 1;
+  int _activeRenderSeq = 0;
+  StudioWebViewDriver? _driver;
+  Uri? _activeHarnessUri;
   StudioWebRenderRequest? _lastRequest;
   bool _disposed = false;
 
@@ -1002,6 +1526,66 @@ final class WkWebViewStudioPaneController implements StudioWebPaneController {
     }
   }
 
+  /// Evaluates whether [request] targets the active loopback harness URL,
+  /// blocking all external, `javascript:`, `data:`, `file:`, and subframe
+  /// navigations.
+  @visibleForTesting
+  static NavigationDecision evaluateNavigationRequest(
+    NavigationRequest request,
+    Uri? expectedHarnessUri,
+  ) {
+    if (!request.isMainFrame || expectedHarnessUri == null) {
+      return NavigationDecision.prevent;
+    }
+    final Uri? target = Uri.tryParse(request.url);
+    if (target == null ||
+        target.scheme != expectedHarnessUri.scheme ||
+        target.host != expectedHarnessUri.host ||
+        target.port != expectedHarnessUri.port ||
+        target.path != expectedHarnessUri.path ||
+        target.userInfo.isNotEmpty ||
+        target.hasQuery) {
+      return NavigationDecision.prevent;
+    }
+    return NavigationDecision.navigate;
+  }
+
+  /// Decodes a `data:image/png;base64,...` payload into packed RGBA8888 pixels.
+  @visibleForTesting
+  static Future<StudioCapturedImage?> decodePngDataUrl(String? dataUrl) async {
+    const String prefix = 'data:image/png;base64,';
+    if (dataUrl == null || !dataUrl.startsWith(prefix)) {
+      return null;
+    }
+    final Uint8List pngBytes = base64Decode(dataUrl.substring(prefix.length));
+    final ui.Codec codec = await ui.instantiateImageCodec(pngBytes);
+    try {
+      final ui.FrameInfo frame = await codec.getNextFrame();
+      final ui.Image image = frame.image;
+      try {
+        final ByteData? rgba = await image.toByteData(
+          format: ui.ImageByteFormat.rawRgba,
+        );
+        if (rgba == null) {
+          return null;
+        }
+        return StudioCapturedImage(
+          width: image.width,
+          height: image.height,
+          rgbaBytes: rgba.buffer.asUint8List(),
+        );
+      } finally {
+        image.dispose();
+      }
+    } finally {
+      codec.dispose();
+    }
+  }
+
+  /// Whether a native or mock driver is currently attached.
+  @visibleForTesting
+  bool get hasAttachedDriver => _driver != null;
+
   @override
   ValueListenable<StudioWebRenderTelemetry> get telemetry => _telemetry;
 
@@ -1011,57 +1595,83 @@ final class WkWebViewStudioPaneController implements StudioWebPaneController {
       return;
     }
     if (!_hasAssets(engineKind, assetServer) ||
-        WebViewPlatform.instance == null) {
+        (driverFactory == null && WebViewPlatform.instance == null)) {
       return;
     }
 
     try {
-      final String origin = await assetServer!.start();
+      await assetServer!.start();
       if (_disposed) {
         return;
       }
 
-      final PlatformWebViewControllerCreationParams params =
-          WebViewPlatform.instance is WebKitWebViewPlatform
-          ? WebKitWebViewControllerCreationParams(
-              allowsInlineMediaPlayback: true,
-            )
-          : const PlatformWebViewControllerCreationParams();
-
-      final WebViewController controller =
-          WebViewController.fromPlatformCreationParams(params);
-      await controller.setJavaScriptMode(JavaScriptMode.unrestricted);
-      if (!Platform.isMacOS) {
-        await controller.setBackgroundColor(Colors.transparent);
+      final Uri? harnessUri = assetServer!.harnessUriFor(engineKind);
+      if (harnessUri == null) {
+        return;
       }
-      await controller.addJavaScriptChannel(
+
+      final StudioWebViewDriver driver;
+      if (driverFactory != null) {
+        driver = driverFactory!();
+      } else {
+        final PlatformWebViewControllerCreationParams params =
+            WebViewPlatform.instance is WebKitWebViewPlatform
+            ? WebKitWebViewControllerCreationParams(
+                allowsInlineMediaPlayback: true,
+              )
+            : const PlatformWebViewControllerCreationParams();
+        driver = _PlatformStudioWebViewDriver(
+          WebViewController.fromPlatformCreationParams(params),
+        );
+      }
+
+      await driver.setJavaScriptMode(JavaScriptMode.unrestricted);
+      if (_disposed) {
+        return;
+      }
+      if (!Platform.isMacOS) {
+        await driver.setBackgroundColor(Colors.transparent);
+        if (_disposed) {
+          return;
+        }
+      }
+      await driver.addJavaScriptChannel(
         'StudioBridge',
         onMessageReceived: _handleBridgeMessage,
       );
-      await controller.setNavigationDelegate(
-        NavigationDelegate(
-          onWebResourceError: (WebResourceError error) {
-            if (_disposed) {
-              return;
-            }
-            _telemetry.value = _telemetry.value.copyWith(
-              isRendering: false,
-              errorMessage: error.description,
-              statusSummary: 'Resource error',
-            );
-          },
-        ),
+      if (_disposed) {
+        return;
+      }
+      _activeHarnessUri = harnessUri;
+      await driver.setNavigationCallbacks(
+        onNavigationRequest: (NavigationRequest request) {
+          if (_disposed) {
+            return NavigationDecision.prevent;
+          }
+          return evaluateNavigationRequest(request, _activeHarnessUri);
+        },
+        onWebResourceError: (WebResourceError error) {
+          if (_disposed) {
+            return;
+          }
+          _telemetry.value = _telemetry.value.copyWith(
+            isRendering: false,
+            errorMessage: error.description,
+            statusSummary: 'Resource error',
+          );
+        },
       );
-
-      if (controller.platform case final WebKitWebViewController wkController) {
-        await wkController.setInspectable(kDebugMode);
+      if (_disposed) {
+        return;
       }
 
-      _webController = controller;
-      final String route = engineKind == StudioEngineKind.mathJax
-          ? '/mathjax-harness.html'
-          : '/katex-harness.html';
-      await controller.loadRequest(Uri.parse('$origin$route'));
+      await driver.setInspectable(kDebugMode);
+      if (_disposed) {
+        return;
+      }
+
+      _driver = driver;
+      await driver.loadRequest(harnessUri);
     } on Object catch (error) {
       if (_disposed) {
         return;
@@ -1075,48 +1685,66 @@ final class WkWebViewStudioPaneController implements StudioWebPaneController {
   }
 
   void _handleBridgeMessage(JavaScriptMessage message) {
+    handleBridgePayload(message.message);
+  }
+
+  /// Processes a raw JSON payload received from `StudioBridge`.
+  @visibleForTesting
+  void handleBridgePayload(String rawMessage) {
     if (_disposed) {
       return;
     }
     try {
-      final Object? decoded = jsonDecode(message.message);
+      final Object? decoded = jsonDecode(rawMessage);
       if (decoded is! Map<String, Object?>) {
         return;
       }
-      final String? type = decoded['type'] as String?;
+      final Object? rawType = decoded['type'];
+      final String? type = rawType is String ? rawType : null;
+      final int? seq = _asIntOrNull(decoded['seq']);
       switch (type) {
         case 'ready':
+          if (_disposed) {
+            return;
+          }
           _telemetry.value = _telemetry.value.copyWith(
             isReady: true,
             statusSummary: 'Ready',
           );
           final StudioWebRenderRequest? pending = _lastRequest;
-          if (pending != null) {
+          if (pending != null && !_disposed) {
             unawaited(render(pending));
           }
         case 'rendered':
+          if (_disposed || _isStaleRenderSequence(seq)) {
+            return;
+          }
           _telemetry.value = _telemetry.value.copyWith(
             isReady: true,
             isRendering: false,
             clearError: true,
-            svgXml: decoded['svgXml'] as String?,
-            widthPx: (decoded['widthPx'] as num?)?.toDouble(),
-            heightPx: (decoded['heightPx'] as num?)?.toDouble(),
-            renderTimeMs: (decoded['renderTimeMs'] as num?)?.toDouble(),
+            svgXml: _asStringOrNull(decoded['svgXml']),
+            widthPx: _asFiniteDoubleOrNull(decoded['widthPx']),
+            heightPx: _asFiniteDoubleOrNull(decoded['heightPx']),
+            renderTimeMs: _asFiniteDoubleOrNull(decoded['renderTimeMs']),
             statusSummary: 'Rendered',
           );
         case 'error':
+          if (_disposed || _isStaleRenderSequence(seq)) {
+            return;
+          }
           _telemetry.value = _telemetry.value.copyWith(
             isReady: true,
             isRendering: false,
             clearSvg: true,
-            errorMessage: decoded['errorMessage'] as String? ?? 'Render error',
-            renderTimeMs: (decoded['renderTimeMs'] as num?)?.toDouble(),
+            errorMessage:
+                _asStringOrNull(decoded['errorMessage']) ?? 'Render error',
+            renderTimeMs: _asFiniteDoubleOrNull(decoded['renderTimeMs']),
             statusSummary: 'Error',
           );
         case 'capture':
-          final int? requestId = (decoded['requestId'] as num?)?.toInt();
-          final String? dataUrl = decoded['dataUrl'] as String?;
+          final int? requestId = _asIntOrNull(decoded['requestId']);
+          final String? dataUrl = _asStringOrNull(decoded['dataUrl']);
           if (requestId != null) {
             final Completer<String?>? completer = _pendingCaptures.remove(
               requestId,
@@ -1131,31 +1759,77 @@ final class WkWebViewStudioPaneController implements StudioWebPaneController {
     }
   }
 
+  bool _isStaleRenderSequence(int? seq) {
+    if (_activeRenderSeq == 0) {
+      return false;
+    }
+    return seq != null && seq != _activeRenderSeq;
+  }
+
+  static String? _asStringOrNull(Object? value) =>
+      value is String ? value : null;
+
+  static int? _asIntOrNull(Object? value) {
+    if (value is int) {
+      return value;
+    }
+    if (value is num && value.isFinite) {
+      return value.toInt();
+    }
+    return null;
+  }
+
+  static double? _asFiniteDoubleOrNull(Object? value) {
+    if (value is num) {
+      final double d = value.toDouble();
+      return d.isFinite ? d : null;
+    }
+    return null;
+  }
+
   @override
   Future<void> render(StudioWebRenderRequest request) async {
     _lastRequest = request;
     if (_disposed) {
       return;
     }
-    final WebViewController? controller = _webController;
-    if (controller == null || !_telemetry.value.isReady) {
+    final StudioWebViewDriver? driver = _driver;
+    if (driver == null || !_telemetry.value.isReady) {
       return;
     }
 
+    final int seq = _nextRenderSeq++;
+    _activeRenderSeq = seq;
     _telemetry.value = _telemetry.value.copyWith(
       isRendering: true,
       statusSummary: 'Rendering…',
     );
+    final List<String>? safePackages = request.packages == null
+        ? null
+        : StudioWebHarnessBuilder.sanitizePackages(request.packages!);
     final String payload = jsonEncode(<String, Object?>{
+      'seq': seq,
       'source': request.source,
       'display': request.displayMode == TexMathDisplayMode.display,
       'dark': request.isDarkTheme,
       'fontSize': request.fontSize,
-      'packages': request.packages,
+      'packages': safePackages,
     });
-    await controller.runJavaScript(
-      'window.studioRender && window.studioRender($payload);',
-    );
+    try {
+      await driver.runJavaScript(
+        'window.studioRender && window.studioRender($payload);',
+      );
+    } on Object catch (error) {
+      if (_disposed || seq != _activeRenderSeq) {
+        return;
+      }
+      _telemetry.value = _telemetry.value.copyWith(
+        isRendering: false,
+        clearSvg: true,
+        errorMessage: error.toString(),
+        statusSummary: 'JS error',
+      );
+    }
   }
 
   @override
@@ -1166,15 +1840,15 @@ final class WkWebViewStudioPaneController implements StudioWebPaneController {
     if (_disposed) {
       return null;
     }
-    final WebViewController? controller = _webController;
-    if (controller == null || !_telemetry.value.isReady) {
+    final StudioWebViewDriver? driver = _driver;
+    if (driver == null || !_telemetry.value.isReady) {
       return null;
     }
     final int requestId = _nextCaptureId++;
     final Completer<String?> completer = Completer<String?>();
     _pendingCaptures[requestId] = completer;
     try {
-      await controller.runJavaScript(
+      await driver.runJavaScript(
         'window.studioRequestCapture && '
         'window.studioRequestCapture($requestId, $targetWidth, $targetHeight);',
       );
@@ -1185,33 +1859,10 @@ final class WkWebViewStudioPaneController implements StudioWebPaneController {
           return null;
         },
       );
-      const String prefix = 'data:image/png;base64,';
-      if (dataUrl == null || !dataUrl.startsWith(prefix)) {
+      if (_disposed) {
         return null;
       }
-      final Uint8List pngBytes = base64Decode(dataUrl.substring(prefix.length));
-      final ui.Codec codec = await ui.instantiateImageCodec(pngBytes);
-      try {
-        final ui.FrameInfo frame = await codec.getNextFrame();
-        final ui.Image image = frame.image;
-        try {
-          final ByteData? rgba = await image.toByteData(
-            format: ui.ImageByteFormat.rawRgba,
-          );
-          if (rgba == null) {
-            return null;
-          }
-          return StudioCapturedImage(
-            width: image.width,
-            height: image.height,
-            rgbaBytes: rgba.buffer.asUint8List(),
-          );
-        } finally {
-          image.dispose();
-        }
-      } finally {
-        codec.dispose();
-      }
+      return await decodePngDataUrl(dataUrl);
     } on Object {
       _pendingCaptures.remove(requestId);
       return null;
@@ -1220,11 +1871,11 @@ final class WkWebViewStudioPaneController implements StudioWebPaneController {
 
   @override
   Widget buildView(BuildContext context) {
-    final WebViewController? controller = _webController;
-    if (controller == null) {
+    final StudioWebViewDriver? driver = _driver;
+    if (driver == null) {
       return _buildFallbackStatus(context);
     }
-    return WebViewWidget(controller: controller);
+    return driver.buildWidget(context);
   }
 
   Widget _buildFallbackStatus(BuildContext context) {
@@ -1248,13 +1899,14 @@ final class WkWebViewStudioPaneController implements StudioWebPaneController {
   @override
   Future<void> dispose() async {
     _disposed = true;
+    _activeHarnessUri = null;
+    _driver = null;
     for (final Completer<String?> completer in _pendingCaptures.values) {
       if (!completer.isCompleted) {
         completer.complete(null);
       }
     }
     _pendingCaptures.clear();
-    _webController = null;
     _telemetry.dispose();
   }
 }

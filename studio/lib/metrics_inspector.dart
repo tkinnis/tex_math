@@ -1,10 +1,17 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart' show mapEquals;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:tex_math/tex_math.dart';
 
 import 'corpus_loader.dart';
+
+final class _LazyInspectionExports {
+  String? svgXml;
+  String? mathMl;
+  String? spokenText;
+}
 
 /// Typed inspection outcome produced by [inspectTexExpression].
 @immutable
@@ -13,39 +20,104 @@ sealed class StudioInspectionResult {
   const StudioInspectionResult();
 }
 
-/// Inspection state while `NewCMMath-Regular.otf` is still decoding.
+/// Inspection state while `NewCMMath-Regular.otf` is still decoding or
+/// failed to load.
 @immutable
 final class StudioInspectionPending extends StudioInspectionResult {
-  /// Creates a pending inspection state with optional partial exports.
-  const StudioInspectionPending({this.mathMl, this.spokenText});
+  /// Creates a pending inspection state with optional pre-parsed [syntaxTree]
+  /// or [fontLoadError].
+  StudioInspectionPending({
+    this.syntaxTree,
+    this.fontLoadError,
+    String? mathMl,
+    String? spokenText,
+  }) : _explicitMathMl = mathMl,
+       _explicitSpokenText = spokenText,
+       _exports = _LazyInspectionExports();
 
-  /// Presentation MathML parsed before layout when syntax is valid.
-  final String? mathMl;
+  /// Parsed AST when syntax succeeded prior to font availability.
+  final MathNode? syntaxTree;
 
-  /// Spoken text parsed before layout when syntax is valid.
-  final String? spokenText;
+  /// Error details when bundled font decoding failed.
+  final String? fontLoadError;
+
+  final String? _explicitMathMl;
+  final String? _explicitSpokenText;
+  final _LazyInspectionExports _exports;
+
+  /// Presentation MathML computed lazily from [syntaxTree] when syntax is valid.
+  String? get mathMl {
+    if (_explicitMathMl != null) {
+      return _explicitMathMl;
+    }
+    final MathNode? tree = syntaxTree;
+    if (tree == null) {
+      return null;
+    }
+    return _exports.mathMl ??= mathNodeToMathMl(tree);
+  }
+
+  /// Spoken text computed lazily from [syntaxTree] when syntax is valid.
+  String? get spokenText {
+    if (_explicitSpokenText != null) {
+      return _explicitSpokenText;
+    }
+    final MathNode? tree = syntaxTree;
+    if (tree == null) {
+      return null;
+    }
+    return _exports.spokenText ??= mathNodeToSpokenText(tree);
+  }
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is StudioInspectionPending &&
+          syntaxTree == other.syntaxTree &&
+          fontLoadError == other.fontLoadError &&
+          _explicitMathMl == other._explicitMathMl &&
+          _explicitSpokenText == other._explicitSpokenText;
+
+  @override
+  int get hashCode => Object.hash(
+    syntaxTree,
+    fontLoadError,
+    _explicitMathMl,
+    _explicitSpokenText,
+  );
 }
 
 /// Successful layout and export inspection snapshot for a TeX expression.
 @immutable
 final class StudioInspectionSuccess extends StudioInspectionResult {
-  /// Creates a successful inspection snapshot.
-  const StudioInspectionSuccess({
-    required this.metrics,
+  /// Creates a successful inspection snapshot backed by [renderResult].
+  StudioInspectionSuccess({
+    required this.renderResult,
     required this.glyphCount,
     required this.ruleCount,
     required this.anchorCount,
     required this.breakHintCount,
-    required this.svgXml,
-    required this.mathMl,
-    required this.spokenText,
+    this.svgFontSize = 18.0,
+    Map<TexMathColorRole, String>? svgColors,
     this.oracleWidthEm,
     this.oracleHeightEm,
     this.oracleDepthEm,
-  });
+  }) : svgColors = svgColors == null
+           ? null
+           : Map<TexMathColorRole, String>.unmodifiable(svgColors),
+       _exports = _LazyInspectionExports();
+
+  /// Combined syntax tree and laid-out display result shared with the preview.
+  final RenderResult renderResult;
 
   /// Laid-out bounding box and baseline metrics in ems.
-  final DisplayMetrics metrics;
+  DisplayMetrics get metrics => renderResult.displayList.metrics;
+
+  /// Laid-out display list ready for `TexMath.displayList(...)`.
+  DisplayList get displayList => renderResult.displayList;
+
+  /// Parsed AST preserved for selection and accessibility.
+  MathNode get syntaxTree => renderResult.syntaxTree;
 
   /// Number of emitted [GlyphItem] primitives.
   final int glyphCount;
@@ -59,14 +131,11 @@ final class StudioInspectionSuccess extends StudioInspectionResult {
   /// Number of top-level [DisplayBreakHint] entries.
   final int breakHintCount;
 
-  /// Generated standalone SVG XML string.
-  final String svgXml;
+  /// Font size in logical pixels used for standalone SVG export.
+  final double svgFontSize;
 
-  /// Generated Presentation MathML markup.
-  final String mathMl;
-
-  /// Generated plain spoken text string.
-  final String spokenText;
+  /// Optional theme color overrides for standalone SVG export.
+  final Map<TexMathColorRole, String>? svgColors;
 
   /// Expected MathJax oracle bounding width in ems, when matching a corpus case.
   final double? oracleWidthEm;
@@ -76,6 +145,56 @@ final class StudioInspectionSuccess extends StudioInspectionResult {
 
   /// Expected MathJax oracle bounding descent in ems, when matching a corpus case.
   final double? oracleDepthEm;
+
+  final _LazyInspectionExports _exports;
+
+  /// Generated standalone SVG XML string (computed lazily on first access).
+  String get svgXml => _exports.svgXml ??= renderResult.toSvg(
+    fontSize: svgFontSize,
+    colors: svgColors,
+  );
+
+  /// Generated Presentation MathML markup (computed lazily on first access).
+  String get mathMl => _exports.mathMl ??= renderResult.toMathMl();
+
+  /// Generated plain spoken text string (computed lazily on first access).
+  String get spokenText => _exports.spokenText ??= renderResult.toSpokenText();
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is StudioInspectionSuccess &&
+          renderResult == other.renderResult &&
+          glyphCount == other.glyphCount &&
+          ruleCount == other.ruleCount &&
+          anchorCount == other.anchorCount &&
+          breakHintCount == other.breakHintCount &&
+          svgFontSize == other.svgFontSize &&
+          mapEquals(svgColors, other.svgColors) &&
+          oracleWidthEm == other.oracleWidthEm &&
+          oracleHeightEm == other.oracleHeightEm &&
+          oracleDepthEm == other.oracleDepthEm;
+
+  @override
+  int get hashCode => Object.hash(
+    renderResult,
+    glyphCount,
+    ruleCount,
+    anchorCount,
+    breakHintCount,
+    svgFontSize,
+    svgColors == null
+        ? null
+        : Object.hashAllUnordered(
+            svgColors!.entries.map(
+              (MapEntry<TexMathColorRole, String> e) =>
+                  Object.hash(e.key, e.value),
+            ),
+          ),
+    oracleWidthEm,
+    oracleHeightEm,
+    oracleDepthEm,
+  );
 }
 
 /// Error snapshot when parsing, macro expansion, layout, or export throws a
@@ -83,25 +202,66 @@ final class StudioInspectionSuccess extends StudioInspectionResult {
 @immutable
 final class StudioInspectionFailure extends StudioInspectionResult {
   /// Creates an inspection failure state.
-  const StudioInspectionFailure({
+  StudioInspectionFailure({
     required this.error,
-    this.mathMl,
-    this.spokenText,
-  });
+    this.syntaxTree,
+    String? mathMl,
+    String? spokenText,
+  }) : _explicitMathMl = mathMl,
+       _explicitSpokenText = spokenText,
+       _exports = _LazyInspectionExports();
 
   /// Structured TeX math error thrown by the pure-Dart engine.
   final TexMathError error;
 
-  /// Optional Presentation MathML if parsing succeeded before failure.
-  final String? mathMl;
+  /// Optional parsed AST if parsing succeeded before layout failure.
+  final MathNode? syntaxTree;
 
-  /// Optional spoken text if parsing succeeded before failure.
-  final String? spokenText;
+  final String? _explicitMathMl;
+  final String? _explicitSpokenText;
+  final _LazyInspectionExports _exports;
+
+  /// Optional Presentation MathML computed lazily when [syntaxTree] exists.
+  String? get mathMl {
+    if (_explicitMathMl != null) {
+      return _explicitMathMl;
+    }
+    final MathNode? tree = syntaxTree;
+    if (tree == null) {
+      return null;
+    }
+    return _exports.mathMl ??= mathNodeToMathMl(tree);
+  }
+
+  /// Optional spoken text computed lazily when [syntaxTree] exists.
+  String? get spokenText {
+    if (_explicitSpokenText != null) {
+      return _explicitSpokenText;
+    }
+    final MathNode? tree = syntaxTree;
+    if (tree == null) {
+      return null;
+    }
+    return _exports.spokenText ??= mathNodeToSpokenText(tree);
+  }
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is StudioInspectionFailure &&
+          error == other.error &&
+          syntaxTree == other.syntaxTree &&
+          _explicitMathMl == other._explicitMathMl &&
+          _explicitSpokenText == other._explicitSpokenText;
+
+  @override
+  int get hashCode =>
+      Object.hash(error, syntaxTree, _explicitMathMl, _explicitSpokenText);
 }
 
-/// Evaluates [source] synchronously through [TexMathEngine] to collect
-/// [DisplayMetrics], primitive counts, SVG XML, Presentation MathML, and
-/// spoken text.
+/// Evaluates [source] synchronously through [TexMathEngine] once to collect
+/// [DisplayMetrics], primitive counts, and a shared [RenderResult] whose
+/// SVG XML, Presentation MathML, and spoken text exports are evaluated lazily.
 StudioInspectionResult inspectTexExpression({
   required String source,
   required TexMathDisplayMode displayMode,
@@ -110,6 +270,7 @@ StudioInspectionResult inspectTexExpression({
   StudioCorpusEntry? selectedEntry,
   double svgFontSize = 18.0,
   Map<TexMathColorRole, String>? svgColors,
+  String? fontLoadError,
 }) {
   final TexMathOptions effectiveOptions = options.copyWith(
     displayMode: displayMode,
@@ -119,27 +280,35 @@ StudioInspectionResult inspectTexExpression({
     font: font,
   );
 
+  final MathNode tree;
+  try {
+    tree = engine.parse(source, options: effectiveOptions);
+  } on TexMathError catch (error) {
+    return StudioInspectionFailure(error: error);
+  }
+
   if (font == null) {
-    try {
-      engine.parse(source, options: effectiveOptions);
-      return StudioInspectionPending(
-        mathMl: engine.toMathMl(source, options: effectiveOptions),
-        spokenText: engine.toSpokenText(source, options: effectiveOptions),
-      );
-    } on TexMathError catch (error) {
-      return StudioInspectionFailure(error: error);
-    }
+    return StudioInspectionPending(
+      syntaxTree: tree,
+      fontLoadError: fontLoadError,
+    );
   }
 
   try {
-    final RenderResult result = engine.render(
-      source,
+    final DisplayList displayList = engine.layout(
+      tree,
       options: effectiveOptions,
+      font: font,
+    );
+    final RenderResult result = RenderResult(
+      displayList: displayList,
+      syntaxTree: tree,
+      source: source,
     );
     int glyphCount = 0;
     int ruleCount = 0;
     int anchorCount = 0;
-    for (final DisplayItem item in result.displayList.items) {
+    for (final DisplayItem item in displayList.items) {
       switch (item) {
         case GlyphItem():
           glyphCount++;
@@ -154,14 +323,13 @@ StudioInspectionResult inspectTexExpression({
         selectedEntry != null && selectedEntry.tex == source;
 
     return StudioInspectionSuccess(
-      metrics: result.displayList.metrics,
+      renderResult: result,
       glyphCount: glyphCount,
       ruleCount: ruleCount,
       anchorCount: anchorCount,
-      breakHintCount: result.displayList.breakHints.length,
-      svgXml: result.toSvg(fontSize: svgFontSize, colors: svgColors),
-      mathMl: result.toMathMl(),
-      spokenText: result.toSpokenText(),
+      breakHintCount: displayList.breakHints.length,
+      svgFontSize: svgFontSize,
+      svgColors: svgColors,
       oracleWidthEm: matchesCorpusEntry ? selectedEntry.oracleBoxWidthEm : null,
       oracleHeightEm: matchesCorpusEntry
           ? selectedEntry.oracleBoxHeightEm
@@ -169,25 +337,13 @@ StudioInspectionResult inspectTexExpression({
       oracleDepthEm: matchesCorpusEntry ? selectedEntry.oracleBoxDepthEm : null,
     );
   } on TexMathError catch (error) {
-    String? mathMl;
-    String? spokenText;
-    try {
-      mathMl = engine.toMathMl(source, options: effectiveOptions);
-      spokenText = engine.toSpokenText(source, options: effectiveOptions);
-    } on TexMathError {
-      // Source failed during parsing; omit partial AST exports.
-    }
-    return StudioInspectionFailure(
-      error: error,
-      mathMl: mathMl,
-      spokenText: spokenText,
-    );
+    return StudioInspectionFailure(error: error, syntaxTree: tree);
   }
 }
 
 /// Tabbed diagnostic inspector displaying live `DisplayMetrics`, primitive
-/// counts, SVG XML, Presentation MathML, and spoken text.
-final class StudioMetricsInspector extends StatelessWidget {
+/// counts, and lazily evaluated SVG XML, Presentation MathML, and spoken text.
+final class StudioMetricsInspector extends StatefulWidget {
   /// Creates a metrics and export inspector widget.
   const StudioMetricsInspector({super.key, required this.inspection});
 
@@ -195,54 +351,117 @@ final class StudioMetricsInspector extends StatelessWidget {
   final StudioInspectionResult inspection;
 
   @override
+  State<StudioMetricsInspector> createState() => _StudioMetricsInspectorState();
+}
+
+final class _StudioMetricsInspectorState extends State<StudioMetricsInspector>
+    with SingleTickerProviderStateMixin {
+  late final TabController _tabController;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 4, vsync: this);
+    _tabController.addListener(_onTabChanged);
+  }
+
+  void _onTabChanged() {
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
+  @override
+  void dispose() {
+    _tabController
+      ..removeListener(_onTabChanged)
+      ..dispose();
+    super.dispose();
+  }
+
+  bool _isTabVisible(int tabIndex) {
+    if (_tabController.index == tabIndex) {
+      return true;
+    }
+    final double animValue =
+        _tabController.animation?.value ?? _tabController.index.toDouble();
+    return (animValue - tabIndex).abs() < 0.99;
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return DefaultTabController(
-      length: 4,
-      child: Card(
-        clipBehavior: Clip.antiAlias,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: <Widget>[
-            const TabBar(
-              isScrollable: true,
-              tabs: <Tab>[
-                Tab(text: 'Metrics'),
-                Tab(text: 'SVG'),
-                Tab(text: 'MathML'),
-                Tab(text: 'Spoken'),
+    return Card(
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          TabBar(
+            controller: _tabController,
+            isScrollable: true,
+            tabs: const <Tab>[
+              Tab(text: 'Metrics'),
+              Tab(text: 'SVG'),
+              Tab(text: 'MathML'),
+              Tab(text: 'Spoken'),
+            ],
+          ),
+          Expanded(
+            child: TabBarView(
+              controller: _tabController,
+              children: <Widget>[
+                _buildMetricsTab(context),
+                _LazyExportTab(
+                  active: _isTabVisible(1),
+                  label: 'SVG XML',
+                  computeContent: () => _svgContent(widget.inspection),
+                ),
+                _LazyExportTab(
+                  active: _isTabVisible(2),
+                  label: 'Presentation MathML',
+                  computeContent: () => _mathMlContent(widget.inspection),
+                ),
+                _LazyExportTab(
+                  active: _isTabVisible(3),
+                  label: 'Spoken Text',
+                  computeContent: () => _spokenContent(widget.inspection),
+                ),
               ],
             ),
-            Expanded(
-              child: TabBarView(
-                children: <Widget>[
-                  _buildMetricsTab(context),
-                  _buildExportTab(
-                    context,
-                    label: 'SVG XML',
-                    content: _svgContent(inspection),
-                  ),
-                  _buildExportTab(
-                    context,
-                    label: 'Presentation MathML',
-                    content: _mathMlContent(inspection),
-                  ),
-                  _buildExportTab(
-                    context,
-                    label: 'Spoken Text',
-                    content: _spokenContent(inspection),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
 
   Widget _buildMetricsTab(BuildContext context) {
+    final StudioInspectionResult inspection = widget.inspection;
     switch (inspection) {
-      case StudioInspectionPending():
+      case StudioInspectionPending(:final String? fontLoadError):
+        if (fontLoadError != null) {
+          return SingleChildScrollView(
+            padding: const EdgeInsets.all(12.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(
+                  'Font Load Error',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    color: Theme.of(context).colorScheme.error,
+                  ),
+                ),
+                const SizedBox(height: 4.0),
+                SelectableText(
+                  fontLoadError,
+                  style: const TextStyle(
+                    fontFamily: 'monospace',
+                    fontSize: 12.0,
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
         return const Center(
           child: Padding(
             padding: EdgeInsets.all(12.0),
@@ -322,11 +541,65 @@ final class StudioMetricsInspector extends StatelessWidget {
     }
   }
 
-  Widget _buildExportTab(
-    BuildContext context, {
-    required String label,
-    required String? content,
-  }) {
+  static String? _svgContent(StudioInspectionResult result) {
+    switch (result) {
+      case StudioInspectionSuccess():
+        try {
+          return result.svgXml;
+        } on TexMathError catch (error) {
+          return 'SVG export error (${error.errorClass.name}): ${error.message}';
+        }
+      case StudioInspectionPending():
+      case StudioInspectionFailure():
+        return null;
+    }
+  }
+
+  static String? _mathMlContent(StudioInspectionResult result) {
+    switch (result) {
+      case StudioInspectionSuccess():
+        return result.mathMl;
+      case StudioInspectionPending():
+        return result.mathMl;
+      case StudioInspectionFailure():
+        return result.mathMl;
+    }
+  }
+
+  static String? _spokenContent(StudioInspectionResult result) {
+    switch (result) {
+      case StudioInspectionSuccess():
+        return result.spokenText;
+      case StudioInspectionPending():
+        return result.spokenText;
+      case StudioInspectionFailure():
+        return result.spokenText;
+    }
+  }
+
+  static String _fmtDelta(double delta) {
+    final String sign = delta >= 0 ? '+' : '';
+    return '$sign${delta.toStringAsFixed(3)}';
+  }
+}
+
+final class _LazyExportTab extends StatelessWidget {
+  const _LazyExportTab({
+    required this.active,
+    required this.label,
+    required this.computeContent,
+  });
+
+  final bool active;
+  final String label;
+  final String? Function() computeContent;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!active) {
+      return const SizedBox.shrink();
+    }
+    final String? content = computeContent();
     if (content == null || content.isEmpty) {
       return Center(
         child: Padding(
@@ -364,41 +637,6 @@ final class StudioMetricsInspector extends StatelessWidget {
         ],
       ),
     );
-  }
-
-  static String? _svgContent(StudioInspectionResult result) {
-    switch (result) {
-      case StudioInspectionSuccess(:final String svgXml):
-        return svgXml;
-      case StudioInspectionPending():
-      case StudioInspectionFailure():
-        return null;
-    }
-  }
-
-  static String? _mathMlContent(StudioInspectionResult result) {
-    switch (result) {
-      case StudioInspectionSuccess(:final String mathMl):
-        return mathMl;
-      case StudioInspectionPending(:final String? mathMl):
-      case StudioInspectionFailure(:final String? mathMl):
-        return mathMl;
-    }
-  }
-
-  static String? _spokenContent(StudioInspectionResult result) {
-    switch (result) {
-      case StudioInspectionSuccess(:final String spokenText):
-        return spokenText;
-      case StudioInspectionPending(:final String? spokenText):
-      case StudioInspectionFailure(:final String? spokenText):
-        return spokenText;
-    }
-  }
-
-  static String _fmtDelta(double delta) {
-    final String sign = delta >= 0 ? '+' : '';
-    return '$sign${delta.toStringAsFixed(3)}';
   }
 }
 
