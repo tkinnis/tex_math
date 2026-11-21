@@ -13,6 +13,8 @@ dependencies:
     sdk: flutter
   tex_math: ^0.1.0-dev
   tex_math_flutter: ^0.1.0-dev
+  webview_flutter: ^4.14.1
+  webview_flutter_wkwebview: ^3.27.2
 
 dev_dependencies:
   flutter_test:

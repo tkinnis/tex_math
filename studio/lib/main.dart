@@ -1,35 +1,137 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:tex_math/tex_math.dart';
 import 'package:tex_math_flutter/tex_math_flutter.dart';
+import 'package:webview_flutter/webview_flutter.dart';
 
-/// Entry point for the `tex_math` macOS comparison studio application.
+import 'corpus_loader.dart';
+import 'metrics_inspector.dart';
+import 'visual_diff_view.dart';
+import 'webview_bridge.dart';
+
+/// Entry point for the `tex_math` macOS three-way comparison studio.
 void main() {
   runApp(const TexMathStudioApp());
 }
 
-/// Root widget for the three-way TeX math comparison workbench.
-final class TexMathStudioApp extends StatelessWidget {
+/// Root application widget for the three-way TeX math comparison workbench.
+final class TexMathStudioApp extends StatefulWidget {
   /// Creates the studio workbench application.
-  const TexMathStudioApp({super.key});
+  const TexMathStudioApp({
+    super.key,
+    this.corpusCatalog,
+    this.initialFont,
+    this.webPaneControllerFactory,
+    this.initialSource,
+    this.initialCapturedPair,
+    this.initialDarkTheme = false,
+  });
+
+  /// Optional preloaded corpus catalog overriding runtime disk discovery.
+  final StudioCorpusCatalog? corpusCatalog;
+
+  /// Optional pre-decoded [MathFont] overriding asset bundle decoding.
+  final MathFont? initialFont;
+
+  /// Optional web pane controller factory for headless tests or custom bridges.
+  final StudioWebPaneControllerFactory? webPaneControllerFactory;
+
+  /// Optional initial TeX expression loaded into the source editor.
+  final String? initialSource;
+
+  /// Optional pre-captured RGBA pair used by tests or external harnesses.
+  final StudioCapturedPair? initialCapturedPair;
+
+  /// Initial light/dark theme mode.
+  final bool initialDarkTheme;
+
+  @override
+  State<TexMathStudioApp> createState() => _TexMathStudioAppState();
+}
+
+final class _TexMathStudioAppState extends State<TexMathStudioApp> {
+  late bool _isDarkTheme;
+
+  @override
+  void initState() {
+    super.initState();
+    _isDarkTheme = widget.initialDarkTheme;
+  }
 
   @override
   Widget build(BuildContext context) {
+    final ColorScheme lightScheme = ColorScheme.fromSeed(
+      seedColor: const Color(0xFF0F766E),
+      brightness: Brightness.light,
+    );
+    final ColorScheme darkScheme = ColorScheme.fromSeed(
+      seedColor: const Color(0xFF14B8A6),
+      brightness: Brightness.dark,
+    );
+    final ColorScheme activeScheme = _isDarkTheme ? darkScheme : lightScheme;
+
     return MaterialApp(
       title: 'tex_math Studio',
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF0F766E)),
-        useMaterial3: true,
+      themeMode: _isDarkTheme ? ThemeMode.dark : ThemeMode.light,
+      theme: ThemeData(colorScheme: lightScheme, useMaterial3: true),
+      darkTheme: ThemeData(colorScheme: darkScheme, useMaterial3: true),
+      home: TexMathTheme(
+        data: TexMathThemeData.fromColorScheme(activeScheme, fontSize: 22.0),
+        child: StudioWorkbenchPage(
+          isDarkTheme: _isDarkTheme,
+          onToggleTheme: () {
+            setState(() {
+              _isDarkTheme = !_isDarkTheme;
+            });
+          },
+          corpusCatalog: widget.corpusCatalog,
+          initialFont: widget.initialFont,
+          webPaneControllerFactory: widget.webPaneControllerFactory,
+          initialSource: widget.initialSource,
+          initialCapturedPair: widget.initialCapturedPair,
+        ),
       ),
-      home: const StudioWorkbenchPage(),
     );
   }
 }
 
-/// Interactive workbench allowing TeX input editing, display-mode toggling,
-/// and side-by-side comparison across `tex_math`, MathJax, and KaTeX panes.
+/// Interactive workbench providing corpus browsing, live TeX editing, 3-way
+/// rendering (`tex_math`, MathJax `4.1.3`, KaTeX `0.19.1`), pixel/curtain
+/// visual diffing, and metrics/export inspection.
 final class StudioWorkbenchPage extends StatefulWidget {
   /// Creates the studio workbench page.
-  const StudioWorkbenchPage({super.key});
+  const StudioWorkbenchPage({
+    super.key,
+    this.isDarkTheme = false,
+    this.onToggleTheme,
+    this.corpusCatalog,
+    this.initialFont,
+    this.webPaneControllerFactory,
+    this.initialSource,
+    this.initialCapturedPair,
+  });
+
+  /// Whether the active application theme is dark.
+  final bool isDarkTheme;
+
+  /// Callback toggling light vs dark application themes.
+  final VoidCallback? onToggleTheme;
+
+  /// Optional preloaded corpus catalog overriding runtime disk discovery.
+  final StudioCorpusCatalog? corpusCatalog;
+
+  /// Optional pre-decoded [MathFont] overriding bundle loading.
+  final MathFont? initialFont;
+
+  /// Optional factory overriding `WKWebView` comparison pane controllers.
+  final StudioWebPaneControllerFactory? webPaneControllerFactory;
+
+  /// Optional initial TeX source expression.
+  final String? initialSource;
+
+  /// Optional initial captured image pair for visual diff inspection.
+  final StudioCapturedPair? initialCapturedPair;
 
   @override
   State<StudioWorkbenchPage> createState() => _StudioWorkbenchPageState();
@@ -40,33 +142,272 @@ final class _StudioWorkbenchPageState extends State<StudioWorkbenchPage> {
     r'\frac{a + b}{c - d}',
     r'\int_{-\infty}^{\infty} e^{-x^2}\,dx = \sqrt{\pi}',
     r'\begin{pmatrix} 1 & 0 \\ 0 & 1 \end{pmatrix}',
+    r'\ce{CO2 + C -> 2CO}',
+    r'\undefinedcmd',
   ];
 
-  late final TextEditingController _controller;
+  final GlobalKey _texMathBoundaryKey = GlobalKey();
+  late final TextEditingController _sourceController;
+  late final TextEditingController _searchController;
+
+  late final StudioCorpusCatalog _catalog;
+  StudioLocalAssetServer? _assetServer;
+  late final StudioWebPaneController _mathJaxController;
+  late final StudioWebPaneController _katexController;
+
+  MathFont? _mathFont;
   TexMathDisplayMode _displayMode = TexMathDisplayMode.display;
+  StudioComparisonMode _comparisonMode = StudioComparisonMode.sideBySide;
+  StudioDiffTarget _diffTarget = StudioDiffTarget.mathJax;
+
+  String _searchQuery = '';
+  String? _selectedTier;
+  StudioCorpusAcceptanceFilter _acceptanceFilter =
+      StudioCorpusAcceptanceFilter.all;
+  StudioCorpusGrouping _grouping = StudioCorpusGrouping.tier;
+  StudioCorpusEntry? _selectedEntry;
+  bool _showSidebar = true;
+
+  StudioCapturedPair? _capturedPair;
+  bool _isCapturing = false;
 
   @override
   void initState() {
     super.initState();
-    _controller = TextEditingController(text: _presets.first);
+    _catalog = widget.corpusCatalog ?? StudioCorpusLoader.load();
+    final String initialText = widget.initialSource ?? _presets.first;
+    _sourceController = TextEditingController(text: initialText);
+    _searchController = TextEditingController();
+    _capturedPair = widget.initialCapturedPair;
+
+    _mathFont = widget.initialFont ?? TexMathFontBundle.cachedMathFont;
+    if (_mathFont == null) {
+      unawaited(_loadFont());
+    }
+
+    final StudioOracleAssets? oracleAssets =
+        widget.webPaneControllerFactory == null &&
+            WebViewPlatform.instance != null
+        ? StudioOracleAssetLocator.locate()
+        : null;
+    if (oracleAssets != null) {
+      _assetServer = StudioLocalAssetServer(oracleAssets);
+    }
+
+    final StudioWebPaneControllerFactory factory =
+        widget.webPaneControllerFactory ?? _defaultPaneControllerFactory;
+    _mathJaxController = factory(StudioEngineKind.mathJax, _assetServer);
+    _katexController = factory(StudioEngineKind.katex, _assetServer);
+
+    unawaited(_initializeWebPanes());
+  }
+
+  StudioWebPaneController _defaultPaneControllerFactory(
+    StudioEngineKind kind,
+    StudioLocalAssetServer? server,
+  ) {
+    if (WebViewPlatform.instance != null) {
+      return WkWebViewStudioPaneController(
+        engineKind: kind,
+        assetServer: server,
+      );
+    }
+    return HeadlessOraclePaneController(
+      engineKind: kind,
+      assetsAvailable: server != null,
+    );
+  }
+
+  Future<void> _loadFont() async {
+    try {
+      final MathFont loaded = await TexMathFontBundle.loadMathFont();
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _mathFont = loaded;
+      });
+    } on Object {
+      // Fallback gracefully when font asset bundle is unavailable.
+    }
+  }
+
+  Future<void> _initializeWebPanes() async {
+    await Future.wait<void>(<Future<void>>[
+      _mathJaxController.initialize(),
+      _katexController.initialize(),
+    ]);
+    await _dispatchWebRender();
+  }
+
+  @override
+  void didUpdateWidget(StudioWorkbenchPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.isDarkTheme != widget.isDarkTheme) {
+      unawaited(_dispatchWebRender());
+    }
+    if (oldWidget.initialCapturedPair != widget.initialCapturedPair &&
+        widget.initialCapturedPair != null) {
+      _capturedPair = widget.initialCapturedPair;
+    }
   }
 
   @override
   void dispose() {
-    _controller.dispose();
+    _sourceController.dispose();
+    _searchController.dispose();
+    unawaited(_mathJaxController.dispose());
+    unawaited(_katexController.dispose());
+    unawaited(_assetServer?.close() ?? Future<void>.value());
     super.dispose();
+  }
+
+  TexMathOptions get _effectiveOptions {
+    final List<String>? entryPackages =
+        _selectedEntry != null && _selectedEntry!.tex == _sourceController.text
+        ? _selectedEntry!.packages
+        : null;
+    return TexMathOptions(
+      displayMode: _displayMode,
+      packages: entryPackages ?? TexMathOptions.defaultPackages,
+    );
+  }
+
+  Future<void> _dispatchWebRender() async {
+    final StudioWebRenderRequest request = StudioWebRenderRequest(
+      source: _sourceController.text,
+      displayMode: _displayMode,
+      isDarkTheme: widget.isDarkTheme,
+      fontSize: 22.0,
+      packages: _effectiveOptions.packages,
+    );
+    await Future.wait<void>(<Future<void>>[
+      _mathJaxController.render(request),
+      _katexController.render(request),
+    ]);
+  }
+
+  void _updateSource(
+    String nextSource, {
+    StudioCorpusEntry? entry,
+    TexMathDisplayMode? displayMode,
+  }) {
+    setState(() {
+      if (_sourceController.text != nextSource) {
+        _sourceController.text = nextSource;
+      }
+      _selectedEntry = entry;
+      if (displayMode != null) {
+        _displayMode = displayMode;
+      }
+    });
+    unawaited(_dispatchWebRender());
+  }
+
+  Future<void> _captureForDiff() async {
+    if (_isCapturing) {
+      return;
+    }
+    setState(() {
+      _isCapturing = true;
+    });
+    try {
+      final StudioCapturedImage? texMathImg = await captureRepaintBoundaryRgba(
+        _texMathBoundaryKey,
+      );
+      final StudioWebPaneController targetController =
+          _diffTarget == StudioDiffTarget.mathJax
+          ? _mathJaxController
+          : _katexController;
+      final StudioCapturedImage? targetImg = await targetController.captureRgba(
+        targetWidth: texMathImg?.width ?? 480,
+        targetHeight: texMathImg?.height ?? 220,
+      );
+      if (!mounted) {
+        return;
+      }
+      if (texMathImg != null && targetImg != null) {
+        setState(() {
+          _capturedPair = StudioCapturedPair(
+            texMathImage: texMathImg,
+            targetImage: targetImg,
+            target: _diffTarget,
+          );
+        });
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isCapturing = false;
+        });
+      }
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final String source = _controller.text;
+    final String source = _sourceController.text;
+    final TexMathOptions options = _effectiveOptions;
+    final TexMathEngine engine = TexMathEngine(
+      defaultOptions: options,
+      font: _mathFont,
+    );
+    final ColorScheme scheme = Theme.of(context).colorScheme;
+    final String fgHex = _colorToHex(scheme.onSurface);
+    final String errHex = _colorToHex(scheme.error);
+    final String accentHex = _colorToHex(scheme.primary);
+    final String mutedHex = _colorToHex(scheme.onSurfaceVariant);
+
+    final StudioInspectionResult inspection = inspectTexExpression(
+      source: source,
+      displayMode: _displayMode,
+      font: _mathFont,
+      options: options,
+      selectedEntry: _selectedEntry,
+      svgFontSize: 22.0,
+      svgColors: <TexMathColorRole, String>{
+        TexMathColorRole.foreground: fgHex,
+        TexMathColorRole.accent: accentHex,
+        TexMathColorRole.error: errHex,
+        TexMathColorRole.muted: mutedHex,
+      },
+    );
+
+    final Widget texMathPane = Center(
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.all(8.0),
+        child: TexMath(
+          source,
+          displayMode: _displayMode,
+          options: options,
+          engine: engine,
+        ),
+      ),
+    );
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('tex_math Comparison Studio'),
         actions: <Widget>[
+          IconButton(
+            tooltip: _showSidebar
+                ? 'Hide Corpus Sidebar'
+                : 'Show Corpus Sidebar',
+            icon: Icon(_showSidebar ? Icons.menu_open : Icons.menu),
+            onPressed: () {
+              setState(() {
+                _showSidebar = !_showSidebar;
+              });
+            },
+          ),
+          IconButton(
+            tooltip: 'Toggle Light/Dark Theme',
+            icon: Icon(widget.isDarkTheme ? Icons.light_mode : Icons.dark_mode),
+            onPressed: widget.onToggleTheme,
+          ),
           Padding(
-            padding: const EdgeInsets.only(right: 16.0),
+            padding: const EdgeInsets.only(right: 12.0),
             child: SegmentedButton<TexMathDisplayMode>(
               segments: const <ButtonSegment<TexMathDisplayMode>>[
                 ButtonSegment<TexMathDisplayMode>(
@@ -83,130 +424,353 @@ final class _StudioWorkbenchPageState extends State<StudioWorkbenchPage> {
                 setState(() {
                   _displayMode = next.first;
                 });
+                unawaited(_dispatchWebRender());
               },
             ),
           ),
         ],
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: <Widget>[
-            Wrap(
-              spacing: 8.0,
-              runSpacing: 8.0,
-              children: _presets.map((String preset) {
-                return ActionChip(
-                  label: Text(preset),
-                  onPressed: () {
+      body: LayoutBuilder(
+        builder: (BuildContext context, BoxConstraints constraints) {
+          final double sidebarWidth = constraints.maxWidth < 980
+              ? 220.0
+              : 290.0;
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: <Widget>[
+              if (_showSidebar)
+                SizedBox(
+                  width: sidebarWidth,
+                  child: _buildCorpusSidebar(context),
+                ),
+              if (_showSidebar) const VerticalDivider(width: 1.0),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.all(10.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: <Widget>[
+                      _buildToolbarAndPresets(context),
+                      const SizedBox(height: 8.0),
+                      TextField(
+                        controller: _sourceController,
+                        minLines: 1,
+                        maxLines: 2,
+                        decoration: const InputDecoration(
+                          labelText: 'TeX Source',
+                          border: OutlineInputBorder(),
+                          isDense: true,
+                        ),
+                        style: const TextStyle(fontFamily: 'monospace'),
+                        onChanged: (String value) {
+                          _updateSource(value);
+                        },
+                      ),
+                      const SizedBox(height: 8.0),
+                      Expanded(
+                        flex: 3,
+                        child: StudioComparisonView(
+                          mode: _comparisonMode,
+                          diffTarget: _diffTarget,
+                          onDiffTargetChanged: (StudioDiffTarget next) {
+                            setState(() {
+                              _diffTarget = next;
+                            });
+                          },
+                          texMathBoundaryKey: _texMathBoundaryKey,
+                          texMathPane: texMathPane,
+                          mathJaxController: _mathJaxController,
+                          katexController: _katexController,
+                          capturedPair: _capturedPair,
+                          isCapturing: _isCapturing,
+                          onCaptureRequested: () {
+                            unawaited(_captureForDiff());
+                          },
+                        ),
+                      ),
+                      const SizedBox(height: 8.0),
+                      Expanded(
+                        flex: 2,
+                        child: StudioMetricsInspector(inspection: inspection),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildToolbarAndPresets(BuildContext context) {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: <Widget>[
+          SegmentedButton<StudioComparisonMode>(
+            segments: StudioComparisonMode.values
+                .map(
+                  (StudioComparisonMode mode) =>
+                      ButtonSegment<StudioComparisonMode>(
+                        value: mode,
+                        label: Text(mode.label),
+                      ),
+                )
+                .toList(),
+            selected: <StudioComparisonMode>{_comparisonMode},
+            onSelectionChanged: (Set<StudioComparisonMode> next) {
+              final StudioComparisonMode mode = next.first;
+              setState(() {
+                _comparisonMode = mode;
+              });
+              if (mode != StudioComparisonMode.sideBySide &&
+                  _capturedPair == null) {
+                unawaited(_captureForDiff());
+              }
+            },
+          ),
+          const SizedBox(width: 12.0),
+          for (final String preset in _presets) ...<Widget>[
+            ActionChip(
+              label: Text(preset, overflow: TextOverflow.ellipsis),
+              onPressed: () => _updateSource(preset),
+            ),
+            const SizedBox(width: 6.0),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCorpusSidebar(BuildContext context) {
+    final List<StudioCorpusEntry> filtered = _catalog.filter(
+      query: _searchQuery,
+      tier: _selectedTier,
+      acceptance: _acceptanceFilter,
+    );
+    final Map<String, List<StudioCorpusEntry>> grouped = _catalog.groupEntries(
+      filtered,
+      _grouping,
+    );
+    final List<_SidebarRow> rows = <_SidebarRow>[];
+    for (final MapEntry<String, List<StudioCorpusEntry>> group
+        in grouped.entries) {
+      rows.add(_SidebarGroupHeader('${group.key} (${group.value.length})'));
+      for (final StudioCorpusEntry entry in group.value) {
+        rows.add(_SidebarEntryRow(entry));
+      }
+    }
+
+    return Padding(
+      padding: const EdgeInsets.all(8.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          Row(
+            children: <Widget>[
+              Expanded(
+                child: Text(
+                  _catalog.isFromDisk
+                      ? 'Corpus (${filtered.length}/${_catalog.length})'
+                      : 'Presets (${filtered.length})',
+                  style: Theme.of(context).textTheme.titleSmall,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              DropdownButton<StudioCorpusGrouping>(
+                value: _grouping,
+                isDense: true,
+                underline: const SizedBox.shrink(),
+                onChanged: (StudioCorpusGrouping? next) {
+                  if (next == null) {
+                    return;
+                  }
+                  setState(() {
+                    _grouping = next;
+                  });
+                },
+                items: StudioCorpusGrouping.values
+                    .map(
+                      (StudioCorpusGrouping g) =>
+                          DropdownMenuItem<StudioCorpusGrouping>(
+                            value: g,
+                            child: Text(
+                              'By ${g.label}',
+                              style: Theme.of(context).textTheme.labelSmall,
+                            ),
+                          ),
+                    )
+                    .toList(),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6.0),
+          TextField(
+            controller: _searchController,
+            decoration: InputDecoration(
+              hintText: 'Filter corpus…',
+              prefixIcon: const Icon(Icons.search, size: 18.0),
+              suffixIcon: _searchQuery.isEmpty
+                  ? null
+                  : IconButton(
+                      icon: const Icon(Icons.clear, size: 16.0),
+                      onPressed: () {
+                        _searchController.clear();
+                        setState(() {
+                          _searchQuery = '';
+                        });
+                      },
+                    ),
+              isDense: true,
+              border: const OutlineInputBorder(),
+            ),
+            onChanged: (String value) {
+              setState(() {
+                _searchQuery = value;
+              });
+            },
+          ),
+          const SizedBox(height: 6.0),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: <Widget>[
+                DropdownButton<String?>(
+                  value: _selectedTier,
+                  isDense: true,
+                  hint: const Text('All Tiers'),
+                  onChanged: (String? tier) {
                     setState(() {
-                      _controller.text = preset;
+                      _selectedTier = tier;
                     });
                   },
-                );
-              }).toList(),
-            ),
-            const SizedBox(height: 12.0),
-            TextField(
-              controller: _controller,
-              maxLines: 3,
-              decoration: const InputDecoration(
-                labelText: 'TeX Source',
-                border: OutlineInputBorder(),
-              ),
-              style: const TextStyle(fontFamily: 'monospace'),
-              onChanged: (_) => setState(() {}),
-            ),
-            const SizedBox(height: 16.0),
-            Expanded(
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: <Widget>[
-                  Expanded(
-                    child: _ComparisonPane(
-                      title: 'tex_math (Pure Dart)',
-                      child: Center(
-                        child: TexMath(source, displayMode: _displayMode),
+                  items: <DropdownMenuItem<String?>>[
+                    const DropdownMenuItem<String?>(
+                      value: null,
+                      child: Text('All Tiers'),
+                    ),
+                    ..._catalog.availableTiers.map(
+                      (String tier) => DropdownMenuItem<String?>(
+                        value: tier,
+                        child: Text(tier),
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 12.0),
-                  Expanded(
-                    child: _ComparisonPane(
-                      title: 'MathJax 4.1.3 Oracle',
-                      child: _OraclePlaceholder(
-                        engineName: 'MathJax 4.1.3 SVG Oracle',
-                        source: source,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12.0),
-                  Expanded(
-                    child: _ComparisonPane(
-                      title: 'KaTeX 0.19.1 Comparison',
-                      child: _OraclePlaceholder(
-                        engineName: 'KaTeX 0.19.1 Reference',
-                        source: source,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
+                  ],
+                ),
+                const SizedBox(width: 8.0),
+                DropdownButton<StudioCorpusAcceptanceFilter>(
+                  value: _acceptanceFilter,
+                  isDense: true,
+                  onChanged: (StudioCorpusAcceptanceFilter? filter) {
+                    if (filter == null) {
+                      return;
+                    }
+                    setState(() {
+                      _acceptanceFilter = filter;
+                    });
+                  },
+                  items: StudioCorpusAcceptanceFilter.values
+                      .map(
+                        (StudioCorpusAcceptanceFilter f) =>
+                            DropdownMenuItem<StudioCorpusAcceptanceFilter>(
+                              value: f,
+                              child: Text(f.label),
+                            ),
+                      )
+                      .toList(),
+                ),
+              ],
             ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-final class _ComparisonPane extends StatelessWidget {
-  const _ComparisonPane({required this.title, required this.child});
-
-  final String title;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      clipBehavior: Clip.antiAlias,
-      child: Padding(
-        padding: const EdgeInsets.all(12.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            Text(title, style: Theme.of(context).textTheme.titleMedium),
-            const Divider(),
-            Expanded(child: child),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-final class _OraclePlaceholder extends StatelessWidget {
-  const _OraclePlaceholder({required this.engineName, required this.source});
-
-  final String engineName;
-  final String source;
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: <Widget>[
-          Text(engineName, style: Theme.of(context).textTheme.labelLarge),
-          const SizedBox(height: 8.0),
-          Text(
-            source,
-            style: const TextStyle(fontFamily: 'monospace'),
-            textAlign: TextAlign.center,
+          ),
+          const Divider(height: 10.0),
+          Expanded(
+            child: rows.isEmpty
+                ? const Center(child: Text('No matching corpus entries'))
+                : ListView.builder(
+                    itemCount: rows.length,
+                    itemBuilder: (BuildContext context, int index) {
+                      final _SidebarRow row = rows[index];
+                      switch (row) {
+                        case _SidebarGroupHeader(:final String title):
+                          return Padding(
+                            padding: const EdgeInsets.only(
+                              top: 8.0,
+                              bottom: 4.0,
+                              left: 4.0,
+                            ),
+                            child: Text(
+                              title,
+                              style: Theme.of(context).textTheme.labelMedium
+                                  ?.copyWith(fontWeight: FontWeight.w700),
+                            ),
+                          );
+                        case _SidebarEntryRow(:final StudioCorpusEntry entry):
+                          final bool selected = _selectedEntry?.id == entry.id;
+                          return ListTile(
+                            dense: true,
+                            visualDensity: VisualDensity.compact,
+                            selected: selected,
+                            title: Text(
+                              entry.shortName,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            subtitle: Text(
+                              '${entry.package} · '
+                              '${entry.display ? "display" : "inline"} · '
+                              '${entry.expectationStatus ?? entry.acceptanceLabel}',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            trailing: Icon(
+                              entry.accepted
+                                  ? Icons.check_circle_outline
+                                  : Icons.error_outline,
+                              size: 16.0,
+                              color: entry.accepted
+                                  ? Theme.of(context).colorScheme.primary
+                                  : Theme.of(context).colorScheme.error,
+                            ),
+                            onTap: () {
+                              _updateSource(
+                                entry.tex,
+                                entry: entry,
+                                displayMode: entry.display
+                                    ? TexMathDisplayMode.display
+                                    : TexMathDisplayMode.inline,
+                              );
+                            },
+                          );
+                      }
+                    },
+                  ),
           ),
         ],
       ),
     );
   }
+
+  static String _colorToHex(Color color) {
+    final int argb = color.toARGB32();
+    final int rgb = argb & 0x00FFFFFF;
+    return '#${rgb.toRadixString(16).padLeft(6, '0').toUpperCase()}';
+  }
+}
+
+sealed class _SidebarRow {
+  const _SidebarRow();
+}
+
+final class _SidebarGroupHeader extends _SidebarRow {
+  const _SidebarGroupHeader(this.title);
+
+  final String title;
+}
+
+final class _SidebarEntryRow extends _SidebarRow {
+  const _SidebarEntryRow(this.entry);
+
+  final StudioCorpusEntry entry;
 }
