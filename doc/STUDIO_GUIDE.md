@@ -13,8 +13,8 @@ The application entry point in `studio/lib/main.dart` defines `TexMathStudioApp`
 * **Display Mode Selector**: `SegmentedButton<TexMathDisplayMode>` switching between `TexMathDisplayMode.display` (`$$...$$`) and `TexMathDisplayMode.inline` (`$...$`).
 * **Three Side-by-Side Comparison Panes**:
   * **`tex_math (Pure Dart)`**: Renders live via the `TexMath(source, displayMode: _displayMode)` widget from `package:tex_math_flutter`, surfacing structured `TexMathErrorWidget` diagnostics whenever an expression triggers a `TexMathError`.
-  * **`MathJax 4.1.3 Oracle`**: Dedicated comparison pane aligned to `tool/oracle/render.mjs` (`@mathjax/src` `4.1.3` + `@mathjax/mathjax-newcm-font` `4.1.3`), displaying a Phase 1 placeholder until live local oracle bridging lands.
-  * **`KaTeX 0.19.1 Comparison`**: Secondary reference pane tracking KaTeX `0.19.1` layout differences for diagnostic context (KaTeX is a studio comparison reference only, not a parity contract for `tex_math`).
+  * **`MathJax 4.1.3 Oracle`**: Dedicated comparison pane rendering MathJax `4.1.3` (`@mathjax/src` `4.1.3` + `@mathjax/mathjax-newcm-font` `4.1.3`) inside a macOS `WKWebView` (`webview_flutter` / `webview_flutter_wkwebview`) for interactive side-by-side rendering, pixel diffs, and curtain diffs using bundles loaded at build/tool time from `tool/oracle/node_modules/`.
+  * **`KaTeX 0.19.1 Comparison`**: Secondary macOS `WKWebView` reference pane rendering KaTeX `0.19.1` from `tool/oracle/node_modules/` for diagnostic comparison context without committing third-party JavaScript into the repository or adding WebView dependencies to `packages/tex_math` or `packages/tex_math_flutter` (KaTeX is a studio comparison reference only, not a parity contract for `tex_math`).
 
 ---
 

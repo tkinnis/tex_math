@@ -90,7 +90,7 @@ Native Dart AOT measurements for `DisplayList.toSvg()`, `TexMathBudgets` guards,
 
 | Guide | Description |
 | :--- | :--- |
-| **[Architecture & Design](doc/ARCHITECTURE.md)** | Five-stage TeX pipeline, OpenType `MATH` usage, accessibility, safety budgets, and open design questions. |
+| **[Architecture & Design](doc/ARCHITECTURE.md)** | Five-stage TeX pipeline, OpenType `MATH` usage, accessibility, safety budgets, and architectural design decisions. |
 | **[API Manual](doc/API_MANUAL.md)** | Public types across `tex_math` and `tex_math_flutter`. |
 | **[Reference Pins](REFERENCE.md)** | Pinned MathJax `4.1.3`, JupyterLab `@jupyterlab/mathjax-extension`, font versions, and package tiers. |
 | **[Coverage Matrix](doc/COVERAGE.md)** | Generated corpus coverage across Tier 1, Tier 2, Tier 3, stretchy constructs, notebooks, and error cases. |
