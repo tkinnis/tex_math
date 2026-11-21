@@ -328,13 +328,8 @@ MathBox layoutMatrixNode({
   cursorTop -= outerPadY;
   final double totalTableSpan = -cursorTop;
   for (int r = 0; r < rowCount; r++) {
-    rowBgTopDown[r] = r == 0 && _hlineCount(node.rowLines[0]) == 0
-        ? 0.0
-        : hRuleSpanAtBoundary[r].$2;
-    rowBgBottomDown[r] =
-        r + 1 == rowCount && _hlineCount(node.rowLines[rowCount]) == 0
-        ? -totalTableSpan
-        : hRuleSpanAtBoundary[r + 1].$1;
+    rowBgTopDown[r] = hRuleSpanAtBoundary[r].$2;
+    rowBgBottomDown[r] = hRuleSpanAtBoundary[r + 1].$1;
   }
 
   // Vertical anchor alignment (`t`, `b`, or centered on `axisEm`).
@@ -450,20 +445,26 @@ MathBox layoutMatrixNode({
     );
   }
 
-  // Vertical rules (`|`).
-  final double ruleBottomY = shiftY - totalTableSpan;
-  for (final (double vx, _) in verticalRules) {
-    placed.add(
-      VBoxChild(
-        box: RuleBox(
-          widthEm: ruleThicknessEm,
-          heightEm: totalTableSpan,
-          span: node.span,
+  // Vertical rules (`|`), clamped to outer `\hline` / row bounds so corners
+  // stay flush without overshooting into `outerPadY`.
+  if (rowCount > 0 && verticalRules.isNotEmpty) {
+    final double vRuleTopDown = hRuleSpanAtBoundary[0].$1;
+    final double vRuleBottomDown = hRuleSpanAtBoundary[rowCount].$2;
+    final double vRuleHeight = math.max(0.0, vRuleTopDown - vRuleBottomDown);
+    final double ruleBottomY = vRuleBottomDown + shiftY;
+    for (final (double vx, _) in verticalRules) {
+      placed.add(
+        VBoxChild(
+          box: RuleBox(
+            widthEm: ruleThicknessEm,
+            heightEm: vRuleHeight,
+            span: node.span,
+          ),
+          xEm: vx,
+          yEm: ruleBottomY,
         ),
-        xEm: vx,
-        yEm: ruleBottomY,
-      ),
-    );
+      );
+    }
   }
 
   final double finalWidth = tagBoxes.isNotEmpty

@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:meta/meta.dart';
 
 import 'source_span.dart';
@@ -69,6 +71,28 @@ sealed class TexMathError implements Exception {
 
   /// Optional UTF-16 source range where the error occurred.
   final SourceSpan? span;
+
+  /// 1-based UTF-16 character index where the error occurred, or `null` when
+  /// [span] is absent.
+  int? get position => span == null ? null : span!.start + 1;
+
+  /// Human-readable [message] annotated with `(at position <position>)` when
+  /// [span] is present.
+  String get formattedMessage =>
+      span == null ? message : '$message (at position ${span!.start + 1})';
+
+  /// Formats [formattedMessage] alongside [source] and a caret underline
+  /// pointing at [span], or returns [formattedMessage] when [span] is `null`.
+  String formatWithSource(String source) {
+    final SourceSpan? activeSpan = span;
+    if (activeSpan == null) {
+      return formattedMessage;
+    }
+    final int col = activeSpan.start.clamp(0, source.length);
+    final int end = activeSpan.end.clamp(col, source.length);
+    final int caretWidth = math.max(1, end - col);
+    return '$formattedMessage\n$source\n${' ' * col}${'^' * caretWidth}';
+  }
 
   @override
   bool operator ==(Object other) =>

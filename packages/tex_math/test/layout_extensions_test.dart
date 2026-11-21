@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:test/test.dart';
 import 'package:tex_math/tex_math.dart';
@@ -455,6 +456,441 @@ void main() {
 
       expect(acceptedCount, 315);
       expect(errorCount, 37);
+    });
+  });
+
+  group('Color models, colortbl bounds, framed boxes, and corpus geometry', () {
+    test(
+      'renders [RGB], [rgb], [HTML], and [gray] into expected ARGB and SVG',
+      () {
+        final RenderResult rgbUpper = engine.render(
+          r'\textcolor[RGB]{220,20,60}{\alpha}',
+          options: _allOpts(),
+        );
+        final List<GlyphItem> upperGlyphs = rgbUpper.displayList.items
+            .whereType<GlyphItem>()
+            .toList();
+        expect(upperGlyphs, isNotEmpty);
+        for (final GlyphItem g in upperGlyphs) {
+          expect(g.colorRole, TexMathColorRole.custom);
+          expect(g.customColor, 0xFFDC143C);
+        }
+        expect(rgbUpper.toSvg(), contains('fill="#DC143C"'));
+
+        final RenderResult mixedModels = engine.render(
+          r'\textcolor[rgb]{1,0,0.5}{x}'
+          r' + \textcolor[HTML]{1e40af}{y}'
+          r' + \textcolor[gray]{0.5}{z}'
+          r' + \colorbox[RGB]{220,20,60}{w}',
+          options: _allOpts(),
+        );
+        final List<GlyphItem> modelGlyphs = mixedModels.displayList.items
+            .whereType<GlyphItem>()
+            .toList();
+        expect(
+          modelGlyphs.where((GlyphItem g) => g.customColor == 0xFFFF0080),
+          isNotEmpty,
+        );
+        expect(
+          modelGlyphs.where((GlyphItem g) => g.customColor == 0xFF1E40AF),
+          isNotEmpty,
+        );
+        expect(
+          modelGlyphs.where((GlyphItem g) => g.customColor == 0xFF808080),
+          isNotEmpty,
+        );
+        final List<RuleItem> bgRules = mixedModels.displayList.items
+            .whereType<RuleItem>()
+            .where((RuleItem r) => r.customColor == 0xFFDC143C)
+            .toList();
+        expect(bgRules, hasLength(1));
+
+        final String mixedSvg = mixedModels.toSvg();
+        expect(mixedSvg, contains('fill="#FF0080"'));
+        expect(mixedSvg, contains('fill="#1E40AF"'));
+        expect(mixedSvg, contains('fill="#808080"'));
+        expect(mixedSvg, contains('fill="#DC143C"'));
+      },
+    );
+
+    test('keeps colortbl row/cell backgrounds bounded inside grid rules', () {
+      void assertColortblBounded(
+        String tex, {
+        required bool expectTopHline,
+        required bool expectBottomHline,
+      }) {
+        final DisplayList dl = engine
+            .render(tex, options: _allOpts())
+            .displayList;
+        final List<RuleItem> allRules = dl.items.whereType<RuleItem>().toList();
+        final List<RuleItem> bgRects = allRules
+            .where(
+              (RuleItem r) => r.customColor != null && r.strokeWidthEm == null,
+            )
+            .toList();
+        final List<RuleItem> hRules =
+            allRules
+                .where(
+                  (RuleItem r) =>
+                      r.customColor == null &&
+                      r.strokeWidthEm == null &&
+                      r.widthEm > r.heightEm,
+                )
+                .toList()
+              ..sort((RuleItem a, RuleItem b) => b.yEm.compareTo(a.yEm));
+        final List<RuleItem> vRules =
+            allRules
+                .where(
+                  (RuleItem r) =>
+                      r.customColor == null &&
+                      r.strokeWidthEm == null &&
+                      r.heightEm > r.widthEm,
+                )
+                .toList()
+              ..sort((RuleItem a, RuleItem b) => a.xEm.compareTo(b.xEm));
+
+        expect(bgRects, isNotEmpty);
+        expect(vRules, hasLength(3));
+        final double gridMinX = vRules.first.xEm + vRules.first.widthEm;
+        final double gridMaxX = vRules.last.xEm;
+        final double vTopY = vRules.first.yEm + vRules.first.heightEm;
+        final double vBottomY = vRules.first.yEm;
+        final double bgMaxAllowedY = expectTopHline ? hRules.first.yEm : vTopY;
+        final double bgMinAllowedY = expectBottomHline
+            ? hRules.last.yEm + hRules.last.heightEm
+            : vBottomY;
+
+        for (final RuleItem bg in bgRects) {
+          expect(bg.xEm, greaterThanOrEqualTo(gridMinX - 1e-9));
+          expect(bg.xEm + bg.widthEm, lessThanOrEqualTo(gridMaxX + 1e-9));
+          expect(bg.yEm, greaterThanOrEqualTo(bgMinAllowedY - 1e-9));
+          expect(bg.yEm + bg.heightEm, lessThanOrEqualTo(bgMaxAllowedY + 1e-9));
+          expect(bg.yEm, greaterThanOrEqualTo(vBottomY - 1e-9));
+          expect(bg.yEm + bg.heightEm, lessThanOrEqualTo(vTopY + 1e-9));
+        }
+
+        if (!expectTopHline) {
+          final RuleItem topRowBg = bgRects.reduce(
+            (RuleItem a, RuleItem b) =>
+                (a.yEm + a.heightEm) >= (b.yEm + b.heightEm) ? a : b,
+          );
+          expect(topRowBg.yEm + topRowBg.heightEm, closeTo(vTopY, 1e-9));
+        }
+        if (!expectBottomHline) {
+          final RuleItem botRowBg = bgRects.reduce(
+            (RuleItem a, RuleItem b) => a.yEm <= b.yEm ? a : b,
+          );
+          expect(botRowBg.yEm, closeTo(vBottomY, 1e-9));
+        }
+      }
+
+      // Full outer \hline grid.
+      assertColortblBounded(
+        r'\begin{array}{|c|c|} \hline \rowcolor{cyan} a & b \\ \hline c & \cellcolor{yellow} d \\ \hline \end{array}',
+        expectTopHline: true,
+        expectBottomHline: true,
+      );
+      // Outer \hline omitted (row backgrounds must clamp to vertical rules).
+      assertColortblBounded(
+        r'\begin{array}{|c|c|} \rowcolor{cyan} a & b \\ c & \cellcolor{yellow} d \end{array}',
+        expectTopHline: false,
+        expectBottomHline: false,
+      );
+      // Top-only \hline.
+      assertColortblBounded(
+        r'\begin{array}{|c|c|} \hline \rowcolor{cyan} a & b \\ c & \cellcolor{yellow} d \end{array}',
+        expectTopHline: true,
+        expectBottomHline: false,
+      );
+      // Bottom-only \hline.
+      assertColortblBounded(
+        r'\begin{array}{|c|c|} \rowcolor{cyan} a & b \\ c & \cellcolor{yellow} d \\ \hline \end{array}',
+        expectTopHline: false,
+        expectBottomHline: true,
+      );
+    });
+
+    test('verifies framed-box corner geometry for boxed, fcolorbox, bbox, and enclose', () {
+      void assertStrokedFrameMatchesBounds(
+        DisplayList dl, {
+        int? expectedBgColor,
+        int? expectedBorderColor,
+      }) {
+        final List<RuleItem> rules = dl.items.whereType<RuleItem>().toList();
+        final RuleItem border = rules.singleWhere(
+          (RuleItem r) => r.strokeWidthEm != null,
+        );
+        final double halfStroke = border.strokeWidthEm! / 2.0;
+        expect(border.xEm - halfStroke, closeTo(0.0, 1e-9));
+        expect(
+          border.xEm + border.widthEm + halfStroke,
+          closeTo(dl.metrics.widthEm, 1e-9),
+        );
+        expect(border.yEm - halfStroke, closeTo(-dl.metrics.depthEm, 1e-9));
+        expect(
+          border.yEm + border.heightEm + halfStroke,
+          closeTo(dl.metrics.heightEm, 1e-9),
+        );
+        if (expectedBorderColor != null) {
+          expect(border.customColor, expectedBorderColor);
+        }
+        if (expectedBgColor != null) {
+          final RuleItem fill = rules.singleWhere(
+            (RuleItem r) => r.strokeWidthEm == null,
+          );
+          expect(fill.customColor, expectedBgColor);
+          expect(fill.xEm, closeTo(border.xEm, 1e-9));
+          expect(fill.yEm, closeTo(border.yEm, 1e-9));
+          expect(fill.widthEm, closeTo(border.widthEm, 1e-9));
+          expect(fill.heightEm, closeTo(border.heightEm, 1e-9));
+        }
+      }
+
+      assertStrokedFrameMatchesBounds(
+        engine.render(r'\boxed{x+1}', options: _allOpts()).displayList,
+      );
+      assertStrokedFrameMatchesBounds(
+        engine
+            .render(r'\fcolorbox{blue}{yellow}{x+1}', options: _allOpts())
+            .displayList,
+        expectedBgColor: 0xFFFFFF00,
+        expectedBorderColor: 0xFF0000FF,
+      );
+      assertStrokedFrameMatchesBounds(
+        engine
+            .render(
+              r'\bbox[5px,border:2px solid red,yellow]{x+1}',
+              options: _allOpts(),
+            )
+            .displayList,
+        expectedBgColor: 0xFFFFFF00,
+        expectedBorderColor: 0xFFFF0000,
+      );
+
+      final DisplayList encloseDl = engine
+          .render(r'\enclose{top,bottom,left,right}{x+1}', options: _allOpts())
+          .displayList;
+      final List<RuleItem> sideRules = encloseDl.items
+          .whereType<RuleItem>()
+          .toList();
+      expect(sideRules, hasLength(4));
+      final List<RuleItem> hSides =
+          sideRules.where((RuleItem r) => r.widthEm > r.heightEm).toList()
+            ..sort((RuleItem a, RuleItem b) => b.yEm.compareTo(a.yEm));
+      final List<RuleItem> vSides =
+          sideRules.where((RuleItem r) => r.heightEm > r.widthEm).toList()
+            ..sort((RuleItem a, RuleItem b) => a.xEm.compareTo(b.xEm));
+      expect(hSides, hasLength(2));
+      expect(vSides, hasLength(2));
+
+      final RuleItem topSide = hSides.first;
+      final RuleItem botSide = hSides.last;
+      final RuleItem leftSide = vSides.first;
+      final RuleItem rightSide = vSides.last;
+      final double stroke = topSide.heightEm;
+      expect(botSide.heightEm, closeTo(stroke, 1e-9));
+      expect(leftSide.widthEm, closeTo(stroke, 1e-9));
+      expect(rightSide.widthEm, closeTo(stroke, 1e-9));
+
+      expect(topSide.xEm, closeTo(0.0, 1e-9));
+      expect(topSide.widthEm, closeTo(encloseDl.metrics.widthEm, 1e-9));
+      expect(
+        topSide.yEm + topSide.heightEm,
+        closeTo(encloseDl.metrics.heightEm, 1e-9),
+      );
+      expect(botSide.xEm, closeTo(0.0, 1e-9));
+      expect(botSide.widthEm, closeTo(encloseDl.metrics.widthEm, 1e-9));
+      expect(botSide.yEm, closeTo(-encloseDl.metrics.depthEm, 1e-9));
+      expect(leftSide.xEm, closeTo(0.0, 1e-9));
+      expect(leftSide.yEm, closeTo(botSide.yEm, 1e-9));
+      expect(
+        leftSide.yEm + leftSide.heightEm,
+        closeTo(topSide.yEm + topSide.heightEm, 1e-9),
+      );
+      expect(
+        rightSide.xEm + rightSide.widthEm,
+        closeTo(encloseDl.metrics.widthEm, 1e-9),
+      );
+      expect(rightSide.yEm, closeTo(botSide.yEm, 1e-9));
+      expect(
+        rightSide.yEm + rightSide.heightEm,
+        closeTo(topSide.yEm + topSide.heightEm, 1e-9),
+      );
+    });
+
+    test('checks corpus-wide finite geometry and framed array rule bounds when corpus exists', () {
+      Directory? corpusDir;
+      for (final String candidate in <String>['corpus', '../../corpus']) {
+        final Directory dir = Directory(candidate);
+        if (dir.existsSync()) {
+          corpusDir = dir;
+          break;
+        }
+      }
+      if (corpusDir == null) {
+        return;
+      }
+
+      final List<File> texFiles =
+          corpusDir
+              .listSync(recursive: true, followLinks: false)
+              .whereType<File>()
+              .where((File f) => f.path.endsWith('.tex'))
+              .toList()
+            ..sort((File a, File b) => a.path.compareTo(b.path));
+      final RegExp headerPattern = RegExp(r'^%\s*([a-zA-Z0-9_]+)\s*:\s*(.*)$');
+
+      int checkedAccepted = 0;
+      for (final File file in texFiles) {
+        final List<String> lines = file.readAsLinesSync();
+        final Map<String, String> headers = <String, String>{};
+        int bodyStart = 0;
+        for (int i = 0; i < lines.length; i++) {
+          final String line = lines[i];
+          final RegExpMatch? m = headerPattern.firstMatch(line);
+          if (m != null) {
+            headers[m.group(1)!.trim().toLowerCase()] = m.group(2)!.trim();
+            bodyStart = i + 1;
+            continue;
+          }
+          if (line.trim().isEmpty && headers.isNotEmpty) {
+            bodyStart = i + 1;
+            continue;
+          }
+          break;
+        }
+        final bool accepted =
+            (headers['accepted'] ?? 'true').toLowerCase() == 'true';
+        if (!accepted) {
+          continue;
+        }
+        checkedAccepted++;
+
+        final String id = headers['id'] ?? file.path;
+        final String displayRaw = (headers['display'] ?? 'display')
+            .toLowerCase();
+        final bool isDisplay = displayRaw == 'display' || displayRaw == 'true';
+        final String? packagesRaw = headers['packages'];
+        final List<String> packages = packagesRaw == null || packagesRaw.isEmpty
+            ? TexMathOptions.defaultPackages
+            : packagesRaw
+                  .split(',')
+                  .map((String s) => s.trim())
+                  .where((String s) => s.isNotEmpty)
+                  .toList();
+        final String tex = lines.sublist(bodyStart).join('\n').trim();
+
+        final RenderResult result = engine.render(
+          tex,
+          options: TexMathOptions(
+            displayMode: isDisplay
+                ? TexMathDisplayMode.display
+                : TexMathDisplayMode.inline,
+            packages: packages,
+          ),
+        );
+        final DisplayList dl = result.displayList;
+        expect(dl.metrics.widthEm.isFinite, isTrue, reason: id);
+        expect(dl.metrics.heightEm.isFinite, isTrue, reason: id);
+        expect(dl.metrics.depthEm.isFinite, isTrue, reason: id);
+        expect(dl.metrics.baselineEm.isFinite, isTrue, reason: id);
+        expect(dl.metrics.widthEm, greaterThanOrEqualTo(0.0), reason: id);
+        expect(dl.metrics.heightEm, greaterThanOrEqualTo(0.0), reason: id);
+        expect(dl.metrics.depthEm, greaterThanOrEqualTo(0.0), reason: id);
+
+        for (final DisplayItem item in dl.items) {
+          switch (item) {
+            case GlyphItem():
+              expect(item.xEm.isFinite, isTrue, reason: id);
+              expect(item.yEm.isFinite, isTrue, reason: id);
+              expect(item.scaleX.isFinite, isTrue, reason: id);
+              expect(item.scaleY.isFinite, isTrue, reason: id);
+              expect(item.advanceEm.isFinite, isTrue, reason: id);
+              expect(item.scaleX, greaterThanOrEqualTo(0.0), reason: id);
+              expect(item.scaleY, greaterThanOrEqualTo(0.0), reason: id);
+              expect(item.advanceEm, greaterThanOrEqualTo(0.0), reason: id);
+            case RuleItem():
+              expect(item.xEm.isFinite, isTrue, reason: id);
+              expect(item.yEm.isFinite, isTrue, reason: id);
+              expect(item.widthEm.isFinite, isTrue, reason: id);
+              expect(item.heightEm.isFinite, isTrue, reason: id);
+              expect(item.widthEm, greaterThanOrEqualTo(0.0), reason: id);
+              expect(item.heightEm, greaterThanOrEqualTo(0.0), reason: id);
+              if (item.strokeWidthEm != null) {
+                expect(item.strokeWidthEm!.isFinite, isTrue, reason: id);
+                expect(
+                  item.strokeWidthEm!,
+                  greaterThanOrEqualTo(0.0),
+                  reason: id,
+                );
+              }
+            case AnchorItem():
+              expect(item.xEm.isFinite, isTrue, reason: id);
+              expect(item.yEm.isFinite, isTrue, reason: id);
+          }
+        }
+
+        // Framed array grids: vertical rules must never overshoot outer `\hline`s.
+        final MathRootNode root = result.syntaxTree as MathRootNode;
+        if (root.children.length == 1 && root.children.single is MatrixNode) {
+          final MatrixNode matrix = root.children.single as MatrixNode;
+          final bool isArray =
+              matrix.environment == 'array' || matrix.environment == 'darray';
+          final bool hasTopHline = matrix.rowLines[0] != null;
+          final bool hasBottomHline =
+              matrix.rowLines[matrix.rows.length] != null;
+          final bool hasVline = matrix.columnLines.values.any(
+            (String s) => s.contains('|'),
+          );
+          if (isArray && hasVline && (hasTopHline || hasBottomHline)) {
+            final List<RuleItem> gridHRules = dl.items
+                .whereType<RuleItem>()
+                .where(
+                  (RuleItem r) =>
+                      r.customColor == null &&
+                      r.strokeWidthEm == null &&
+                      r.widthEm > r.heightEm &&
+                      (r.widthEm - dl.metrics.widthEm).abs() < 1e-6,
+                )
+                .toList();
+            final List<RuleItem> gridVRules = dl.items
+                .whereType<RuleItem>()
+                .where(
+                  (RuleItem r) =>
+                      r.customColor == null &&
+                      r.strokeWidthEm == null &&
+                      r.heightEm > r.widthEm,
+                )
+                .toList();
+            if (gridHRules.isNotEmpty && gridVRules.isNotEmpty) {
+              final double maxHTop = gridHRules
+                  .map((RuleItem r) => r.yEm + r.heightEm)
+                  .reduce(math.max);
+              final double minHBot = gridHRules
+                  .map((RuleItem r) => r.yEm)
+                  .reduce(math.min);
+              for (final RuleItem v in gridVRules) {
+                if (hasTopHline) {
+                  expect(
+                    v.yEm + v.heightEm,
+                    lessThanOrEqualTo(maxHTop + 1e-9),
+                    reason: '$id vertical rule overshoots top \\hline',
+                  );
+                }
+                if (hasBottomHline) {
+                  expect(
+                    v.yEm,
+                    greaterThanOrEqualTo(minHBot - 1e-9),
+                    reason: '$id vertical rule overshoots bottom \\hline',
+                  );
+                }
+              }
+            }
+          }
+        }
+      }
+
+      expect(checkedAccepted, 315);
     });
   });
 }

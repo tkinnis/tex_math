@@ -86,6 +86,100 @@ void main() {
       ]);
       expect(TexMathErrorClass.values, hasLength(16));
     });
+
+    test('reports 1-based position, formattedMessage, and source carets', () {
+      const String doublePrimeSource = "x^2'";
+      late TexMathSyntaxError doublePrimeErr;
+      try {
+        parseTex(doublePrimeSource);
+        fail('Expected TexMathSyntaxError for double prime');
+      } on TexMathSyntaxError catch (err) {
+        doublePrimeErr = err;
+      }
+      expect(doublePrimeErr.errorClass, TexMathErrorClass.doubleScript);
+      expect(doublePrimeErr.message, 'Prime causes double exponent.');
+      expect(doublePrimeErr.span, const SourceSpan(3, 4));
+      expect(doublePrimeErr.position, 4);
+      expect(
+        doublePrimeErr.formattedMessage,
+        'Prime causes double exponent. (at position 4)',
+      );
+      final String withSource = doublePrimeErr.formatWithSource(
+        doublePrimeSource,
+      );
+      expect(
+        withSource,
+        "Prime causes double exponent. (at position 4)\nx^2'\n   ^",
+      );
+      final List<String> lines = withSource.split('\n');
+      expect(lines, hasLength(3));
+      expect(lines[2].indexOf('^'), lines[1].indexOf("'"));
+
+      const String unclosedFrac = r'\frac{a';
+      late TexMathSyntaxError unclosedErr;
+      try {
+        parseTex(unclosedFrac);
+        fail('Expected TexMathSyntaxError for unclosed frac');
+      } on TexMathSyntaxError catch (err) {
+        unclosedErr = err;
+      }
+      expect(unclosedErr.errorClass, TexMathErrorClass.missingBrace);
+      expect(unclosedErr.position, 6);
+
+      // Empty EOF span from parser (`\frac{a}` missing second argument, or `{a`).
+      const String missingSecondArg = r'\frac{a}';
+      late TexMathSyntaxError eofErr;
+      try {
+        parseTex(missingSecondArg);
+        fail('Expected TexMathSyntaxError for missing denominator');
+      } on TexMathSyntaxError catch (err) {
+        eofErr = err;
+      }
+      expect(eofErr.errorClass, TexMathErrorClass.missingArgument);
+      expect(eofErr.span, SourceSpan.empty(missingSecondArg.length));
+      expect(eofErr.position, missingSecondArg.length + 1);
+      expect(
+        eofErr.formatWithSource(missingSecondArg),
+        '${eofErr.formattedMessage}\n$missingSecondArg\n'
+        '${' ' * missingSecondArg.length}^',
+      );
+
+      // Empty EOF span explicitly constructed on `\frac{a` plus out-of-bounds clamping.
+      const TexMathSyntaxError explicitEof = TexMathSyntaxError(
+        'Unexpected end of input.',
+        errorClass: TexMathErrorClass.missingBrace,
+        span: SourceSpan.empty(7),
+      );
+      expect(explicitEof.position, 8);
+      expect(
+        explicitEof.formatWithSource(unclosedFrac),
+        'Unexpected end of input. (at position 8)\n\\frac{a\n       ^',
+      );
+      const TexMathSyntaxError clampedErr = TexMathSyntaxError(
+        'Out of range span.',
+        span: SourceSpan(10, 15),
+      );
+      expect(
+        clampedErr.formatWithSource('abc'),
+        'Out of range span. (at position 11)\nabc\n   ^',
+      );
+
+      // Wide multi-character span renders proportional caret width.
+      const TexMathSyntaxError wideErr = TexMathSyntaxError(
+        'Unknown command',
+        span: SourceSpan(2, 6),
+      );
+      expect(
+        wideErr.formatWithSource(r'x+\bad+y'),
+        'Unknown command (at position 3)\nx+\\bad+y\n  ^^^^',
+      );
+
+      // `span == null` returns null position and omits position/caret lines.
+      const TexMathFontError noSpanErr = TexMathFontError('Empty font');
+      expect(noSpanErr.position, isNull);
+      expect(noSpanErr.formattedMessage, 'Empty font');
+      expect(noSpanErr.formatWithSource('x + y'), 'Empty font');
+    });
   });
 
   group('MathNode sealed hierarchy', () {
@@ -391,5 +485,96 @@ void main() {
         throwsA(isA<TexMathFontError>()),
       );
     });
+  });
+
+  group('Color model resolution and span propagation', () {
+    test('resolves RGB (0-255), rgb (0-1), HTML, and gray color models', () {
+      expect(resolveTexColor('220,20,60', model: 'RGB'), '#DC143C');
+      expect(resolveTexColor(' 220 , 20 , 60 ', model: ' RGB '), '#DC143C');
+      expect(resolveTexColor('300,-10,255', model: 'RGB'), '#FF00FF');
+
+      expect(resolveTexColor('1, 0.5, 0', model: 'rgb'), '#FF8000');
+      expect(resolveTexColor('0.2, 0.4, 0.6', model: 'Rgb'), '#336699');
+
+      expect(resolveTexColor('dc143c', model: 'HTML'), '#DC143C');
+      expect(resolveTexColor('#1e40af', model: 'html'), '#1E40AF');
+
+      expect(resolveTexColor('0.5', model: 'gray'), '#808080');
+      expect(resolveTexColor('0.2', model: 'GRAY'), '#333333');
+    });
+
+    test(
+      'propagates SourceSpan on invalid HTML or non-finite color channels',
+      () {
+        const SourceSpan directSpan = SourceSpan(10, 16);
+        expect(
+          () => resolveTexColor('ZZZZZZ', model: 'HTML', span: directSpan),
+          throwsA(
+            isA<TexMathSyntaxError>().having(
+              (TexMathSyntaxError e) => e.span,
+              'span',
+              directSpan,
+            ),
+          ),
+        );
+        expect(
+          () => resolveTexColor('NaN,0,0', model: 'rgb', span: directSpan),
+          throwsA(
+            isA<TexMathSyntaxError>().having(
+              (TexMathSyntaxError e) => e.span,
+              'span',
+              directSpan,
+            ),
+          ),
+        );
+        expect(
+          () => resolveTexColor('Infinity', model: 'gray', span: directSpan),
+          throwsA(
+            isA<TexMathSyntaxError>().having(
+              (TexMathSyntaxError e) => e.span,
+              'span',
+              directSpan,
+            ),
+          ),
+        );
+
+        expect(
+          () => parseTex(r'\textcolor[HTML]{ZZZZZZ}{x}'),
+          throwsA(
+            isA<TexMathSyntaxError>()
+                .having((TexMathSyntaxError e) => e.span, 'span', isNotNull)
+                .having((TexMathSyntaxError e) => e.position, 'position', 1),
+          ),
+        );
+        expect(
+          () => parseTex(r'a + \textcolor[rgb]{NaN,0,0}{x}'),
+          throwsA(
+            isA<TexMathSyntaxError>()
+                .having((TexMathSyntaxError e) => e.span, 'span', isNotNull)
+                .having((TexMathSyntaxError e) => e.position, 'position', 5),
+          ),
+        );
+      },
+    );
+
+    test(
+      'parses RGB/rgb/HTML/gray color commands into expected ColorNode hex',
+      () {
+        final MathRootNode root = parseTex(
+          r'\textcolor[RGB]{220,20,60}{\alpha}'
+          r' + \textcolor[rgb]{0,0.5,1}{x}'
+          r' + \textcolor[HTML]{1e40af}{y}'
+          r' + \textcolor[gray]{0.5}{z}',
+        ) as MathRootNode;
+        final List<ColorNode> colors = root.children
+            .whereType<ColorNode>()
+            .toList();
+        expect(colors, hasLength(4));
+        expect(colors[0].colorValue, '#DC143C');
+        expect(colors[1].colorValue, '#0080FF');
+        expect(colors[2].colorValue, '#1E40AF');
+        expect(colors[3].colorValue, '#808080');
+      },
+    );
   });
 }

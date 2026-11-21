@@ -405,6 +405,199 @@ void main() {
       }
     });
   });
+
+  group('Array rule & framed-box corner alignment geometry', () {
+    test(
+      'aligns full-grid array_rules corners flush while preserving outerPadY',
+      () {
+        final DisplayList dl = engine
+            .render(
+              r'\begin{array}{|c|c|} \hline x & y \\ \hline z & w \\ \hline \end{array}',
+            )
+            .displayList;
+        final double ruleThickness =
+            bundledFont.mathTable!.constants.fractionRuleThickness /
+            bundledFont.unitsPerEm;
+        final List<RuleItem> rules = dl.items.whereType<RuleItem>().toList();
+        final List<RuleItem> hRules =
+            rules.where((RuleItem r) => r.widthEm > r.heightEm).toList()
+              ..sort((RuleItem a, RuleItem b) => b.yEm.compareTo(a.yEm));
+        final List<RuleItem> vRules =
+            rules.where((RuleItem r) => r.heightEm > r.widthEm).toList()
+              ..sort((RuleItem a, RuleItem b) => a.xEm.compareTo(b.xEm));
+
+        expect(hRules, hasLength(3));
+        expect(vRules, hasLength(3));
+
+        final RuleItem topH = hRules.first;
+        final RuleItem botH = hRules.last;
+        final double gridTopY = topH.yEm + topH.heightEm;
+        final double gridBottomY = botH.yEm;
+
+        for (final RuleItem h in hRules) {
+          expect(h.xEm, closeTo(0.0, 1e-9));
+          expect(h.widthEm, closeTo(dl.metrics.widthEm, 1e-9));
+          expect(h.heightEm, closeTo(ruleThickness, 1e-9));
+        }
+        for (final RuleItem v in vRules) {
+          expect(v.widthEm, closeTo(ruleThickness, 1e-9));
+          expect(v.yEm, closeTo(gridBottomY, 1e-9));
+          expect(v.heightEm, closeTo(gridTopY - gridBottomY, 1e-9));
+          expect(v.yEm + v.heightEm, closeTo(gridTopY, 1e-9));
+        }
+
+        // Outer horizontal corners touch outer vertical rules flush.
+        expect(vRules.first.xEm, closeTo(topH.xEm, 1e-9));
+        expect(
+          vRules.last.xEm + vRules.last.widthEm,
+          closeTo(topH.xEm + topH.widthEm, 1e-9),
+        );
+
+        // outerPadY (0.125em) stays in overall box metrics for MathJax parity.
+        expect(dl.metrics.heightEm - gridTopY, closeTo(0.125, 1e-9));
+        expect(gridBottomY - (-dl.metrics.depthEm), closeTo(0.125, 1e-9));
+      },
+    );
+
+    test('aligns double rules (|| and \\hline\\hline) cleanly at corners', () {
+      final DisplayList dl = engine
+          .render(
+            r'\begin{array}{||c||c||} \hline\hline x & y \\ \hline\hline z & w \\ \hline\hline \end{array}',
+          )
+          .displayList;
+      final double ruleThickness =
+          bundledFont.mathTable!.constants.fractionRuleThickness /
+          bundledFont.unitsPerEm;
+      final List<RuleItem> rules = dl.items.whereType<RuleItem>().toList();
+      final List<RuleItem> hRules =
+          rules.where((RuleItem r) => r.widthEm > r.heightEm).toList()
+            ..sort((RuleItem a, RuleItem b) => b.yEm.compareTo(a.yEm));
+      final List<RuleItem> vRules =
+          rules.where((RuleItem r) => r.heightEm > r.widthEm).toList()
+            ..sort((RuleItem a, RuleItem b) => a.xEm.compareTo(b.xEm));
+
+      expect(hRules, hasLength(6));
+      expect(vRules, hasLength(6));
+
+      final double outerTopY = hRules.first.yEm + hRules.first.heightEm;
+      final double outerBottomY = hRules.last.yEm;
+      for (final RuleItem h in hRules) {
+        expect(h.xEm, closeTo(0.0, 1e-9));
+        expect(h.widthEm, closeTo(dl.metrics.widthEm, 1e-9));
+        expect(h.heightEm, closeTo(ruleThickness, 1e-9));
+      }
+      for (final RuleItem v in vRules) {
+        expect(v.widthEm, closeTo(ruleThickness, 1e-9));
+        expect(v.yEm, closeTo(outerBottomY, 1e-9));
+        expect(v.heightEm, closeTo(outerTopY - outerBottomY, 1e-9));
+      }
+      expect(vRules.first.xEm, closeTo(0.0, 1e-9));
+      expect(
+        vRules.last.xEm + vRules.last.widthEm,
+        closeTo(dl.metrics.widthEm, 1e-9),
+      );
+      expect(
+        vRules[1].xEm - (vRules[0].xEm + vRules[0].widthEm),
+        closeTo(2.5 * ruleThickness, 1e-9),
+      );
+      expect(
+        hRules[0].yEm - (hRules[1].yEm + hRules[1].heightEm),
+        closeTo(2.5 * ruleThickness, 1e-9),
+      );
+    });
+
+    test('clamps vertical rules for top-only, bottom-only, no \\hline, and empty arrays', () {
+      // Top-only \hline.
+      final DisplayList topOnly = engine
+          .render(r'\begin{array}{|c|c|} \hline x & y \\ z & w \end{array}')
+          .displayList;
+      final List<RuleItem> topHRules = topOnly.items
+          .whereType<RuleItem>()
+          .where((RuleItem r) => r.widthEm > r.heightEm)
+          .toList();
+      final List<RuleItem> topVRules = topOnly.items
+          .whereType<RuleItem>()
+          .where((RuleItem r) => r.heightEm > r.widthEm)
+          .toList();
+      expect(topHRules, hasLength(1));
+      expect(topVRules, hasLength(3));
+      final double topOnlyTop =
+          topHRules.single.yEm + topHRules.single.heightEm;
+      for (final RuleItem v in topVRules) {
+        expect(v.yEm + v.heightEm, closeTo(topOnlyTop, 1e-9));
+        expect(v.yEm, closeTo(-topOnly.metrics.depthEm + 0.125, 1e-9));
+      }
+
+      // Bottom-only \hline.
+      final DisplayList botOnly = engine
+          .render(r'\begin{array}{|c|c|} x & y \\ z & w \\ \hline \end{array}')
+          .displayList;
+      final List<RuleItem> botHRules = botOnly.items
+          .whereType<RuleItem>()
+          .where((RuleItem r) => r.widthEm > r.heightEm)
+          .toList();
+      final List<RuleItem> botVRules = botOnly.items
+          .whereType<RuleItem>()
+          .where((RuleItem r) => r.heightEm > r.widthEm)
+          .toList();
+      expect(botHRules, hasLength(1));
+      expect(botVRules, hasLength(3));
+      for (final RuleItem v in botVRules) {
+        expect(v.yEm, closeTo(botHRules.single.yEm, 1e-9));
+        expect(
+          v.yEm + v.heightEm,
+          closeTo(botOnly.metrics.heightEm - 0.125, 1e-9),
+        );
+      }
+
+      // No \hline.
+      final DisplayList noHline = engine
+          .render(r'\begin{array}{|c|c|} x & y \\ z & w \end{array}')
+          .displayList;
+      final List<RuleItem> noHRules = noHline.items
+          .whereType<RuleItem>()
+          .where((RuleItem r) => r.widthEm > r.heightEm)
+          .toList();
+      final List<RuleItem> noVRules = noHline.items
+          .whereType<RuleItem>()
+          .where((RuleItem r) => r.heightEm > r.widthEm)
+          .toList();
+      expect(noHRules, isEmpty);
+      expect(noVRules, hasLength(3));
+      for (final RuleItem v in noVRules) {
+        expect(v.yEm, closeTo(-noHline.metrics.depthEm + 0.125, 1e-9));
+        expect(
+          v.yEm + v.heightEm,
+          closeTo(noHline.metrics.heightEm - 0.125, 1e-9),
+        );
+      }
+
+      // Empty array (rowCount == 0) omits vertical rules.
+      final DisplayList emptyArray = engine
+          .render(r'\begin{array}{|c|c|} \end{array}')
+          .displayList;
+      expect(emptyArray.items.whereType<RuleItem>(), isEmpty);
+      expect(emptyArray.metrics.heightEm, closeTo(0.0, 1e-9));
+      expect(emptyArray.metrics.depthEm, closeTo(0.0, 1e-9));
+    });
+
+    test('aligns \\boxed frame stroke outer bounds flush with box metrics', () {
+      final DisplayList dl = engine.render(r'\boxed{x+1}').displayList;
+      final RuleItem border = dl.items.whereType<RuleItem>().single;
+      expect(border.strokeWidthEm, isNotNull);
+      final double halfStroke = border.strokeWidthEm! / 2.0;
+      expect(border.xEm - halfStroke, closeTo(0.0, 1e-9));
+      expect(
+        border.xEm + border.widthEm + halfStroke,
+        closeTo(dl.metrics.widthEm, 1e-9),
+      );
+      expect(border.yEm - halfStroke, closeTo(-dl.metrics.depthEm, 1e-9));
+      expect(
+        border.yEm + border.heightEm + halfStroke,
+        closeTo(dl.metrics.heightEm, 1e-9),
+      );
+    });
+  });
 }
 
 File _locateBundledFont() {

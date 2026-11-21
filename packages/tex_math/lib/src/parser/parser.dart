@@ -402,6 +402,7 @@ final class _TexParser implements TexParserHost {
             colorArg,
             model: model ?? '',
             customColors: macroTable.visibleColors(),
+            span: token.span,
           );
           final _SeqResult rest;
           enterNesting(token.span);
@@ -524,6 +525,7 @@ final class _TexParser implements TexParserHost {
             colorArg,
             model: model ?? '',
             customColors: macroTable.visibleColors(),
+            span: token.span,
           );
           if (cs == 'cellcolor') {
             cellBackground = resolved;
@@ -1903,6 +1905,7 @@ final class _TexParser implements TexParserHost {
           final String resolved = resolveTexColor(
             colorArg,
             customColors: macroTable.visibleColors(),
+            span: span,
           );
           return ColorNode(
             span: span.merge(body.span),
@@ -1928,6 +1931,7 @@ final class _TexParser implements TexParserHost {
             colorArg,
             model: model ?? '',
             customColors: macroTable.visibleColors(),
+            span: span,
           ),
           children: <MathNode>[body],
         );
@@ -1947,6 +1951,7 @@ final class _TexParser implements TexParserHost {
             colorArg,
             model: model ?? '',
             customColors: macroTable.visibleColors(),
+            span: span,
           ),
           children: <MathNode>[body],
         );
@@ -1968,11 +1973,13 @@ final class _TexParser implements TexParserHost {
             fArg,
             model: fModel ?? '',
             customColors: macroTable.visibleColors(),
+            span: span,
           ),
           backgroundColor: resolveTexColor(
             cArg,
             model: cModel ?? fModel ?? '',
             customColors: macroTable.visibleColors(),
+            span: span,
           ),
           children: <MathNode>[body],
         );
@@ -1991,6 +1998,7 @@ final class _TexParser implements TexParserHost {
             spec,
             model: model,
             customColors: macroTable.visibleColors(),
+            span: span,
           ),
         );
         return null;
@@ -2015,6 +2023,7 @@ final class _TexParser implements TexParserHost {
               attrs['background'] = resolveTexColor(
                 p,
                 customColors: macroTable.visibleColors(),
+                span: span,
               );
             }
           }

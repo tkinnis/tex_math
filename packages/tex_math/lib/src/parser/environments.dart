@@ -596,7 +596,12 @@ MathNode parseEnvironment({
     if (currentRow.isEmpty) {
       final String? ruleStyle = host.tryConsumeRowRule();
       if (ruleStyle != null) {
-        rowLines[rows.length] = ruleStyle;
+        final String? existing = rowLines[rows.length];
+        if (existing == null) {
+          rowLines[rows.length] = ruleStyle;
+        } else if (existing == 'solid' && ruleStyle == 'solid') {
+          rowLines[rows.length] = 'double';
+        }
         continue;
       }
     }

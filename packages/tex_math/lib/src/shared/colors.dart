@@ -1,5 +1,6 @@
 import '../error.dart';
 import '../options.dart';
+import '../source_span.dart';
 
 /// Named TeX colors normalized to `#RRGGBB` hex values.
 const Map<String, String> standardTexColors = <String, String>{
@@ -65,16 +66,26 @@ String resolveTexColor(
   String colorSpec, {
   String model = '',
   Map<String, String> customColors = const <String, String>{},
+  SourceSpan? span,
 }) {
-  final String normalizedModel = model.trim().toLowerCase();
+  final String trimmedModel = model.trim();
+  final String normalizedModel = trimmedModel.toLowerCase();
   final String spec = colorSpec.trim();
 
-  if (normalizedModel == 'rgb') {
+  if (trimmedModel == 'RGB') {
     final List<String> parts = spec.split(',');
     if (parts.length == 3) {
-      final int r = _floatToChannel(parts[0]);
-      final int g = _floatToChannel(parts[1]);
-      final int b = _floatToChannel(parts[2]);
+      final int r = (int.tryParse(parts[0].trim()) ?? 0).clamp(0, 255);
+      final int g = (int.tryParse(parts[1].trim()) ?? 0).clamp(0, 255);
+      final int b = (int.tryParse(parts[2].trim()) ?? 0).clamp(0, 255);
+      return '#${_hexByte(r)}${_hexByte(g)}${_hexByte(b)}';
+    }
+  } else if (normalizedModel == 'rgb') {
+    final List<String> parts = spec.split(',');
+    if (parts.length == 3) {
+      final int r = _floatToChannel(parts[0], span: span);
+      final int g = _floatToChannel(parts[1], span: span);
+      final int b = _floatToChannel(parts[2], span: span);
       return '#${_hexByte(r)}${_hexByte(g)}${_hexByte(b)}';
     }
   } else if (normalizedModel == 'html') {
@@ -83,20 +94,13 @@ String resolveTexColor(
       throw TexMathSyntaxError(
         'Invalid HTML hex color specification "$colorSpec".',
         errorClass: TexMathErrorClass.syntaxError,
+        span: span,
       );
     }
     return '#${cleaned.toUpperCase()}';
   } else if (normalizedModel == 'gray') {
-    final int c = _floatToChannel(spec);
+    final int c = _floatToChannel(spec, span: span);
     return '#${_hexByte(c)}${_hexByte(c)}${_hexByte(c)}';
-  } else if (model.trim() == 'RGB') {
-    final List<String> parts = spec.split(',');
-    if (parts.length == 3) {
-      final int r = (int.tryParse(parts[0].trim()) ?? 0).clamp(0, 255);
-      final int g = (int.tryParse(parts[1].trim()) ?? 0).clamp(0, 255);
-      final int b = (int.tryParse(parts[2].trim()) ?? 0).clamp(0, 255);
-      return '#${_hexByte(r)}${_hexByte(g)}${_hexByte(b)}';
-    }
   }
 
   final String lower = spec.toLowerCase();
@@ -211,7 +215,7 @@ int? _parseHexArgb(String? raw) {
   return null;
 }
 
-int _floatToChannel(String raw) {
+int _floatToChannel(String raw, {SourceSpan? span}) {
   final double? value = double.tryParse(raw.trim());
   if (value == null) {
     return 0;
@@ -220,6 +224,7 @@ int _floatToChannel(String raw) {
     throw TexMathSyntaxError(
       'Non-finite color channel value "$raw".',
       errorClass: TexMathErrorClass.syntaxError,
+      span: span,
     );
   }
   return (value * 255.0).round().clamp(0, 255);
