@@ -113,6 +113,18 @@ final class CffDictOp {
   int get hashCode => Object.hash(op, subOp);
 }
 
+/// Maximum number of operands allowed on a CFF DICT stack.
+const int maxCffDictStack = 513;
+
+/// Converts a finite CFF DICT / CharString [value] into a safe integer, throwing
+/// [TexMathFontError] if [value] is `NaN` or infinite.
+int cffFiniteInt(double value, String context) {
+  if (!value.isFinite) {
+    throw TexMathFontError('Non-finite numeric value in $context.');
+  }
+  return value.round();
+}
+
 /// Parses CFF / CFF2 DICT byte slices with optional `vsindex`/`blend`
 /// evaluation.
 Map<CffDictOp, List<double>> parseCffDict(
@@ -139,7 +151,7 @@ Map<CffDictOp, List<double>> parseCffDict(
         if (stack.isEmpty) {
           throw const TexMathFontError('CFF2 DICT vsindex underflow.');
         }
-        vsindex = stack.removeLast().round();
+        vsindex = cffFiniteInt(stack.removeLast(), 'CFF2.DICT.vsindex');
         result[const CffDictOp(22)] = <double>[vsindex.toDouble()];
         stack.clear();
       } else if (b0 == 23) {
@@ -154,6 +166,9 @@ Map<CffDictOp, List<double>> parseCffDict(
       continue;
     }
 
+    if (stack.length >= maxCffDictStack) {
+      throw const TexMathFontError('CFF DICT operand stack exceeded limit.');
+    }
     if (b0 == 28) {
       stack.add(dictReader.readInt16(pos + 1, 'CFF.DICT.int16').toDouble());
       pos += 3;
@@ -194,7 +209,7 @@ void _evalDictBlend(
   if (stack.isEmpty) {
     throw const TexMathFontError('CFF2 DICT blend operand underflow.');
   }
-  final int n = stack.removeLast().round();
+  final int n = cffFiniteInt(stack.removeLast(), 'CFF2.DICT.blend');
   final List<double> scalars = store.scalarsForDataIndex(vsindex);
   final int k = scalars.length;
   final int needed = n + n * k;
@@ -210,6 +225,9 @@ void _evalDictBlend(
     final int deltaStart = baseStart + n + i * k;
     for (int r = 0; r < k; r++) {
       val += stack[deltaStart + r] * scalars[r];
+    }
+    if (!val.isFinite) {
+      throw const TexMathFontError('Non-finite value produced by CFF2 blend.');
     }
     blended[i] = val;
   }
@@ -239,6 +257,9 @@ _ParsedNibbleFloat _parseNibbleFloat(FontByteReader reader, int startPos) {
     }
   }
   final double value = double.tryParse(sb.toString()) ?? 0.0;
+  if (!value.isFinite) {
+    throw const TexMathFontError('Non-finite floating-point operand in CFF.');
+  }
   return _ParsedNibbleFloat(value, pos);
 }
 

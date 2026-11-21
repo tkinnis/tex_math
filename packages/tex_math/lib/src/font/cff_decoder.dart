@@ -1,7 +1,8 @@
 import '../error.dart';
-import '../font.dart';
 import 'binary_reader.dart';
 import 'cff_common.dart';
+import 'metrics.dart';
+import 'outline.dart';
 import 'outline_utils.dart';
 import 'type2_charstring.dart';
 import 'variation.dart';
@@ -117,7 +118,10 @@ final class CffOutlineDecoder {
     if (charStringsVals == null || charStringsVals.isEmpty) {
       throw const TexMathFontError('CFF Top DICT missing CharStrings offset.');
     }
-    final int csOffset = charStringsVals[0].round();
+    final int csOffset = cffFiniteInt(
+      charStringsVals[0],
+      'CFF.TopDICT.CharStrings',
+    );
     final CffIndex charStrings = CffIndex.parse(
       reader,
       csOffset,
@@ -138,7 +142,7 @@ final class CffOutlineDecoder {
     if (fdArrayVals != null && fdArrayVals.isNotEmpty) {
       final CffIndex fdIndex = CffIndex.parse(
         reader,
-        fdArrayVals[0].round(),
+        cffFiniteInt(fdArrayVals[0], 'CFF.TopDICT.FDArray'),
         isCff2: false,
         context: 'CFF.FDArray',
       );
@@ -149,7 +153,7 @@ final class CffOutlineDecoder {
       if (fdSelectVals != null && fdSelectVals.isNotEmpty) {
         fdSelect = FdSelectTable.parse(
           reader,
-          fdSelectVals[0].round(),
+          cffFiniteInt(fdSelectVals[0], 'CFF.TopDICT.FDSelect'),
           glyphCount,
         );
       }
@@ -219,7 +223,7 @@ final class CffOutlineDecoder {
     ItemVariationStore? varStore;
     final List<double>? vstoreVals = topDict[const CffDictOp(24)];
     if (vstoreVals != null && vstoreVals.isNotEmpty) {
-      final int vstoreOff = vstoreVals[0].round();
+      final int vstoreOff = cffFiniteInt(vstoreVals[0], 'CFF2.TopDICT.vstore');
       final int storeLen = reader.readUint16(vstoreOff, 'CFF2.vstore.length');
       reader.checkRange(vstoreOff + 2, storeLen, 'CFF2.vstore.data');
       final FontByteReader storeSlice = reader.slice(
@@ -241,14 +245,17 @@ final class CffOutlineDecoder {
     }
     final CffIndex charStrings = CffIndex.parse(
       reader,
-      csVals[0].round(),
+      cffFiniteInt(csVals[0], 'CFF2.TopDICT.CharStrings'),
       isCff2: true,
       context: 'CFF2.CharStringsINDEX',
     );
 
     final List<double>? maxStackVals = topDict[const CffDictOp(25)];
     final int maxStack = (maxStackVals != null && maxStackVals.isNotEmpty)
-        ? maxStackVals[0].round().clamp(513, 4096)
+        ? cffFiniteInt(
+            maxStackVals[0],
+            'CFF2.TopDICT.maxstack',
+          ).clamp(513, 4096)
         : 513;
 
     final List<double>? fdArrayVals = topDict[const CffDictOp(12, 36)];
@@ -257,10 +264,13 @@ final class CffOutlineDecoder {
     }
     final CffIndex fdIndex = CffIndex.parse(
       reader,
-      fdArrayVals[0].round(),
+      cffFiniteInt(fdArrayVals[0], 'CFF2.TopDICT.FDArray'),
       isCff2: true,
       context: 'CFF2.FDArray',
     );
+    if (fdIndex.length == 0) {
+      throw const TexMathFontError('CFF2 FDArray must not be empty.');
+    }
     final List<_FontDictInfo> fontDicts = <_FontDictInfo>[];
     for (int i = 0; i < fdIndex.length; i++) {
       final Map<CffDictOp, List<double>> fd = parseCffDict(fdIndex[i]);
@@ -274,7 +284,7 @@ final class CffOutlineDecoder {
         (fdSelectVals != null && fdSelectVals.isNotEmpty)
         ? FdSelectTable.parse(
             reader,
-            fdSelectVals[0].round(),
+            cffFiniteInt(fdSelectVals[0], 'CFF2.TopDICT.FDSelect'),
             charStrings.length,
           )
         : FdSelectTable.singleZero;
@@ -311,8 +321,13 @@ final class CffOutlineDecoder {
       );
     }
 
-    final int privSize = privVals[0].round();
-    final int privOffset = privVals[1].round();
+    final int privSize = cffFiniteInt(privVals[0], 'CFF.Private.size');
+    final int privOffset = cffFiniteInt(privVals[1], 'CFF.Private.offset');
+    if (privSize < 0 || privOffset < 0) {
+      throw TexMathFontError(
+        'Invalid negative CFF Private DICT range ($privOffset, $privSize).',
+      );
+    }
     if (privSize == 0) {
       return _FontDictInfo(
         localSubrs: CffIndex.empty,
@@ -337,13 +352,16 @@ final class CffOutlineDecoder {
         privDict[const CffDictOp(20)]?.firstOrNull ?? 0.0;
     final double nominalWidthX =
         privDict[const CffDictOp(21)]?.firstOrNull ?? 0.0;
-    final int vsindex =
-        privDict[const CffDictOp(22)]?.firstOrNull?.round() ?? 0;
+    final double? vsRaw = privDict[const CffDictOp(22)]?.firstOrNull;
+    final int vsindex = vsRaw == null
+        ? 0
+        : cffFiniteInt(vsRaw, 'CFF2.Private.vsindex');
 
     CffIndex localSubrs = CffIndex.empty;
     final List<double>? subrRel = privDict[const CffDictOp(19)];
     if (subrRel != null && subrRel.isNotEmpty) {
-      final int absSubrOff = privOffset + subrRel[0].round();
+      final int absSubrOff =
+          privOffset + cffFiniteInt(subrRel[0], 'CFF.Private.Subrs');
       localSubrs = CffIndex.parse(
         cffReader,
         absSubrOff,
@@ -414,7 +432,7 @@ final class CffOutlineDecoder {
     }
 
     return DecodedCffOutline(
-      outline: GlyphOutline(
+      outline: GlyphOutline.cached(
         glyphId: glyphId,
         commands: commands,
         advanceWidth: hmtxAdvanceWidth > 0.0

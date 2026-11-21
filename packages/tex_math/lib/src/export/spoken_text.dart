@@ -3,41 +3,47 @@ import '../ast.dart';
 /// Generates plain natural-language spoken math text from a parsed [MathNode]
 /// syntax tree for screen readers and accessibility labels.
 String mathNodeToSpokenText(MathNode node) {
-  return _normalizeSpaces(_speakNode(node));
+  final StringBuffer out = StringBuffer();
+  _writeSpokenNode(out, node);
+  return _normalizeSpaces(out.toString());
 }
 
-String _speakNode(MathNode node) {
+void _writeSpokenNode(StringBuffer out, MathNode node) {
   switch (node) {
     case MathRootNode(:final List<MathNode> children):
-      return _speakList(children);
+      _writeSpokenList(out, children);
 
     case MathGroupNode(:final List<MathNode> children, :final String? role):
-      final String inner = _speakList(children);
       switch (role) {
         case 'cancel':
         case 'bcancel':
         case 'xcancel':
-          return 'cancelled $inner';
+          out.write('cancelled ');
+          _writeSpokenList(out, children);
         case 'cancelto':
           if (children.length >= 2) {
-            return '${_speakNode(children[0])} cancelled to ${_speakNode(children[1])}';
+            _writeSpokenNode(out, children[0]);
+            out.write(' cancelled to ');
+            _writeSpokenNode(out, children[1]);
+          } else {
+            _writeSpokenList(out, children);
           }
-          return inner;
         case 'boxed':
-          return 'boxed $inner';
+          out.write('boxed ');
+          _writeSpokenList(out, children);
         case 'phantom':
         case 'hphantom':
         case 'vphantom':
-          return '';
+          return;
         default:
-          return inner;
+          _writeSpokenList(out, children);
       }
 
     case SymbolNode(:final String value, :final String? command):
-      return _speakSymbol(value, command);
+      out.write(_speakSymbol(value, command));
 
     case OperatorNode(:final String operatorName):
-      return _speakOperator(operatorName);
+      out.write(_speakOperator(operatorName));
 
     case FractionNode(
       :final MathNode numerator,
@@ -46,17 +52,17 @@ String _speakNode(MathNode node) {
       :final String? leftDelimiter,
       :final String? rightDelimiter,
     ):
-      final String numText = _speakNode(numerator);
-      final String denText = _speakNode(denominator);
+      _writeSpokenNode(out, numerator);
       if (leftDelimiter == '(' &&
           rightDelimiter == ')' &&
           ruleThicknessEm == 0.0) {
-        return '$numText choose $denText';
+        out.write(' choose ');
+      } else if (ruleThicknessEm == 0.0) {
+        out.write(' atop ');
+      } else {
+        out.write(' over ');
       }
-      if (ruleThicknessEm == 0.0) {
-        return '$numText atop $denText';
-      }
-      return '$numText over $denText';
+      _writeSpokenNode(out, denominator);
 
     case ScriptNode(
       :final MathNode base,
@@ -66,63 +72,81 @@ String _speakNode(MathNode node) {
       :final MathNode? presubscript,
       :final MathNode? presuperscript,
     ):
-      final StringBuffer out = StringBuffer();
       if (presubscript != null) {
-        out.write('pre-subscript ${_speakNode(presubscript)} ');
+        out.write('pre-subscript ');
+        _writeSpokenNode(out, presubscript);
+        out.write(' ');
       }
       if (presuperscript != null) {
-        out.write('pre-superscript ${_speakNode(presuperscript)} ');
+        out.write('pre-superscript ');
+        _writeSpokenNode(out, presuperscript);
+        out.write(' ');
       }
-      out.write(_speakNode(base));
+      _writeSpokenNode(out, base);
       if (subscript != null) {
-        final String subText = _speakNode(subscript);
-        out.write(limitsAboveBelow ? ' from $subText' : ' sub $subText');
+        out.write(limitsAboveBelow ? ' from ' : ' sub ');
+        _writeSpokenNode(out, subscript);
       }
       if (superscript != null) {
-        final String supText = _speakNode(superscript);
         if (limitsAboveBelow) {
-          out.write(' to $supText');
-        } else if (supText == '2') {
-          out.write(' squared');
-        } else if (supText == '3') {
-          out.write(' cubed');
-        } else if (supText == 'prime') {
-          out.write(' prime');
+          out.write(' to ');
+          _writeSpokenNode(out, superscript);
         } else {
-          out.write(' to the $supText');
+          final String? simpleSup = _singleSignificantAtom(superscript);
+          if (simpleSup == '2') {
+            out.write(' squared');
+          } else if (simpleSup == '3') {
+            out.write(' cubed');
+          } else if (simpleSup == 'prime') {
+            out.write(' prime');
+          } else {
+            out.write(' to the ');
+            _writeSpokenNode(out, superscript);
+          }
         }
       }
-      return out.toString();
 
     case RadicalNode(:final MathNode radicand, :final MathNode? index):
-      final String rad = _speakNode(radicand);
       if (index == null) {
-        return 'square root of $rad';
+        out.write('square root of ');
+        _writeSpokenNode(out, radicand);
+        return;
       }
-      final String idx = _speakNode(index);
-      if (idx == '3') {
-        return 'cube root of $rad';
+      final String? simpleIdx = _singleSignificantAtom(index);
+      if (simpleIdx == '3') {
+        out.write('cube root of ');
+      } else {
+        out.write('root ');
+        _writeSpokenNode(out, index);
+        out.write(' of ');
       }
-      return 'root $idx of $rad';
+      _writeSpokenNode(out, radicand);
 
     case AccentNode(
       :final MathNode base,
       :final String accent,
       :final bool isUnder,
     ):
-      final String baseText = _speakNode(base);
-      final String accentName = _speakAccent(accent, isUnder: isUnder);
-      return '$baseText $accentName';
+      _writeSpokenNode(out, base);
+      out.write(' ');
+      out.write(_speakAccent(accent, isUnder: isUnder));
 
     case DelimiterNode(
       :final List<MathNode> children,
       :final String? leftDelimiter,
       :final String? rightDelimiter,
     ):
-      final String inner = _speakList(children);
       final String leftName = _speakDelimiter(leftDelimiter, isLeft: true);
       final String rightName = _speakDelimiter(rightDelimiter, isLeft: false);
-      return '$leftName $inner $rightName';
+      if (leftName.isNotEmpty) {
+        out.write(leftName);
+        out.write(' ');
+      }
+      _writeSpokenList(out, children);
+      if (rightName.isNotEmpty) {
+        out.write(' ');
+        out.write(rightName);
+      }
 
     case MatrixNode(
       :final List<List<MathNode>> rows,
@@ -130,36 +154,46 @@ String _speakNode(MathNode node) {
     ):
       final int rowCount = rows.length;
       final int colCount = rows.isEmpty ? 0 : rows.first.length;
-      final StringBuffer out = StringBuffer();
       if (environment == 'cases' || environment == 'dcases') {
         out.write('cases ');
       } else if (colCount > 1) {
-        out.write('$rowCount by $colCount matrix ');
+        out.write(rowCount);
+        out.write(' by ');
+        out.write(colCount);
+        out.write(' matrix ');
       }
       for (int r = 0; r < rows.length; r++) {
         if (r > 0) {
-          out.write(', row ${r + 1}: ');
+          out.write(', row ');
+          out.write(r + 1);
+          out.write(': ');
         } else if (rows.length > 1) {
           out.write('row 1: ');
         }
-        out.write(rows[r].map(_speakNode).join(', '));
+        final List<MathNode> row = rows[r];
+        for (int c = 0; c < row.length; c++) {
+          if (c > 0) {
+            out.write(', ');
+          }
+          _writeSpokenNode(out, row[c]);
+        }
       }
-      return out.toString();
 
     case TextNode(:final String text, :final List<MathNode> children):
       if (children.isNotEmpty) {
-        return children.map(_speakNode).join(' ');
+        _writeSpokenList(out, children);
+      } else {
+        out.write(text);
       }
-      return text;
 
     case SpaceNode():
-      return '';
+      return;
 
     case StyleNode(:final List<MathNode> children):
-      return _speakList(children);
+      _writeSpokenList(out, children);
 
     case ColorNode(:final List<MathNode> children):
-      return _speakList(children);
+      _writeSpokenList(out, children);
 
     case TagNode(
       :final String label,
@@ -167,27 +201,102 @@ String _speakNode(MathNode node) {
       :final bool isLabelDefinition,
     ):
       if (isLabelDefinition) {
-        return '';
+        return;
       }
       if (body == null) {
-        return 'tag $label';
+        out.write('tag ');
+        out.write(label);
+        return;
       }
-      return '${_speakNode(body)} tag $label';
+      _writeSpokenNode(out, body);
+      out.write(' tag ');
+      out.write(label);
 
     case ErrorNode(:final String rawSource):
-      return 'error in $rawSource';
+      out.write('error in ');
+      out.write(rawSource);
   }
 }
 
-String _speakList(List<MathNode> nodes) {
-  final List<String> parts = <String>[];
-  for (final MathNode node in nodes) {
-    final String text = _speakNode(node);
-    if (text.isNotEmpty) {
-      parts.add(text);
+void _writeSpokenList(StringBuffer out, List<MathNode> nodes) {
+  bool wrotePrevious = false;
+  for (int i = 0; i < nodes.length; i++) {
+    if (wrotePrevious) {
+      out.write(' ');
+    }
+    final int beforeChild = out.length;
+    _writeSpokenNode(out, nodes[i]);
+    if (out.length > beforeChild) {
+      wrotePrevious = true;
     }
   }
-  return parts.join(' ');
+}
+
+String? _singleSignificantAtom(MathNode node) {
+  switch (node) {
+    case SymbolNode(:final String value, :final String? command):
+      return _speakSymbol(value, command);
+    case OperatorNode(:final String operatorName):
+      return _speakOperator(operatorName);
+    case TextNode(:final String text, :final List<MathNode> children):
+      if (children.isEmpty) {
+        final String trimmed = text.trim();
+        return trimmed.isEmpty ? null : trimmed;
+      }
+      return _singleSignificantFromList(children);
+    case MathGroupNode(:final List<MathNode> children, :final String? role):
+      if (role != null) {
+        return null;
+      }
+      return _singleSignificantFromList(children);
+    case MathRootNode(:final List<MathNode> children):
+    case StyleNode(:final List<MathNode> children):
+    case ColorNode(:final List<MathNode> children):
+      return _singleSignificantFromList(children);
+    case SpaceNode():
+    case FractionNode():
+    case ScriptNode():
+    case RadicalNode():
+    case AccentNode():
+    case DelimiterNode():
+    case MatrixNode():
+    case TagNode():
+    case ErrorNode():
+      return null;
+  }
+}
+
+String? _singleSignificantFromList(List<MathNode> children) {
+  String? single;
+  for (final MathNode child in children) {
+    if (_isSpokenEmptyNode(child)) {
+      continue;
+    }
+    final String? atom = _singleSignificantAtom(child);
+    if (atom == null || single != null) {
+      return null;
+    }
+    single = atom;
+  }
+  return single;
+}
+
+bool _isSpokenEmptyNode(MathNode node) {
+  switch (node) {
+    case SpaceNode():
+      return true;
+    case TagNode(:final bool isLabelDefinition):
+      return isLabelDefinition;
+    case TextNode(:final String text, :final List<MathNode> children):
+      return children.isEmpty && text.trim().isEmpty;
+    case MathGroupNode(:final List<MathNode> children, :final String? role):
+      if (role == 'phantom' || role == 'hphantom' || role == 'vphantom') {
+        return true;
+      }
+      return children.every(_isSpokenEmptyNode);
+    default:
+      return false;
+  }
 }
 
 String _speakSymbol(String value, String? command) {

@@ -1,9 +1,10 @@
 import 'dart:math' as math;
 
 import '../error.dart';
-import '../font.dart';
 import 'binary_reader.dart';
 import 'cff_common.dart';
+import 'metrics.dart';
+import 'outline.dart';
 import 'variation.dart';
 
 /// Result of executing a single Type 2 CharString program.
@@ -33,6 +34,10 @@ final class Type2CharStringInterpreter {
   }) : _vsindex = initialVsIndex;
 
   static const int _maxCallDepth = 64;
+  static const int _maxSubrCalls = 4096;
+  static const int _maxOpcodes = 65536;
+  static const int _maxCommands = 16384;
+  static const int _maxStems = 1024;
 
   final CffIndex globalSubrs;
   final CffIndex localSubrs;
@@ -59,6 +64,8 @@ final class Type2CharStringInterpreter {
   bool _finished = false;
   int _vsindex;
   int _rngState = 0x12345678;
+  int _subrCallCount = 0;
+  int _opcodeCount = 0;
 
   /// Runs [charString] and returns the decoded vector commands and stem hints.
   DecodedCharString execute(FontByteReader charString) {
@@ -79,6 +86,11 @@ final class Type2CharStringInterpreter {
     }
     int pos = 0;
     while (pos < code.length && !_finished) {
+      if (++_opcodeCount > _maxOpcodes) {
+        throw const TexMathFontError(
+          'Type 2 CharString opcode count exceeded limit.',
+        );
+      }
       final int b0 = code.readUint8(pos++, 'CharString.op');
       if (b0 >= 32) {
         if (b0 <= 246) {
@@ -131,9 +143,19 @@ final class Type2CharStringInterpreter {
         case 8: // rrcurveto
           _rrCurveTo();
         case 10: // callsubr
+          if (++_subrCallCount > _maxSubrCalls) {
+            throw const TexMathFontError(
+              'Type 2 CharString subroutine call count exceeded limit.',
+            );
+          }
           final int subIdx = _popSubrIndex(localSubrs.length);
           _executeSubroutine(localSubrs[subIdx], depth + 1);
         case 29: // callgsubr
+          if (++_subrCallCount > _maxSubrCalls) {
+            throw const TexMathFontError(
+              'Type 2 CharString subroutine call count exceeded limit.',
+            );
+          }
           final int gsubIdx = _popSubrIndex(globalSubrs.length);
           _executeSubroutine(globalSubrs[gsubIdx], depth + 1);
         case 11: // return
@@ -155,7 +177,7 @@ final class Type2CharStringInterpreter {
           if (_stack.isEmpty) {
             throw const TexMathFontError('CFF2 vsindex operand underflow.');
           }
-          _vsindex = _stack.removeLast().round();
+          _vsindex = cffFiniteInt(_stack.removeLast(), 'CharString.vsindex');
           _stack.clear();
         case 16: // CFF2 blend
           if (!isCff2) {
@@ -192,6 +214,11 @@ final class Type2CharStringInterpreter {
   }
 
   void _push(double value) {
+    if (!value.isFinite) {
+      throw const TexMathFontError(
+        'Non-finite numeric value in Type 2 CharString stack.',
+      );
+    }
     if (_stack.length >= maxStack) {
       throw TexMathFontError(
         'Type 2 CharString stack exceeded limit ($maxStack).',
@@ -204,7 +231,7 @@ final class Type2CharStringInterpreter {
     if (_stack.isEmpty) {
       throw const TexMathFontError('CharString subroutine index underflow.');
     }
-    final int biased = _stack.removeLast().round();
+    final int biased = cffFiniteInt(_stack.removeLast(), 'CharString.subr');
     final int bias = count < 1240
         ? 107
         : count < 33900
@@ -255,6 +282,11 @@ final class Type2CharStringInterpreter {
   void _consumeStems(StemOrientation orientation) {
     int i = 0;
     while (i + 1 < _stack.length) {
+      if (_stems.length >= _maxStems) {
+        throw const TexMathFontError(
+          'Type 2 CharString stem hint count exceeded limit.',
+        );
+      }
       final double dPos = _stack[i];
       final double dWidth = _stack[i + 1];
       if (orientation == StemOrientation.horizontal) {
@@ -285,7 +317,7 @@ final class Type2CharStringInterpreter {
     if (_stack.isEmpty) {
       throw const TexMathFontError('CFF2 CharString blend operand underflow.');
     }
-    final int n = _stack.removeLast().round();
+    final int n = cffFiniteInt(_stack.removeLast(), 'CharString.blend');
     final List<double> scalars = store.scalarsForDataIndex(_vsindex);
     final int k = scalars.length;
     final int needed = n + n * k;
@@ -302,15 +334,29 @@ final class Type2CharStringInterpreter {
       for (int r = 0; r < k; r++) {
         val += _stack[deltaStart + r] * scalars[r];
       }
+      if (!val.isFinite) {
+        throw const TexMathFontError(
+          'Non-finite value produced by Type 2 CharString blend.',
+        );
+      }
       blended[i] = val;
     }
     _stack.removeRange(baseStart, _stack.length);
     _stack.addAll(blended);
   }
 
+  void _addCommand(PathCommand command) {
+    if (_commands.length >= _maxCommands) {
+      throw const TexMathFontError(
+        'Type 2 CharString path command count exceeded limit.',
+      );
+    }
+    _commands.add(command);
+  }
+
   void _closeActiveSubpath() {
     if (_subpathOpen && _subpathHasSegments) {
-      _commands.add(const ClosePath());
+      _addCommand(const ClosePath());
     }
     _subpathOpen = false;
     _subpathHasSegments = false;
@@ -320,19 +366,29 @@ final class Type2CharStringInterpreter {
     _closeActiveSubpath();
     _curX += dx;
     _curY += dy;
-    _commands.add(MoveTo(_curX, _curY));
+    if (!_curX.isFinite || !_curY.isFinite) {
+      throw const TexMathFontError(
+        'Non-finite coordinate in Type 2 CharString move.',
+      );
+    }
+    _addCommand(MoveTo(_curX, _curY));
     _subpathOpen = true;
     _subpathHasSegments = false;
   }
 
   void _emitLine(double dx, double dy) {
     if (!_subpathOpen) {
-      _commands.add(MoveTo(_curX, _curY));
+      _addCommand(MoveTo(_curX, _curY));
       _subpathOpen = true;
     }
     _curX += dx;
     _curY += dy;
-    _commands.add(LineTo(_curX, _curY));
+    if (!_curX.isFinite || !_curY.isFinite) {
+      throw const TexMathFontError(
+        'Non-finite coordinate in Type 2 CharString line.',
+      );
+    }
+    _addCommand(LineTo(_curX, _curY));
     _subpathHasSegments = true;
   }
 
@@ -345,7 +401,7 @@ final class Type2CharStringInterpreter {
     double dy3,
   ) {
     if (!_subpathOpen) {
-      _commands.add(MoveTo(_curX, _curY));
+      _addCommand(MoveTo(_curX, _curY));
       _subpathOpen = true;
     }
     final double c1x = _curX + dx1;
@@ -354,7 +410,17 @@ final class Type2CharStringInterpreter {
     final double c2y = c1y + dy2;
     _curX = c2x + dx3;
     _curY = c2y + dy3;
-    _commands.add(CubicTo(c1x, c1y, c2x, c2y, _curX, _curY));
+    if (!c1x.isFinite ||
+        !c1y.isFinite ||
+        !c2x.isFinite ||
+        !c2y.isFinite ||
+        !_curX.isFinite ||
+        !_curY.isFinite) {
+      throw const TexMathFontError(
+        'Non-finite coordinate in Type 2 CharString curve.',
+      );
+    }
+    _addCommand(CubicTo(c1x, c1y, c2x, c2y, _curX, _curY));
     _subpathHasSegments = true;
   }
 
@@ -610,13 +676,13 @@ final class Type2CharStringInterpreter {
           _stack.removeLast();
         }
       case 20: // put
-        final int i = _pop().round();
+        final int i = cffFiniteInt(_pop(), 'CharString.put');
         final double val = _pop();
         if (i >= 0 && i < _transient.length) {
           _transient[i] = val;
         }
       case 21: // get
-        final int i = _pop().round();
+        final int i = cffFiniteInt(_pop(), 'CharString.get');
         _push((i >= 0 && i < _transient.length) ? _transient[i] : 0.0);
       case 22: // ifelse
         final double v2 = _pop();
@@ -645,7 +711,7 @@ final class Type2CharStringInterpreter {
         _push(b);
         _push(a);
       case 29: // index
-        int idx = _pop().round();
+        int idx = cffFiniteInt(_pop(), 'CharString.index');
         if (idx < 0) {
           idx = 0;
         }
@@ -656,8 +722,8 @@ final class Type2CharStringInterpreter {
         }
         _push(_stack[_stack.length - 1 - idx]);
       case 30: // roll
-        final int j = _pop().round();
-        final int n = _pop().round();
+        final int j = cffFiniteInt(_pop(), 'CharString.roll.shift');
+        final int n = cffFiniteInt(_pop(), 'CharString.roll.count');
         if (n < 0 || n > _stack.length) {
           throw const TexMathFontError('CharString roll count out of range.');
         }

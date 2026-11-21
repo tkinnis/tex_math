@@ -1,6 +1,9 @@
 import '../ast.dart';
 import '../font.dart';
-import '../parser/symbol_map.dart';
+import '../shared/math_symbols.dart';
+
+export '../shared/math_symbols.dart'
+    show firstCodePointOr, singleCodePointOrNull;
 
 /// Resolves both the effective code point and glyph ID for [baseCodePoint]
 /// without duplicate `cmap` binary searches when variant mapping succeeds.
@@ -86,39 +89,4 @@ TexMathFontVariant? defaultMathVariantForCodePoint(int cp) {
     return TexMathFontVariant.italic;
   }
   return null;
-}
-
-/// Decodes a string containing exactly one Unicode scalar code point without
-/// allocating a `.runes.toList()` buffer, or returns `null` otherwise.
-int? singleCodePointOrNull(String value) {
-  final int len = value.length;
-  if (len == 1) {
-    return value.codeUnitAt(0);
-  }
-  if (len == 2) {
-    final int u0 = value.codeUnitAt(0);
-    if (u0 >= 0xD800 && u0 <= 0xDBFF) {
-      final int u1 = value.codeUnitAt(1);
-      if (u1 >= 0xDC00 && u1 <= 0xDFFF) {
-        return 0x10000 + ((u0 - 0xD800) << 10) + (u1 - 0xDC00);
-      }
-    }
-  }
-  return null;
-}
-
-/// Returns the first Unicode scalar code point of [value], or [fallback] if
-/// [value] is empty.
-int firstCodePointOr(String value, int fallback) {
-  if (value.isEmpty) {
-    return fallback;
-  }
-  final int u0 = value.codeUnitAt(0);
-  if (u0 >= 0xD800 && u0 <= 0xDBFF && value.length > 1) {
-    final int u1 = value.codeUnitAt(1);
-    if (u1 >= 0xDC00 && u1 <= 0xDFFF) {
-      return 0x10000 + ((u0 - 0xD800) << 10) + (u1 - 0xDC00);
-    }
-  }
-  return u0;
 }

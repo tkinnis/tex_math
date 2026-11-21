@@ -5,6 +5,8 @@ import '../display_list.dart';
 import '../error.dart';
 import '../font.dart';
 import '../options.dart';
+import '../shared/layout_constants.dart';
+import '../shared/math_symbols.dart';
 import '../source_span.dart';
 import 'box.dart';
 import 'glyph_resolve.dart';
@@ -20,7 +22,8 @@ DisplayList layoutMathTree(
   required TexMathOptions options,
   String? source,
 }) {
-  if (font.mathTable == null) {
+  final MathTableData? mathTable = font.mathTable;
+  if (mathTable == null) {
     throw TexMathFontError(
       'MathFont is missing an OpenType MATH table required for layout.',
       errorClass: TexMathErrorClass.invalidFont,
@@ -41,7 +44,7 @@ DisplayList layoutMathTree(
 
   final _AppendixGLayoutEngine engine = _AppendixGLayoutEngine(
     font: font,
-    mathTable: font.mathTable!,
+    mathTable: mathTable,
     options: options,
     labels: labels,
   );
@@ -53,6 +56,7 @@ DisplayList layoutMathTree(
     unitsPerEm: font.unitsPerEm,
     source: source,
     maxOutputItems: options.budgets.maxOutputItems,
+    fontSignature: font.signature,
   );
 }
 
@@ -183,6 +187,7 @@ class _AppendixGLayoutEngine {
         return layoutMatrixNode(
           node: node,
           font: font,
+          mathTable: mathTable,
           currentStyle: state.style,
           fontScale: state.fontScale,
           layoutCell:
@@ -588,7 +593,18 @@ class _AppendixGLayoutEngine {
         return TexMathAtomClass.inner;
       case StyleNode(:final List<MathNode> children):
         return children.isNotEmpty ? _leadingAtomClass(children.first) : null;
-      default:
+      case ColorNode(:final List<MathNode> children):
+        return children.isNotEmpty
+            ? _leadingAtomClass(children.first)
+            : TexMathAtomClass.ord;
+      case MathRootNode():
+      case RadicalNode():
+      case AccentNode():
+      case MatrixNode():
+      case TextNode():
+      case SpaceNode():
+      case TagNode():
+      case ErrorNode():
         return TexMathAtomClass.ord;
     }
   }
@@ -618,6 +634,7 @@ class _AppendixGLayoutEngine {
           return layoutProoftreeGroup(
             node: node,
             font: font,
+            mathTable: mathTable,
             currentStyle: state.style,
             fontScale: state.fontScale,
             layoutCell:
@@ -955,7 +972,9 @@ class _AppendixGLayoutEngine {
     final MathBox centerBox = _layoutNode(node.children[1], state);
     final MathNode? coreOpNode = _extractCoreOperator(node.children[1]);
     final MathBox? coreOpBox = coreOpNode != null
-        ? _layoutNode(coreOpNode, state)
+        ? (identical(coreOpNode, node.children[1])
+              ? centerBox
+              : _layoutNode(coreOpNode, state))
         : null;
     final double refH = coreOpBox?.heightEm ?? centerBox.heightEm;
     final double refD = coreOpBox?.depthEm ?? centerBox.depthEm;
@@ -1036,7 +1055,7 @@ class _AppendixGLayoutEngine {
         node.children.length == 1 &&
         node.children.first is SymbolNode) {
       final SymbolNode sym = node.children.first as SymbolNode;
-      final String? negated = _negatedUnicode[sym.value];
+      final String? negated = notRemap[sym.value];
       if (negated != null) {
         return _layoutSymbolNode(
           SymbolNode(
@@ -1126,8 +1145,8 @@ class _AppendixGLayoutEngine {
     String value = node.value;
     bool needsSlashOverlay = false;
     if (node.isNegated) {
-      if (_negatedUnicode.containsKey(value)) {
-        value = _negatedUnicode[value]!;
+      if (notRemap.containsKey(value)) {
+        value = notRemap[value]!;
       } else {
         needsSlashOverlay = true;
       }
@@ -1215,6 +1234,7 @@ class _AppendixGLayoutEngine {
       final int cp = firstCodePointOr(name, 0x2192);
       return buildHorizontalStretchyBox(
         font: font,
+        mathTable: mathTable,
         codePoint: cp,
         targetWidthEm: 1.0 * scale,
         scale: scale,
@@ -1228,6 +1248,7 @@ class _AppendixGLayoutEngine {
       if (singleLargeCp != null) {
         return buildLargeOperatorBox(
           font: font,
+          mathTable: mathTable,
           codePoint: singleLargeCp,
           style: state.style,
           scale: scale,
@@ -1240,6 +1261,7 @@ class _AppendixGLayoutEngine {
           parts.add(
             buildLargeOperatorBox(
               font: font,
+              mathTable: mathTable,
               codePoint: r,
               style: state.style,
               scale: scale,
@@ -1342,6 +1364,7 @@ class _AppendixGLayoutEngine {
       );
       final MathBox slash = buildVerticalDelimiterBox(
         font: font,
+        mathTable: mathTable,
         delimiter: '/',
         targetSpanEm: targetSlashSpan,
         atomClass: TexMathAtomClass.ord,
@@ -1478,6 +1501,7 @@ class _AppendixGLayoutEngine {
 
     final MathBox leftDelim = buildVerticalDelimiterBox(
       font: font,
+      mathTable: mathTable,
       delimiter: node.leftDelimiter,
       targetSpanEm: delimSpan,
       atomClass: TexMathAtomClass.open,
@@ -1487,6 +1511,7 @@ class _AppendixGLayoutEngine {
     );
     final MathBox rightDelim = buildVerticalDelimiterBox(
       font: font,
+      mathTable: mathTable,
       delimiter: node.rightDelimiter,
       targetSpanEm: delimSpan,
       atomClass: TexMathAtomClass.close,
@@ -1590,6 +1615,7 @@ class _AppendixGLayoutEngine {
     final int cp = firstCodePointOr(arrowOp.operatorName, 0x2192);
     final MathBox arrowBox = buildHorizontalStretchyBox(
       font: font,
+      mathTable: mathTable,
       codePoint: cp,
       targetWidthEm: targetWidth,
       scale: scale,
@@ -1604,11 +1630,7 @@ class _AppendixGLayoutEngine {
         (constants.stretchStackTopShiftUp / upem) * scale;
     final double shiftBotMin =
         (constants.stretchStackBottomShiftDown / upem) * scale;
-    final (double _, double arrowInkMax) = boxVerticalInkBoundsEm(
-      arrowBox,
-      font,
-    );
-    final (double arrowInkMin, double _) = boxVerticalInkBoundsEm(
+    final (double arrowInkMin, double arrowInkMax) = boxVerticalInkBoundsEm(
       arrowBox,
       font,
     );
@@ -1970,7 +1992,8 @@ class _AppendixGLayoutEngine {
     required double scriptBaselineYEm,
   }) {
     final double cornerYEm;
-    if (baseCorner == MathKernCorner.topRight) {
+    if (baseCorner == MathKernCorner.topRight ||
+        baseCorner == MathKernCorner.topLeft) {
       cornerYEm = math.min(base.heightEm, scriptBaselineYEm - script.depthEm);
     } else {
       cornerYEm = math.max(-base.depthEm, scriptBaselineYEm + script.heightEm);
@@ -2025,6 +2048,7 @@ class _AppendixGLayoutEngine {
         radicand.heightEm + radicand.depthEm + clearance + theta;
     final MathBox surd = buildVerticalSurdBox(
       font: font,
+      mathTable: mathTable,
       targetSpanEm: reqSpan,
       scale: scale,
       span: node.span,
@@ -2173,6 +2197,7 @@ class _AppendixGLayoutEngine {
     final MathBox accentBox = node.isWide
         ? buildHorizontalStretchyBox(
             font: font,
+            mathTable: mathTable,
             codePoint: accentCp,
             targetWidthEm: base.widthEm,
             scale: scale,
@@ -2188,25 +2213,42 @@ class _AppendixGLayoutEngine {
 
     final double baseAnchor = node.isWide
         ? base.widthEm / 2.0
-        : boxTopAccentAnchorEm(base, font);
+        : boxTopAccentAnchorEm(base, font, mathTable);
     final double accentAnchor = node.isWide
         ? accentBox.widthEm / 2.0
-        : boxTopAccentAnchorEm(accentBox, font);
+        : boxTopAccentAnchorEm(accentBox, font, mathTable);
     final double accentX = baseAnchor - accentAnchor;
 
     final (double accInkMin, double accInkMax) = boxVerticalInkBoundsEm(
       accentBox,
       font,
     );
+    final double accentBaseEm = (constants.accentBaseHeight / upem) * scale;
+    final double flattenedBaseEm =
+        (constants.flattenedAccentBaseHeight / upem) * scale;
+    final double effectiveAccentBaseEm = accentBaseEm > 0.0
+        ? accentBaseEm
+        : flattenedBaseEm;
     final double gap =
         ((node.isUnder
                 ? constants.underbarVerticalGap
                 : constants.overbarVerticalGap) /
             upem) *
         scale;
-    final double accentY = node.isUnder
-        ? -base.depthEm - gap - accInkMax
-        : base.heightEm + gap - accInkMin;
+    final double accentY;
+    if (node.isUnder) {
+      accentY = -base.depthEm - gap - accInkMax;
+    } else if (effectiveAccentBaseEm > 0.0 &&
+        accInkMin >= effectiveAccentBaseEm * 0.5) {
+      // TeX Appendix G Rule 12 / OpenType MATH: accents designed at x-height
+      // align directly over bases up to accentBaseHeight and shift only by the
+      // excess height above it (falling back to flattenedAccentBaseHeight when
+      // accentBaseHeight is unset).
+      final double delta = math.min(base.heightEm, effectiveAccentBaseEm);
+      accentY = base.heightEm - delta;
+    } else {
+      accentY = base.heightEm + gap - accInkMin;
+    }
 
     return VBox.positioned(
       children: <VBoxChild>[
@@ -2264,6 +2306,7 @@ class _AppendixGLayoutEngine {
                 : TexMathAtomClass.ord);
       return buildVerticalDelimiterBox(
         font: font,
+        mathTable: mathTable,
         delimiter: delim,
         targetSpanEm: 0.0,
         atomClass: atomClass,
@@ -2324,6 +2367,7 @@ class _AppendixGLayoutEngine {
       assembled.add(
         buildVerticalDelimiterBox(
           font: font,
+          mathTable: mathTable,
           delimiter: node.leftDelimiter,
           targetSpanEm: targetSpan,
           atomClass: TexMathAtomClass.open,
@@ -2345,6 +2389,7 @@ class _AppendixGLayoutEngine {
         assembled.add(
           buildVerticalDelimiterBox(
             font: font,
+            mathTable: mathTable,
             delimiter: midSym.value,
             targetSpanEm: targetSpan,
             atomClass: midSym.atomClass ?? TexMathAtomClass.rel,
@@ -2361,6 +2406,7 @@ class _AppendixGLayoutEngine {
       assembled.add(
         buildVerticalDelimiterBox(
           font: font,
+          mathTable: mathTable,
           delimiter: node.rightDelimiter,
           targetSpanEm: targetSpan,
           atomClass: TexMathAtomClass.close,
@@ -2379,7 +2425,7 @@ class _AppendixGLayoutEngine {
   }
 
   MathBox _layoutTextNode(TextNode node, _LayoutState state) {
-    final TexMathFontVariant? textVariant = _variantForTextStyle(
+    final TexMathFontVariant? textVariant = textStyleFontVariant(
       node.styleCommand,
     );
     final _LayoutState textState = state.copyWith(
@@ -2412,18 +2458,16 @@ class _AppendixGLayoutEngine {
 
     final double scale = _scale(state);
     final int level = scriptLevelForStyle(state.style);
+    final bool useNbspForSpace =
+        node.styleCommand != 'texttt' && font.glyphIdForCodePoint(0x00A0) != 0;
+    final int fallbackSpaceCp = font.glyphIdForCodePoint(0x20) != 0
+        ? 0x20
+        : 0x00A0;
     final List<MathBox> glyphs = <MathBox>[];
     for (final int r in node.text.runes) {
-      final int baseCp;
-      if (r == 0x20) {
-        baseCp =
-            (node.styleCommand != 'texttt' &&
-                font.glyphIdForCodePoint(0x00A0) != 0)
-            ? 0x00A0
-            : (font.glyphIdForCodePoint(0x20) != 0 ? 0x20 : 0x00A0);
-      } else {
-        baseCp = r;
-      }
+      final int baseCp = r == 0x20
+          ? (useNbspForSpace ? 0x00A0 : fallbackSpaceCp)
+          : r;
       final int cp = resolveMathGlyphCodePoint(
         baseCodePoint: baseCp,
         font: font,
@@ -2512,7 +2556,11 @@ class _AppendixGLayoutEngine {
     );
     final double scale = _scale(state);
     final int? bgArgb = resolveColorSpecArgb(node.attributes['background']);
-    final double padEm = _parseCssLengthEm(node.attributes['padding'], scale);
+    final double padEm = parseCssLengthToEm(
+      node.attributes['padding'],
+      scale,
+      exFactor: _exFactor,
+    );
 
     double strokeEm = 0.0;
     int? borderArgb;
@@ -2535,7 +2583,7 @@ class _AppendixGLayoutEngine {
           continue;
         }
         if (_startsWithAsciiDigit(lower)) {
-          strokeEm = _parseCssLengthEm(lower, scale);
+          strokeEm = parseCssLengthToEm(lower, scale, exFactor: _exFactor);
           continue;
         }
         final int? parsedColor = resolveColorSpecArgb(token);
@@ -2987,7 +3035,7 @@ class _AppendixGLayoutEngine {
     }
     final double nx = (-dy / len) * (thicknessEm / 2.0);
     final double ny = (dx / len) * (thicknessEm / 2.0);
-    final GlyphOutline outline = GlyphOutline(
+    final GlyphOutline outline = GlyphOutline.cached(
       glyphId: 0,
       commands: <PathCommand>[
         MoveTo((x0 + nx) * upem, (y0 + ny) * upem),
@@ -3045,7 +3093,7 @@ class _AppendixGLayoutEngine {
     final double backX = x1 - ux * sizeEm;
     final double backY = y1 - uy * sizeEm;
     final double wing = sizeEm * 0.48;
-    final GlyphOutline outline = GlyphOutline(
+    final GlyphOutline outline = GlyphOutline.cached(
       glyphId: 0,
       commands: <PathCommand>[
         MoveTo(x1 * upem, y1 * upem),
@@ -3093,7 +3141,7 @@ class _AppendixGLayoutEngine {
     final double cx = cxEm * upem;
     final double cy = cyEm * upem;
 
-    final GlyphOutline outline = GlyphOutline(
+    final GlyphOutline outline = GlyphOutline.cached(
       glyphId: 0,
       commands: <PathCommand>[
         // Outer ellipse counter-clockwise
@@ -3152,7 +3200,7 @@ class _AppendixGLayoutEngine {
     final double iy1 = (topYEm - halfT) * upem;
     final double ir = math.max(0.0, radiusEm - halfT) * upem;
 
-    final GlyphOutline outline = GlyphOutline(
+    final GlyphOutline outline = GlyphOutline.cached(
       glyphId: 0,
       commands: <PathCommand>[
         // Outer rounded rect counter-clockwise
@@ -3389,43 +3437,11 @@ class _AppendixGLayoutEngine {
     }
   }
 
-  TexMathFontVariant? _variantForTextStyle(String? cmd) {
-    switch (cmd) {
-      case 'textbf':
-        return TexMathFontVariant.bold;
-      case 'texttt':
-        return TexMathFontVariant.monospace;
-      case 'textsf':
-        return TexMathFontVariant.sansSerif;
-      case 'textit':
-      case 'emph':
-        return TexMathFontVariant.italic;
-      default:
-        return null;
-    }
-  }
-
-  double _parseCssLengthEm(String? raw, double scale) {
-    if (raw == null || raw.isEmpty) {
-      return 0.0;
-    }
-    final RegExpMatch? m = _cssLengthPattern.firstMatch(raw.trim());
-    if (m == null) {
-      return 0.0;
-    }
-    final double val = double.tryParse(m.group(1)!) ?? 0.0;
-    final String unit = (m.group(2) ?? '').toLowerCase();
-    switch (unit) {
-      case 'em':
-        return val * scale;
-      case 'ex':
-        return val * 0.43 * scale;
-      case 'pt':
-        return (val / 10.0) * scale;
-      case 'px':
-      default:
-        return (val / 16.0) * scale;
-    }
+  double get _exFactor {
+    final int? xh = font.xHeight;
+    return (xh != null && xh > 0)
+        ? xh / upem
+        : LayoutDefaults.fallbackXHeightEm;
   }
 
   int? _extractEncloseColorArgb(String? styleAttr) {
@@ -3440,42 +3456,8 @@ class _AppendixGLayoutEngine {
   }
 }
 
-const Map<String, String> _negatedUnicode = <String, String>{
-  '=': '\u2260',
-  '<': '\u226E',
-  '>': '\u226F',
-  '\u2261': '\u2262',
-  '\u2208': '\u2209',
-  '\u220B': '\u220C',
-  '\u2282': '\u2284',
-  '\u2283': '\u2285',
-  '\u2286': '\u2288',
-  '\u2287': '\u2289',
-  '\u223C': '\u2241',
-  '\u2243': '\u2244',
-  '\u2245': '\u2247',
-  '\u2248': '\u2249',
-  '\u224D': '\u226D',
-  '\u2264': '\u2270',
-  '\u2265': '\u2271',
-  '\u227A': '\u2280',
-  '\u227B': '\u2281',
-  '\u227C': '\u22E0',
-  '\u227D': '\u22E1',
-  '\u2291': '\u22E2',
-  '\u2292': '\u22E3',
-  '\u2223': '\u2224',
-  '\u2225': '\u2226',
-  '\u22A2': '\u22AC',
-  '\u22A8': '\u22AD',
-  '\u22A9': '\u22AE',
-  '\u22AB': '\u22AF',
-  '\u2203': '\u2204',
-};
-
 final RegExp _whitespacePattern = RegExp(r'\s+');
 final RegExp _notationSeparatorPattern = RegExp(r'[\s,]+');
-final RegExp _cssLengthPattern = RegExp(r'^(\d+(?:\.\d+)?)\s*([a-zA-Z]*)$');
 final RegExp _encloseColorPattern = RegExp(
   r'(?:mathcolor|color)\s*[:=]\s*"?([^";\s]+)"?',
   caseSensitive: false,

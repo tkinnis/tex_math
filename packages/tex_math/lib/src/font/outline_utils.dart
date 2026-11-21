@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
-import '../font.dart';
+import 'metrics.dart';
+import 'outline.dart';
 
 /// Computes the exact analytical bounding box of [commands] in font units.
 ///
@@ -158,47 +159,55 @@ List<PathCommand> transformPathCommands(
   double xformX(double x, double y) => a * x + c * y + tx;
   double xformY(double x, double y) => b * x + d * y + ty;
 
-  return commands.map((PathCommand cmd) {
-    return switch (cmd) {
-      MoveTo(:final double x, :final double y) => MoveTo(
-        xformX(x, y),
-        xformY(x, y),
-      ),
-      LineTo(:final double x, :final double y) => LineTo(
-        xformX(x, y),
-        xformY(x, y),
-      ),
-      QuadTo(
-        :final double controlX,
-        :final double controlY,
-        :final double x,
-        :final double y,
-      ) =>
+  if (commands.isEmpty) {
+    return const <PathCommand>[];
+  }
+  if (commands.isEmpty) {
+    return const <PathCommand>[];
+  }
+  return List<PathCommand>.unmodifiable(
+    commands.map((PathCommand cmd) {
+      return switch (cmd) {
+        MoveTo(:final double x, :final double y) => MoveTo(
+          xformX(x, y),
+          xformY(x, y),
+        ),
+        LineTo(:final double x, :final double y) => LineTo(
+          xformX(x, y),
+          xformY(x, y),
+        ),
         QuadTo(
-          xformX(controlX, controlY),
-          xformY(controlX, controlY),
-          xformX(x, y),
-          xformY(x, y),
-        ),
-      CubicTo(
-        :final double control1X,
-        :final double control1Y,
-        :final double control2X,
-        :final double control2Y,
-        :final double x,
-        :final double y,
-      ) =>
+          :final double controlX,
+          :final double controlY,
+          :final double x,
+          :final double y,
+        ) =>
+          QuadTo(
+            xformX(controlX, controlY),
+            xformY(controlX, controlY),
+            xformX(x, y),
+            xformY(x, y),
+          ),
         CubicTo(
-          xformX(control1X, control1Y),
-          xformY(control1X, control1Y),
-          xformX(control2X, control2Y),
-          xformY(control2X, control2Y),
-          xformX(x, y),
-          xformY(x, y),
-        ),
-      ClosePath() => const ClosePath(),
-    };
-  }).toList();
+          :final double control1X,
+          :final double control1Y,
+          :final double control2X,
+          :final double control2Y,
+          :final double x,
+          :final double y,
+        ) =>
+          CubicTo(
+            xformX(control1X, control1Y),
+            xformY(control1X, control1Y),
+            xformX(control2X, control2Y),
+            xformY(control2X, control2Y),
+            xformX(x, y),
+            xformY(x, y),
+          ),
+        ClosePath() => const ClosePath(),
+      };
+    }),
+  );
 }
 
 /// Alignment zone pairs and stem defaults extracted from a CFF Private DICT.
@@ -270,47 +279,52 @@ List<PathCommand> applyStemHinting({
     return commands;
   }
 
-  return commands.map((PathCommand cmd) {
-    return switch (cmd) {
-      MoveTo(:final double x, :final double y) => MoveTo(
-        xWarp.map(x),
-        yWarp.map(y),
-      ),
-      LineTo(:final double x, :final double y) => LineTo(
-        xWarp.map(x),
-        yWarp.map(y),
-      ),
-      QuadTo(
-        :final double controlX,
-        :final double controlY,
-        :final double x,
-        :final double y,
-      ) =>
+  if (commands.isEmpty) {
+    return const <PathCommand>[];
+  }
+  return List<PathCommand>.unmodifiable(
+    commands.map((PathCommand cmd) {
+      return switch (cmd) {
+        MoveTo(:final double x, :final double y) => MoveTo(
+          xWarp.map(x),
+          yWarp.map(y),
+        ),
+        LineTo(:final double x, :final double y) => LineTo(
+          xWarp.map(x),
+          yWarp.map(y),
+        ),
         QuadTo(
-          xWarp.map(controlX),
-          yWarp.map(controlY),
-          xWarp.map(x),
-          yWarp.map(y),
-        ),
-      CubicTo(
-        :final double control1X,
-        :final double control1Y,
-        :final double control2X,
-        :final double control2Y,
-        :final double x,
-        :final double y,
-      ) =>
+          :final double controlX,
+          :final double controlY,
+          :final double x,
+          :final double y,
+        ) =>
+          QuadTo(
+            xWarp.map(controlX),
+            yWarp.map(controlY),
+            xWarp.map(x),
+            yWarp.map(y),
+          ),
         CubicTo(
-          xWarp.map(control1X),
-          yWarp.map(control1Y),
-          xWarp.map(control2X),
-          yWarp.map(control2Y),
-          xWarp.map(x),
-          yWarp.map(y),
-        ),
-      ClosePath() => const ClosePath(),
-    };
-  }).toList();
+          :final double control1X,
+          :final double control1Y,
+          :final double control2X,
+          :final double control2Y,
+          :final double x,
+          :final double y,
+        ) =>
+          CubicTo(
+            xWarp.map(control1X),
+            yWarp.map(control1Y),
+            xWarp.map(control2X),
+            yWarp.map(control2Y),
+            xWarp.map(x),
+            yWarp.map(y),
+          ),
+        ClosePath() => const ClosePath(),
+      };
+    }),
+  );
 }
 
 final class _AnchorPair {
@@ -339,10 +353,17 @@ final class _AxisWarp {
     if (coord >= anchors.last.orig) {
       return coord + (anchors.last.snapped - anchors.last.orig);
     }
-    for (int i = 0; i < anchors.length - 1; i++) {
-      final _AnchorPair a = anchors[i];
-      final _AnchorPair b = anchors[i + 1];
-      if (coord >= a.orig && coord <= b.orig) {
+    int low = 0;
+    int high = anchors.length - 2;
+    while (low <= high) {
+      final int mid = (low + high) >>> 1;
+      final _AnchorPair a = anchors[mid];
+      final _AnchorPair b = anchors[mid + 1];
+      if (coord < a.orig) {
+        high = mid - 1;
+      } else if (coord > b.orig) {
+        low = mid + 1;
+      } else {
         final double span = b.orig - a.orig;
         if (span <= 1e-9) {
           return a.snapped;

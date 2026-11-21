@@ -1,3 +1,5 @@
+import 'dart:collection';
+
 import 'package:meta/meta.dart';
 
 import 'error.dart';
@@ -131,19 +133,23 @@ final class MathRootNode extends MathNode {
   /// Creates a root node with [children], [displayMode], and optional [labels].
   const MathRootNode({
     required super.span,
-    required this.children,
+    required this._children,
     this.displayMode = TexMathDisplayMode.display,
-    this.labels = const <String, String>{},
+    this._labels = const <String, String>{},
   });
 
+  final List<MathNode> _children;
+  final Map<String, String> _labels;
+
   /// Ordered top-level child nodes.
-  final List<MathNode> children;
+  List<MathNode> get children => _freezeList(_children, const <MathNode>[]);
 
   /// Effective display mode for this expression.
   final TexMathDisplayMode displayMode;
 
   /// Label-to-tag bindings collected via `\label` and `\tag` within this tree.
-  final Map<String, String> labels;
+  Map<String, String> get labels =>
+      _freezeMap(_labels, const <String, String>{});
 
   @override
   bool operator ==(Object other) =>
@@ -151,21 +157,21 @@ final class MathRootNode extends MathNode {
       other is MathRootNode &&
           span == other.span &&
           displayMode == other.displayMode &&
-          _listEquals(children, other.children) &&
-          _mapEquals(labels, other.labels);
+          _listEquals(_children, other._children) &&
+          _mapEquals(_labels, other._labels);
 
   @override
   int get hashCode => Object.hash(
     span,
     displayMode,
-    Object.hashAll(children),
-    _mapHash(labels),
+    Object.hashAll(_children),
+    _mapHash(_labels),
   );
 
   @override
   String toString() =>
       'MathRootNode(span: $span, displayMode: $displayMode, '
-      'children: ${children.length})';
+      'children: ${_children.length})';
 }
 
 /// Brace-delimited, implicit, or annotated mathematical sub-group `{...}`.
@@ -174,16 +180,19 @@ final class MathGroupNode extends MathNode {
   /// Creates a group node wrapping [children].
   const MathGroupNode({
     required super.span,
-    required this.children,
+    required this._children,
     this.isExplicitGroup = true,
     this.atomClass,
     this.fontVariant,
     this.role,
-    this.attributes = const <String, String>{},
+    this._attributes = const <String, String>{},
   });
 
+  final List<MathNode> _children;
+  final Map<String, String> _attributes;
+
   /// Ordered child nodes inside the group.
-  final List<MathNode> children;
+  List<MathNode> get children => _freezeList(_children, const <MathNode>[]);
 
   /// Whether the group came from explicit `{...}` braces.
   final bool isExplicitGroup;
@@ -199,7 +208,8 @@ final class MathGroupNode extends MathNode {
   final String? role;
 
   /// Additional immutable metadata attributes associated with [role].
-  final Map<String, String> attributes;
+  Map<String, String> get attributes =>
+      _freezeMap(_attributes, const <String, String>{});
 
   @override
   bool operator ==(Object other) =>
@@ -210,8 +220,8 @@ final class MathGroupNode extends MathNode {
           atomClass == other.atomClass &&
           fontVariant == other.fontVariant &&
           role == other.role &&
-          _listEquals(children, other.children) &&
-          _mapEquals(attributes, other.attributes);
+          _listEquals(_children, other._children) &&
+          _mapEquals(_attributes, other._attributes);
 
   @override
   int get hashCode => Object.hash(
@@ -220,14 +230,14 @@ final class MathGroupNode extends MathNode {
     atomClass,
     fontVariant,
     role,
-    Object.hashAll(children),
-    _mapHash(attributes),
+    Object.hashAll(_children),
+    _mapHash(_attributes),
   );
 
   @override
   String toString() =>
       'MathGroupNode(span: $span, isExplicitGroup: $isExplicitGroup, '
-      'role: $role, children: ${children.length})';
+      'role: $role, children: ${_children.length})';
 }
 
 /// Leaf symbol node such as an identifier, numeral, relation, or punctuation.
@@ -554,14 +564,16 @@ final class DelimiterNode extends MathNode {
   /// Creates a delimited group node around [children].
   const DelimiterNode({
     required super.span,
-    required this.children,
+    required this._children,
     this.leftDelimiter,
     this.rightDelimiter,
     this.fixedSizeEm,
   });
 
+  final List<MathNode> _children;
+
   /// Expressions enclosed between the delimiters.
-  final List<MathNode> children;
+  List<MathNode> get children => _freezeList(_children, const <MathNode>[]);
 
   /// Left delimiter symbol, or `null` for `\left.`.
   final String? leftDelimiter;
@@ -580,7 +592,7 @@ final class DelimiterNode extends MathNode {
           leftDelimiter == other.leftDelimiter &&
           rightDelimiter == other.rightDelimiter &&
           fixedSizeEm == other.fixedSizeEm &&
-          _listEquals(children, other.children);
+          _listEquals(_children, other._children);
 
   @override
   int get hashCode => Object.hash(
@@ -588,7 +600,7 @@ final class DelimiterNode extends MathNode {
     leftDelimiter,
     rightDelimiter,
     fixedSizeEm,
-    Object.hashAll(children),
+    Object.hashAll(_children),
   );
 
   @override
@@ -603,26 +615,37 @@ final class MatrixNode extends MathNode {
   /// Creates a matrix or alignment node with [rows] and [environment].
   const MatrixNode({
     required super.span,
-    required this.rows,
+    required this._rows,
     required this.environment,
-    this.columnAlignments = const <String>[],
+    this._columnAlignments = const <String>[],
     this.verticalAlignment,
     this.leftDelimiter,
     this.rightDelimiter,
     this.isNumbered = false,
-    this.rowLines = const <int, String>{},
-    this.columnSeparators = const <int, String>{},
-    this.rowTags = const <int, TagNode>{},
+    this._rowLines = const <int, String>{},
+    this._columnLines = const <int, String>{},
+    this._columnSeparators = const <int, MathNode>{},
+    this._rowTags = const <int, TagNode>{},
   });
 
+  final List<List<MathNode>> _rows;
+  final List<String> _columnAlignments;
+  final Map<int, String> _rowLines;
+  final Map<int, String> _columnLines;
+  final Map<int, MathNode> _columnSeparators;
+  final Map<int, TagNode> _rowTags;
+
   /// Two-dimensional list of cell nodes arranged by row then column.
-  final List<List<MathNode>> rows;
+  List<List<MathNode>> get rows => _rows.isEmpty
+      ? const <List<MathNode>>[]
+      : UnmodifiableListView<List<MathNode>>(_MatrixRowsView(_rows));
 
   /// TeX environment name (e.g. `pmatrix`, `align`, `array`).
   final String environment;
 
   /// Optional column alignment specifiers (`l`, `c`, `r`).
-  final List<String> columnAlignments;
+  List<String> get columnAlignments =>
+      _freezeList(_columnAlignments, const <String>[]);
 
   /// Optional vertical table alignment (`t`, `b`, `c`).
   final String? verticalAlignment;
@@ -637,13 +660,20 @@ final class MatrixNode extends MathNode {
   final bool isNumbered;
 
   /// Horizontal rule styles keyed by row boundary index (`0` = top border).
-  final Map<int, String> rowLines;
+  Map<int, String> get rowLines => _freezeMap(_rowLines, const <int, String>{});
 
-  /// Vertical rule or separator specs keyed by column boundary index.
-  final Map<int, String> columnSeparators;
+  /// Vertical border rule styles (`solid` or `double`) keyed by column
+  /// boundary index (`0` = left edge of the first column).
+  Map<int, String> get columnLines =>
+      _freezeMap(_columnLines, const <int, String>{});
+
+  /// Pre-parsed custom column separator subtrees (`@{...}` / `!{...}`) keyed
+  /// by column boundary index.
+  Map<int, MathNode> get columnSeparators =>
+      _freezeMap(_columnSeparators, const <int, MathNode>{});
 
   /// Explicit equation tags keyed by zero-based row index.
-  final Map<int, TagNode> rowTags;
+  Map<int, TagNode> get rowTags => _freezeMap(_rowTags, const <int, TagNode>{});
 
   @override
   bool operator ==(Object other) =>
@@ -655,11 +685,12 @@ final class MatrixNode extends MathNode {
           leftDelimiter == other.leftDelimiter &&
           rightDelimiter == other.rightDelimiter &&
           isNumbered == other.isNumbered &&
-          _listEquals(columnAlignments, other.columnAlignments) &&
-          _matrixRowsEquals(rows, other.rows) &&
-          _mapEquals(rowLines, other.rowLines) &&
-          _mapEquals(columnSeparators, other.columnSeparators) &&
-          _mapEquals(rowTags, other.rowTags);
+          _listEquals(_columnAlignments, other._columnAlignments) &&
+          _matrixRowsEquals(_rows, other._rows) &&
+          _mapEquals(_rowLines, other._rowLines) &&
+          _mapEquals(_columnLines, other._columnLines) &&
+          _mapEquals(_columnSeparators, other._columnSeparators) &&
+          _mapEquals(_rowTags, other._rowTags);
 
   @override
   int get hashCode => Object.hash(
@@ -669,17 +700,18 @@ final class MatrixNode extends MathNode {
     leftDelimiter,
     rightDelimiter,
     isNumbered,
-    Object.hashAll(columnAlignments),
-    Object.hashAll(rows.map(Object.hashAll)),
-    _mapHash(rowLines),
-    _mapHash(columnSeparators),
-    _mapHash(rowTags),
+    Object.hashAll(_columnAlignments),
+    Object.hashAll(_rows.map(Object.hashAll)),
+    _mapHash(_rowLines),
+    _mapHash(_columnLines),
+    _mapHash(_columnSeparators),
+    _mapHash(_rowTags),
   );
 
   @override
   String toString() =>
       'MatrixNode(span: $span, environment: $environment, '
-      'rows: ${rows.length})';
+      'rows: ${_rows.length})';
 }
 
 /// Text-mode run embedded inside math mode (`\text`, `\mathrm`, `\textbf`).
@@ -690,8 +722,10 @@ final class TextNode extends MathNode {
     required super.span,
     required this.text,
     this.styleCommand,
-    this.children = const <MathNode>[],
+    this._children = const <MathNode>[],
   });
+
+  final List<MathNode> _children;
 
   /// Plain text payload.
   final String text;
@@ -700,7 +734,7 @@ final class TextNode extends MathNode {
   final String? styleCommand;
 
   /// Optional nested text and inline math fragments inside rich text runs.
-  final List<MathNode> children;
+  List<MathNode> get children => _freezeList(_children, const <MathNode>[]);
 
   @override
   bool operator ==(Object other) =>
@@ -709,11 +743,11 @@ final class TextNode extends MathNode {
           span == other.span &&
           text == other.text &&
           styleCommand == other.styleCommand &&
-          _listEquals(children, other.children);
+          _listEquals(_children, other._children);
 
   @override
   int get hashCode =>
-      Object.hash(span, text, styleCommand, Object.hashAll(children));
+      Object.hash(span, text, styleCommand, Object.hashAll(_children));
 
   @override
   String toString() =>
@@ -755,15 +789,17 @@ final class StyleNode extends MathNode {
   const StyleNode({
     required super.span,
     required this.style,
-    required this.children,
+    required this._children,
     this.scaleEm,
   });
+
+  final List<MathNode> _children;
 
   /// Target Appendix G math layout style.
   final TexMathStyle style;
 
   /// Subtree nodes laid out under [style].
-  final List<MathNode> children;
+  List<MathNode> get children => _freezeList(_children, const <MathNode>[]);
 
   /// Optional relative font-size scale factor (e.g. `1.44` for `\Large`).
   final double? scaleEm;
@@ -775,15 +811,15 @@ final class StyleNode extends MathNode {
           span == other.span &&
           style == other.style &&
           scaleEm == other.scaleEm &&
-          _listEquals(children, other.children);
+          _listEquals(_children, other._children);
 
   @override
   int get hashCode =>
-      Object.hash(span, style, scaleEm, Object.hashAll(children));
+      Object.hash(span, style, scaleEm, Object.hashAll(_children));
 
   @override
   String toString() =>
-      'StyleNode(span: $span, style: $style, children: ${children.length})';
+      'StyleNode(span: $span, style: $style, children: ${_children.length})';
 }
 
 /// Color scope node (`\color`, `\textcolor`, `\colorbox`, `\fcolorbox`).
@@ -793,11 +829,13 @@ final class ColorNode extends MathNode {
   const ColorNode({
     required super.span,
     required this.role,
-    required this.children,
+    required this._children,
     this.colorValue,
     this.backgroundColor,
     this.borderColor,
   });
+
+  final List<MathNode> _children;
 
   /// Semantic color role for this subtree.
   final TexMathColorRole role;
@@ -807,7 +845,7 @@ final class ColorNode extends MathNode {
   final String? colorValue;
 
   /// Colored child nodes.
-  final List<MathNode> children;
+  List<MathNode> get children => _freezeList(_children, const <MathNode>[]);
 
   /// Optional background color string (e.g. `\colorbox`, `\cellcolor`).
   final String? backgroundColor;
@@ -824,7 +862,7 @@ final class ColorNode extends MathNode {
           colorValue == other.colorValue &&
           backgroundColor == other.backgroundColor &&
           borderColor == other.borderColor &&
-          _listEquals(children, other.children);
+          _listEquals(_children, other._children);
 
   @override
   int get hashCode => Object.hash(
@@ -833,7 +871,7 @@ final class ColorNode extends MathNode {
     colorValue,
     backgroundColor,
     borderColor,
-    Object.hashAll(children),
+    Object.hashAll(_children),
   );
 
   @override
@@ -970,4 +1008,41 @@ bool _matrixRowsEquals(List<List<MathNode>> a, List<List<MathNode>> b) {
     }
   }
   return true;
+}
+
+List<T> _freezeList<T>(List<T> list, List<T> emptyConst) {
+  if (list.isEmpty) {
+    return emptyConst;
+  }
+  return list is UnmodifiableListView<T> ? list : UnmodifiableListView<T>(list);
+}
+
+Map<K, V> _freezeMap<K, V>(Map<K, V> map, Map<K, V> emptyConst) {
+  if (map.isEmpty) {
+    return emptyConst;
+  }
+  return map is UnmodifiableMapView<K, V>
+      ? map
+      : UnmodifiableMapView<K, V>(map);
+}
+
+final class _MatrixRowsView extends ListBase<List<MathNode>> {
+  _MatrixRowsView(this._rows);
+
+  final List<List<MathNode>> _rows;
+
+  @override
+  int get length => _rows.length;
+
+  @override
+  set length(int newLength) =>
+      throw UnsupportedError('Cannot modify an unmodifiable list');
+
+  @override
+  List<MathNode> operator [](int index) =>
+      _freezeList(_rows[index], const <MathNode>[]);
+
+  @override
+  void operator []=(int index, List<MathNode> value) =>
+      throw UnsupportedError('Cannot modify an unmodifiable list');
 }

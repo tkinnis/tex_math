@@ -543,6 +543,153 @@ final class MathConstants {
       ),
     );
   }
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is MathConstants &&
+          scriptPercentScaleDown == other.scriptPercentScaleDown &&
+          scriptScriptPercentScaleDown == other.scriptScriptPercentScaleDown &&
+          delimitedSubFormulaMinHeight == other.delimitedSubFormulaMinHeight &&
+          displayOperatorMinHeight == other.displayOperatorMinHeight &&
+          radicalDegreeBottomRaisePercent ==
+              other.radicalDegreeBottomRaisePercent &&
+          mathLeadingRecord == other.mathLeadingRecord &&
+          axisHeightRecord == other.axisHeightRecord &&
+          accentBaseHeightRecord == other.accentBaseHeightRecord &&
+          flattenedAccentBaseHeightRecord ==
+              other.flattenedAccentBaseHeightRecord &&
+          subscriptShiftDownRecord == other.subscriptShiftDownRecord &&
+          subscriptTopMaxRecord == other.subscriptTopMaxRecord &&
+          subscriptBaselineDropMinRecord ==
+              other.subscriptBaselineDropMinRecord &&
+          superscriptShiftUpRecord == other.superscriptShiftUpRecord &&
+          superscriptShiftUpCrampedRecord ==
+              other.superscriptShiftUpCrampedRecord &&
+          superscriptBottomMinRecord == other.superscriptBottomMinRecord &&
+          superscriptBaselineDropMaxRecord ==
+              other.superscriptBaselineDropMaxRecord &&
+          subSuperscriptGapMinRecord == other.subSuperscriptGapMinRecord &&
+          superscriptBottomMaxWithSubscriptRecord ==
+              other.superscriptBottomMaxWithSubscriptRecord &&
+          spaceAfterScriptRecord == other.spaceAfterScriptRecord &&
+          upperLimitGapMinRecord == other.upperLimitGapMinRecord &&
+          upperLimitBaselineRiseMinRecord ==
+              other.upperLimitBaselineRiseMinRecord &&
+          lowerLimitGapMinRecord == other.lowerLimitGapMinRecord &&
+          lowerLimitBaselineDropMinRecord ==
+              other.lowerLimitBaselineDropMinRecord &&
+          stackTopShiftUpRecord == other.stackTopShiftUpRecord &&
+          stackTopDisplayStyleShiftUpRecord ==
+              other.stackTopDisplayStyleShiftUpRecord &&
+          stackBottomShiftDownRecord == other.stackBottomShiftDownRecord &&
+          stackBottomDisplayStyleShiftDownRecord ==
+              other.stackBottomDisplayStyleShiftDownRecord &&
+          stackGapMinRecord == other.stackGapMinRecord &&
+          stackDisplayStyleGapMinRecord ==
+              other.stackDisplayStyleGapMinRecord &&
+          stretchStackTopShiftUpRecord == other.stretchStackTopShiftUpRecord &&
+          stretchStackBottomShiftDownRecord ==
+              other.stretchStackBottomShiftDownRecord &&
+          stretchStackGapAboveMinRecord ==
+              other.stretchStackGapAboveMinRecord &&
+          stretchStackGapBelowMinRecord ==
+              other.stretchStackGapBelowMinRecord &&
+          fractionNumeratorShiftUpRecord ==
+              other.fractionNumeratorShiftUpRecord &&
+          fractionNumeratorDisplayStyleShiftUpRecord ==
+              other.fractionNumeratorDisplayStyleShiftUpRecord &&
+          fractionDenominatorShiftDownRecord ==
+              other.fractionDenominatorShiftDownRecord &&
+          fractionDenominatorDisplayStyleShiftDownRecord ==
+              other.fractionDenominatorDisplayStyleShiftDownRecord &&
+          fractionNumeratorGapMinRecord ==
+              other.fractionNumeratorGapMinRecord &&
+          fractionNumDisplayStyleGapMinRecord ==
+              other.fractionNumDisplayStyleGapMinRecord &&
+          fractionRuleThicknessRecord == other.fractionRuleThicknessRecord &&
+          fractionDenominatorGapMinRecord ==
+              other.fractionDenominatorGapMinRecord &&
+          fractionDenomDisplayStyleGapMinRecord ==
+              other.fractionDenomDisplayStyleGapMinRecord &&
+          skewedFractionHorizontalGapRecord ==
+              other.skewedFractionHorizontalGapRecord &&
+          skewedFractionVerticalGapRecord ==
+              other.skewedFractionVerticalGapRecord &&
+          overbarVerticalGapRecord == other.overbarVerticalGapRecord &&
+          overbarRuleThicknessRecord == other.overbarRuleThicknessRecord &&
+          overbarExtraAscenderRecord == other.overbarExtraAscenderRecord &&
+          underbarVerticalGapRecord == other.underbarVerticalGapRecord &&
+          underbarRuleThicknessRecord == other.underbarRuleThicknessRecord &&
+          underbarExtraDescenderRecord == other.underbarExtraDescenderRecord &&
+          radicalVerticalGapRecord == other.radicalVerticalGapRecord &&
+          radicalDisplayStyleVerticalGapRecord ==
+              other.radicalDisplayStyleVerticalGapRecord &&
+          radicalRuleThicknessRecord == other.radicalRuleThicknessRecord &&
+          radicalExtraAscenderRecord == other.radicalExtraAscenderRecord &&
+          radicalKernBeforeDegreeRecord ==
+              other.radicalKernBeforeDegreeRecord &&
+          radicalKernAfterDegreeRecord == other.radicalKernAfterDegreeRecord;
+
+  @override
+  int get hashCode => Object.hashAll(<Object>[
+    scriptPercentScaleDown,
+    scriptScriptPercentScaleDown,
+    delimitedSubFormulaMinHeight,
+    displayOperatorMinHeight,
+    radicalDegreeBottomRaisePercent,
+    mathLeadingRecord,
+    axisHeightRecord,
+    accentBaseHeightRecord,
+    flattenedAccentBaseHeightRecord,
+    subscriptShiftDownRecord,
+    subscriptTopMaxRecord,
+    subscriptBaselineDropMinRecord,
+    superscriptShiftUpRecord,
+    superscriptShiftUpCrampedRecord,
+    superscriptBottomMinRecord,
+    superscriptBaselineDropMaxRecord,
+    subSuperscriptGapMinRecord,
+    superscriptBottomMaxWithSubscriptRecord,
+    spaceAfterScriptRecord,
+    upperLimitGapMinRecord,
+    upperLimitBaselineRiseMinRecord,
+    lowerLimitGapMinRecord,
+    lowerLimitBaselineDropMinRecord,
+    stackTopShiftUpRecord,
+    stackTopDisplayStyleShiftUpRecord,
+    stackBottomShiftDownRecord,
+    stackBottomDisplayStyleShiftDownRecord,
+    stackGapMinRecord,
+    stackDisplayStyleGapMinRecord,
+    stretchStackTopShiftUpRecord,
+    stretchStackBottomShiftDownRecord,
+    stretchStackGapAboveMinRecord,
+    stretchStackGapBelowMinRecord,
+    fractionNumeratorShiftUpRecord,
+    fractionNumeratorDisplayStyleShiftUpRecord,
+    fractionDenominatorShiftDownRecord,
+    fractionDenominatorDisplayStyleShiftDownRecord,
+    fractionNumeratorGapMinRecord,
+    fractionNumDisplayStyleGapMinRecord,
+    fractionRuleThicknessRecord,
+    fractionDenominatorGapMinRecord,
+    fractionDenomDisplayStyleGapMinRecord,
+    skewedFractionHorizontalGapRecord,
+    skewedFractionVerticalGapRecord,
+    overbarVerticalGapRecord,
+    overbarRuleThicknessRecord,
+    overbarExtraAscenderRecord,
+    underbarVerticalGapRecord,
+    underbarRuleThicknessRecord,
+    underbarExtraDescenderRecord,
+    radicalVerticalGapRecord,
+    radicalDisplayStyleVerticalGapRecord,
+    radicalRuleThicknessRecord,
+    radicalExtraAscenderRecord,
+    radicalKernBeforeDegreeRecord,
+    radicalKernAfterDegreeRecord,
+  ]);
 }
 
 /// Staircase kern table for one corner of a glyph.
@@ -1009,7 +1156,16 @@ final class MathVariants {
         ? CoverageTable.parse(sub, horizCovOff, 'HorizGlyphCoverage')
         : CoverageTable.empty;
 
+    const int maxTotalVariantRecords = 262144;
+    int totalVariantRecords = 0;
+    final Map<int, MathGlyphConstruction> constructionCache =
+        <int, MathGlyphConstruction>{};
+
     MathGlyphConstruction parseConstruction(int relOffset) {
+      final MathGlyphConstruction? cached = constructionCache[relOffset];
+      if (cached != null) {
+        return cached;
+      }
       final FontByteReader c = sub.slice(
         relOffset,
         sub.length - relOffset,
@@ -1018,6 +1174,13 @@ final class MathVariants {
       c.checkRange(0, 4, 'MathGlyphConstruction.header');
       final int assemblyOff = c.readUint16(0, 'glyphAssemblyOffset');
       final int variantCount = c.readUint16(2, 'variantCount');
+      totalVariantRecords += variantCount;
+      if (totalVariantRecords > maxTotalVariantRecords) {
+        throw TexMathFontError(
+          'MATH variants record count ($totalVariantRecords) '
+          'exceeds limit ($maxTotalVariantRecords).',
+        );
+      }
       c.checkRange(4, variantCount * 4, 'mathGlyphVariantRecords');
 
       final List<MathGlyphVariant> variants = List<MathGlyphVariant>.generate(
@@ -1044,6 +1207,13 @@ final class MathVariants {
           gdefVarStore: gdefVarStore,
         );
         final int partCount = a.readUint16Fast(4);
+        totalVariantRecords += partCount;
+        if (totalVariantRecords > maxTotalVariantRecords) {
+          throw TexMathFontError(
+            'MATH variants assembly part count ($totalVariantRecords) '
+            'exceeds limit ($maxTotalVariantRecords).',
+          );
+        }
         a.checkRange(6, partCount * 10, 'GlyphAssembly.partRecords');
         final List<GlyphAssemblyPart> parts = List<GlyphAssemblyPart>.generate(
           partCount,
@@ -1066,12 +1236,14 @@ final class MathVariants {
         );
       }
 
-      return MathGlyphConstruction(
+      final MathGlyphConstruction construction = MathGlyphConstruction(
         variants: variants.isEmpty
             ? const <MathGlyphVariant>[]
             : List<MathGlyphVariant>.unmodifiable(variants),
         assembly: assembly,
       );
+      constructionCache[relOffset] = construction;
+      return construction;
     }
 
     final List<MathGlyphConstruction> vertConstructions =

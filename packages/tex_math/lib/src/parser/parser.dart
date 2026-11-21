@@ -1,6 +1,8 @@
 import '../ast.dart';
 import '../error.dart';
 import '../options.dart';
+import '../shared/colors.dart';
+import '../shared/math_symbols.dart';
 import '../source_span.dart';
 import 'environments.dart';
 import 'macros.dart';
@@ -76,7 +78,8 @@ final class _TexParser implements TexParserHost {
     required this.macroTable,
     required this.activePackages,
     required this.options,
-  });
+    Map<String, String>? labels,
+  }) : _labels = labels ?? <String, String>{};
 
   final String source;
 
@@ -92,7 +95,7 @@ final class _TexParser implements TexParserHost {
   @override
   final TexMathOptions options;
 
-  final Map<String, String> _labels = <String, String>{};
+  final Map<String, String> _labels;
   final List<_OpenEnvFrame> _envStack = <_OpenEnvFrame>[];
   final List<_OpenEnvFrame> _openUserEnvs = <_OpenEnvFrame>[];
   int _nestingDepth = 0;
@@ -149,7 +152,7 @@ final class _TexParser implements TexParserHost {
       return MathRootNode(
         span: fullSpan,
         displayMode: options.displayMode,
-        children: result.nodes,
+        children: _unmodifiableNodes(result.nodes),
         labels: Map<String, String>.unmodifiable(_labels),
       );
     } finally {
@@ -400,17 +403,23 @@ final class _TexParser implements TexParserHost {
             model: model ?? '',
             customColors: macroTable.visibleColors(),
           );
-          final _SeqResult rest = _parseSequence(
-            stopMode: stopMode,
-            activeEnvName: activeEnvName,
-            allowAlignTab: allowAlignTab,
-          );
+          final _SeqResult rest;
+          enterNesting(token.span);
+          try {
+            rest = _parseSequence(
+              stopMode: stopMode,
+              activeEnvName: activeEnvName,
+              allowAlignTab: allowAlignTab,
+            );
+          } finally {
+            exitNesting();
+          }
           appendNode(
             ColorNode(
               span: _mergeSpanList(token.span, rest.nodes),
               role: TexMathColorRole.custom,
               colorValue: resolved,
-              children: rest.nodes,
+              children: _unmodifiableNodes(rest.nodes),
             ),
           );
           return finish(rest.stopReason, rest);
@@ -418,16 +427,22 @@ final class _TexParser implements TexParserHost {
 
         final TexMathStyle? styleSwitch = _styleSwitchForCommand(cs);
         if (styleSwitch != null) {
-          final _SeqResult rest = _parseSequence(
-            stopMode: stopMode,
-            activeEnvName: activeEnvName,
-            allowAlignTab: allowAlignTab,
-          );
+          final _SeqResult rest;
+          enterNesting(token.span);
+          try {
+            rest = _parseSequence(
+              stopMode: stopMode,
+              activeEnvName: activeEnvName,
+              allowAlignTab: allowAlignTab,
+            );
+          } finally {
+            exitNesting();
+          }
           appendNode(
             StyleNode(
               span: _mergeSpanList(token.span, rest.nodes),
               style: styleSwitch,
-              children: rest.nodes,
+              children: _unmodifiableNodes(rest.nodes),
             ),
           );
           return finish(rest.stopReason, rest);
@@ -435,11 +450,17 @@ final class _TexParser implements TexParserHost {
 
         final double? fontSizeScale = fontSizeCommands[cs];
         if (fontSizeScale != null) {
-          final _SeqResult rest = _parseSequence(
-            stopMode: stopMode,
-            activeEnvName: activeEnvName,
-            allowAlignTab: allowAlignTab,
-          );
+          final _SeqResult rest;
+          enterNesting(token.span);
+          try {
+            rest = _parseSequence(
+              stopMode: stopMode,
+              activeEnvName: activeEnvName,
+              allowAlignTab: allowAlignTab,
+            );
+          } finally {
+            exitNesting();
+          }
           appendNode(
             StyleNode(
               span: _mergeSpanList(token.span, rest.nodes),
@@ -447,7 +468,7 @@ final class _TexParser implements TexParserHost {
                   ? TexMathStyle.display
                   : TexMathStyle.text,
               scaleEm: fontSizeScale,
-              children: rest.nodes,
+              children: _unmodifiableNodes(rest.nodes),
             ),
           );
           return finish(rest.stopReason, rest);
@@ -457,6 +478,7 @@ final class _TexParser implements TexParserHost {
         if (legacyFont != null) {
           final TexMathFontVariant? prevVariant = _fontVariant;
           _fontVariant = legacyFont;
+          enterNesting(token.span);
           try {
             final _SeqResult rest = _parseSequence(
               stopMode: stopMode,
@@ -468,11 +490,12 @@ final class _TexParser implements TexParserHost {
                 span: _mergeSpanList(token.span, rest.nodes),
                 isExplicitGroup: false,
                 fontVariant: legacyFont,
-                children: rest.nodes,
+                children: _unmodifiableNodes(rest.nodes),
               ),
             );
             return finish(rest.stopReason, rest);
           } finally {
+            exitNesting();
             _fontVariant = prevVariant;
           }
         }
@@ -843,8 +866,14 @@ final class _TexParser implements TexParserHost {
           body: entry.body,
           args: args,
           fallbackSpan: callToken.span,
+          budgets: options.budgets,
+          budgetState: cursor.budgetState,
         );
-        cursor.pushMacroExpansion(substituted, span: callToken.span);
+        cursor.pushMacroExpansion(
+          substituted,
+          span: callToken.span,
+          chargeTokens: false,
+        );
         return null;
 
       case TexAliasEntry(
@@ -891,7 +920,7 @@ final class _TexParser implements TexParserHost {
         final MathNode inner = parseSubTokens(arg, span: callToken.span);
         double? fixedSizeEm;
         if (sizeCmd != null && sizeCmd.trim().isNotEmpty) {
-          fixedSizeEm = _sizeForBigCommand(
+          fixedSizeEm = sizeForBigCommand(
             sizeCmd.trim().replaceFirst('\\', ''),
           );
         } else if (!star) {
@@ -1002,48 +1031,11 @@ final class _TexParser implements TexParserHost {
     }
   }
 
-  bool _matchesDelimiterAhead(List<TexToken> delimiter) {
-    final List<TexToken> skipped = <TexToken>[];
-    bool ok = true;
-    for (final TexToken exp in delimiter) {
-      if (exp.kind == TexTokenKind.space) {
-        continue;
-      }
-      final TexToken? next = cursor.next(skipSpaces: false);
-      if (next == null) {
-        ok = false;
-        break;
-      }
-      skipped.add(next);
-      if (next.kind == TexTokenKind.space) {
-        // Retry non-space match if delimiter token is non-space.
-        final TexToken? nonSpace = cursor.next();
-        if (nonSpace == null) {
-          ok = false;
-          break;
-        }
-        skipped.add(nonSpace);
-        if (nonSpace.kind != exp.kind || nonSpace.text != exp.text) {
-          ok = false;
-          break;
-        }
-      } else if (next.kind != exp.kind || next.text != exp.text) {
-        ok = false;
-        break;
-      }
-    }
-    cursor.pushTokens(skipped);
-    return ok;
-  }
+  bool _matchesDelimiterAhead(List<TexToken> delimiter) =>
+      cursor.matchesDelimiterAhead(delimiter);
 
-  void _consumeDelimiterAhead(List<TexToken> delimiter) {
-    for (final TexToken exp in delimiter) {
-      if (exp.kind == TexTokenKind.space) {
-        continue;
-      }
-      cursor.next();
-    }
-  }
+  void _consumeDelimiterAhead(List<TexToken> delimiter) =>
+      cursor.consumeDelimiterAhead(delimiter);
 
   MathNode? _parseBuiltinCommand(String cs, SourceSpan span) {
     // Package activation / autoload check if unknown below.
@@ -1301,7 +1293,7 @@ final class _TexParser implements TexParserHost {
         final MathNode den = _parseRequiredArgNode(cs);
         final double? thickness = thickRaw.isEmpty
             ? null
-            : _parseDimensionToEm(thickRaw);
+            : parseTexDimensionToEm(thickRaw);
         final TexMathStyle? style = switch (styleRaw) {
           '0' => TexMathStyle.display,
           '1' => TexMathStyle.text,
@@ -1409,7 +1401,7 @@ final class _TexParser implements TexParserHost {
       case 'biggm':
       case 'Biggm':
         final String delim = readDelimiterToken(cs, allowPeriod: false);
-        final double sizeEm = _sizeForBigCommand(cs)!;
+        final double sizeEm = sizeForBigCommand(cs)!;
         final bool isRight = cs.endsWith('r');
         return DelimiterNode(
           span: span,
@@ -1729,7 +1721,7 @@ final class _TexParser implements TexParserHost {
             : _readUnbracedDimen(cs);
         return SpaceNode(
           span: span,
-          widthEm: _parseDimensionToEm(dim),
+          widthEm: parseTexDimensionToEm(dim),
           command: star ? '$cs*' : cs,
         );
 
@@ -2130,12 +2122,20 @@ final class _TexParser implements TexParserHost {
           break;
         }
         final String attrVal = readArgumentText(cs);
+        if (cs == 'href' && !isSafeHrefUri(attrVal)) {
+          throw TexMathSyntaxError(
+            'Unsafe or disallowed URI scheme in \\href.',
+            span: span,
+          );
+        }
         final MathNode body = _parseRequiredArgNode(cs);
         return MathGroupNode(
           span: span.merge(body.span),
           role: cs,
-          attributes: <String, String>{cs: attrVal},
-          children: <MathNode>[body],
+          attributes: Map<String, String>.unmodifiable(<String, String>{
+            cs: attrVal,
+          }),
+          children: _unmodifiableNodes(<MathNode>[body]),
         );
 
       // Mathtools prescript & splitfrac
@@ -2240,6 +2240,7 @@ final class _TexParser implements TexParserHost {
         final String tex = translateMhchemToTex(
           chemArg,
           isPhysicalUnits: cs == 'pu',
+          maxNestingDepth: options.budgets.maxNestingDepth,
         );
         return parseSyntheticTex(
           tex,
@@ -2254,11 +2255,27 @@ final class _TexParser implements TexParserHost {
         }
         final String? val = readOptionalBracketText('units');
         final String dim = readArgumentText('units');
-        final String sep = activePackages.unitsLoose ? '~' : r'\,';
-        final String tex = val != null && val.isNotEmpty
-            ? '$val$sep\\mathrm{$dim}'
-            : '\\mathrm{$dim}';
-        return parseSyntheticTex(tex, span: span);
+        final MathNode unitBody = parseSyntheticTex(
+          '\\mathrm{$dim}',
+          span: span,
+        );
+        if (val == null || val.isEmpty) {
+          return unitBody;
+        }
+        final MathNode valNode = parseSyntheticTex(val, span: span);
+        return MathGroupNode(
+          span: span,
+          isExplicitGroup: false,
+          children: _unmodifiableNodes(<MathNode>[
+            valNode,
+            SpaceNode(
+              span: span,
+              widthEm: activePackages.unitsLoose ? 0.25 : thinMuSkipEm,
+              command: activePackages.unitsLoose ? '~' : ',',
+            ),
+            unitBody,
+          ]),
+        );
       case 'unitfrac':
         if (!activePackages.has('units')) {
           break;
@@ -2266,11 +2283,28 @@ final class _TexParser implements TexParserHost {
         final String? val = readOptionalBracketText('unitfrac');
         final String num = readArgumentText('unitfrac');
         final String den = readArgumentText('unitfrac');
-        final String sep = activePackages.unitsLoose ? '~' : r'\,';
-        final String frac = '\\nicefrac[\\mathrm]{$num}{$den}';
-        return parseSyntheticTex(
-          val != null && val.isNotEmpty ? '$val$sep$frac' : frac,
+        final FractionNode fracNode = FractionNode(
           span: span,
+          numerator: parseSyntheticTex('\\mathrm{$num}', span: span),
+          denominator: parseSyntheticTex('\\mathrm{$den}', span: span),
+          isBevelled: !activePackages.unitsUgly,
+        );
+        if (val == null || val.isEmpty) {
+          return fracNode;
+        }
+        final MathNode valNode = parseSyntheticTex(val, span: span);
+        return MathGroupNode(
+          span: span,
+          isExplicitGroup: false,
+          children: _unmodifiableNodes(<MathNode>[
+            valNode,
+            SpaceNode(
+              span: span,
+              widthEm: activePackages.unitsLoose ? 0.25 : thinMuSkipEm,
+              command: activePackages.unitsLoose ? '~' : ',',
+            ),
+            fracNode,
+          ]),
         );
       case 'nicefrac':
         if (!activePackages.has('units')) {
@@ -2578,7 +2612,13 @@ final class _TexParser implements TexParserHost {
         span: span,
       );
     }
-    final MathNode? target = _parseAtom(cursor.next()!);
+    final MathNode? target;
+    enterNesting(span);
+    try {
+      target = _parseAtom(cursor.next()!);
+    } finally {
+      exitNesting();
+    }
     if (target is SymbolNode) {
       final String? mapped = notRemap[target.value];
       return SymbolNode(
@@ -2596,7 +2636,7 @@ final class _TexParser implements TexParserHost {
     return MathGroupNode(
       span: span.merge(target.span),
       role: 'not',
-      children: <MathNode>[target],
+      children: _unmodifiableNodes(<MathNode>[target]),
     );
   }
 
@@ -2715,11 +2755,17 @@ final class _TexParser implements TexParserHost {
         body: userEnv.beginBody,
         args: args,
         fallbackSpan: beginSpan,
+        budgets: options.budgets,
+        budgetState: cursor.budgetState,
       );
       _openUserEnvs.add(
         _OpenEnvFrame(name: envName, span: beginSpan, userEnvDef: userEnv),
       );
-      cursor.pushMacroExpansion(expandedBegin, span: beginSpan);
+      cursor.pushMacroExpansion(
+        expandedBegin,
+        span: beginSpan,
+        chargeTokens: false,
+      );
       return null;
     }
 
@@ -3009,6 +3055,8 @@ final class _TexParser implements TexParserHost {
       source: source,
       initialTokens: tokens,
       budgets: options.budgets,
+      budgetState: cursor.budgetState,
+      initialMacroDepth: cursor.macroDepth,
     );
     while (!subCursor.isAtEnd) {
       final TexToken? t = subCursor.next(skipSpaces: false);
@@ -3022,6 +3070,11 @@ final class _TexParser implements TexParserHost {
           continue;
         }
       }
+      cursor.budgetState.chargeTokens(
+        1,
+        budgets: options.budgets,
+        span: t.span,
+      );
       expanded.add(t);
     }
     return expanded;
@@ -3112,8 +3165,8 @@ final class _TexParser implements TexParserHost {
       name,
       TexPairedDelimiterEntry(
         name: name,
-        leftDelimiter: _normalizeDelimiterString(leftDelim),
-        rightDelimiter: _normalizeDelimiterString(rightDelim),
+        leftDelimiter: normalizeDelimiterString(leftDelim),
+        rightDelimiter: normalizeDelimiterString(rightDelim),
       ),
     );
   }
@@ -3325,8 +3378,15 @@ final class _TexParser implements TexParserHost {
       final TexToken single = cursor.nextRaw()!;
       if (single.kind == TexTokenKind.controlSequence &&
           single.text == 'frac') {
-        final List<TexToken> a1 = readArgumentTokens('frac');
-        final List<TexToken> a2 = readArgumentTokens('frac');
+        final List<TexToken> a1;
+        final List<TexToken> a2;
+        enterNesting(single.span);
+        try {
+          a1 = readArgumentTokens('frac');
+          a2 = readArgumentTokens('frac');
+        } finally {
+          exitNesting();
+        }
         return <TexToken>[
           single,
           TexToken(
@@ -3472,6 +3532,8 @@ final class _TexParser implements TexParserHost {
       source: source,
       initialTokens: tokens,
       budgets: options.budgets,
+      budgetState: cursor.budgetState,
+      initialMacroDepth: cursor.macroDepth,
     );
     final _TexParser subParser =
         _TexParser(
@@ -3482,19 +3544,19 @@ final class _TexParser implements TexParserHost {
             options: displayMode == null
                 ? options
                 : options.copyWith(displayMode: displayMode),
+            labels: _labels,
           )
           .._nestingDepth = _nestingDepth
           .._fontVariant = fontVariant ?? _fontVariant;
     macroTable.pushBraceScope();
     try {
       final _SeqResult res = subParser._parseSequence(stopMode: _StopMode.eof);
-      _labels.addAll(subParser._labels);
       if (res.nodes.length == 1 && fontVariant == null && !isExplicitGroup) {
         return res.nodes.first;
       }
       return MathGroupNode(
         span: _mergeSpanList(span, res.nodes),
-        children: res.nodes,
+        children: _unmodifiableNodes(res.nodes),
         isExplicitGroup: isExplicitGroup,
         fontVariant: fontVariant,
       );
@@ -3511,6 +3573,16 @@ final class _TexParser implements TexParserHost {
     TexMathDisplayMode? displayMode,
     TexMathFontVariant? fontVariant,
   }) {
+    if (tex.length > options.budgets.maxInputLength) {
+      throw TexMathBudgetError(
+        'Synthetic TeX length ${tex.length} exceeds maxInputLength '
+        '(${options.budgets.maxInputLength}).',
+        budgetName: 'maxInputLength',
+        limit: options.budgets.maxInputLength,
+        actual: tex.length,
+        span: span,
+      );
+    }
     final List<TexToken> tokens = tokenizeTex(tex)
         .map(
           (TexToken t) => TexToken(
@@ -3522,6 +3594,11 @@ final class _TexParser implements TexParserHost {
           ),
         )
         .toList();
+    cursor.budgetState.chargeTokens(
+      tokens.length,
+      budgets: options.budgets,
+      span: span,
+    );
     return parseSubTokens(
       tokens,
       span: span,
@@ -3946,7 +4023,7 @@ final class _TexParser implements TexParserHost {
     final TexToken? next = cursor.peek(skipSpaces: false);
     if (next != null && next.kind == TexTokenKind.other && next.text == '[') {
       final String rawDim = (readOptionalBracketText('\\') ?? '').trim();
-      if (rawDim.isNotEmpty && !_isValidTexDimension(rawDim)) {
+      if (rawDim.isNotEmpty && !isValidTexDimension(rawDim)) {
         throw TexMathSyntaxError(
           'Bracket argument to \\\\ must be a valid TeX dimension: "$rawDim".',
           errorClass: TexMathErrorClass.misplacedNewline,
@@ -3994,7 +4071,7 @@ final class _TexParser implements TexParserHost {
       }
     }
     if (cs == 'above' || cs == 'abovewithdelims') {
-      thicknessEm = _parseDimensionToEm(_readUnbracedDimen(cs));
+      thicknessEm = parseTexDimensionToEm(_readUnbracedDimen(cs));
     }
     return _InfixFractionInfo(
       leftDelim: leftDelim,
@@ -4090,7 +4167,7 @@ final class _TexParser implements TexParserHost {
     } else if (_isAllHexDigits(cleaned)) {
       parsed = int.tryParse(cleaned, radix: 16);
     }
-    if (parsed == null || parsed < 0 || parsed > 0x10FFFF) {
+    if (parsed == null || !_isValidXmlScalar(parsed)) {
       throw TexMathSyntaxError(
         'Invalid Unicode code point "$raw".',
         span: span,
@@ -4101,10 +4178,23 @@ final class _TexParser implements TexParserHost {
 
   int _readTexCharCharCode(String raw, int radix, SourceSpan span) {
     final int? parsed = int.tryParse(raw, radix: radix);
-    if (parsed == null || parsed < 0 || parsed > 0x10FFFF) {
+    if (parsed == null || !_isValidXmlScalar(parsed)) {
       throw TexMathSyntaxError('Invalid character code "$raw".', span: span);
     }
     return parsed;
+  }
+
+  static bool _isValidXmlScalar(int cp) {
+    if (cp < 0 || cp > 0x10FFFF) {
+      return false;
+    }
+    if (cp < 0x20) {
+      return cp == 0x09 || cp == 0x0A || cp == 0x0D;
+    }
+    if (cp == 0x7F || cp == 0xFFFE || cp == 0xFFFF) {
+      return false;
+    }
+    return cp < 0xD800 || cp > 0xDFFF;
   }
 
   int _readTexCharCodePoint(SourceSpan span) {
@@ -4221,10 +4311,16 @@ final class _TextModeParser {
       }
       if (tok.kind == TexTokenKind.beginGroup) {
         flushText();
-        final List<MathNode> nested = _parseRange(
-          stopAtCloseBrace: true,
-          activeStyle: activeStyle,
-        );
+        final List<MathNode> nested;
+        host.enterNesting(tok.span);
+        try {
+          nested = _parseRange(
+            stopAtCloseBrace: true,
+            activeStyle: activeStyle,
+          );
+        } finally {
+          host.exitNesting();
+        }
         items.addAll(nested);
         continue;
       }
@@ -4372,12 +4468,18 @@ final class _TextModeParser {
           flushText();
           final List<TexToken> innerTokens = _readTextArgTokens();
           final String nextStyle = cs == 'emph' ? 'textit' : cs;
-          final TextNode nested = _TextModeParser(
-            host: host,
-            tokens: innerTokens,
-            span: tok.span,
-            styleCommand: nextStyle,
-          ).parse();
+          final TextNode nested;
+          host.enterNesting(tok.span);
+          try {
+            nested = _TextModeParser(
+              host: host,
+              tokens: innerTokens,
+              span: tok.span,
+              styleCommand: nextStyle,
+            ).parse();
+          } finally {
+            host.exitNesting();
+          }
           items.add(nested);
           continue;
         }
@@ -4652,109 +4754,10 @@ TexMathFontVariant _mathAlphabetVariant(String cs) {
   }
 }
 
-double? _sizeForBigCommand(String cs) {
-  switch (cs) {
-    case 'big':
-    case 'bigl':
-    case 'bigr':
-    case 'bigm':
-      return 0.85;
-    case 'Big':
-    case 'Bigl':
-    case 'Bigr':
-    case 'Bigm':
-      return 1.15;
-    case 'bigg':
-    case 'biggl':
-    case 'biggr':
-    case 'biggm':
-      return 1.45;
-    case 'Bigg':
-    case 'Biggl':
-    case 'Biggr':
-    case 'Biggm':
-      return 1.75;
-    default:
-      return null;
-  }
-}
-
-String _normalizeDelimiterString(String raw) {
-  switch (raw) {
-    case r'\lvert':
-    case r'\rvert':
-    case r'\vert':
-    case '|':
-      return '|';
-    case r'\lVert':
-    case r'\rVert':
-    case r'\Vert':
-    case r'\|':
-      return '\u2016';
-    case r'\langle':
-      return '\u27E8';
-    case r'\rangle':
-      return '\u27E9';
-    case r'\lfloor':
-      return '\u230A';
-    case r'\rfloor':
-      return '\u230B';
-    case r'\lceil':
-      return '\u2308';
-    case r'\rceil':
-      return '\u2309';
-    case r'\{':
-    case r'\lbrace':
-      return '{';
-    case r'\}':
-    case r'\rbrace':
-      return '}';
-    case '.':
-      return '';
-    default:
-      return raw;
-  }
-}
-
 bool _isDigitString(String text) =>
     text.length == 1 &&
     text.codeUnitAt(0) >= 0x30 &&
     text.codeUnitAt(0) <= 0x39;
-
-bool _isValidTexDimension(String dim) =>
-    _validTexDimensionPattern.hasMatch(dim.trim());
-
-double _parseDimensionToEm(String dim) {
-  final RegExpMatch? m = _parseTexDimensionPattern.firstMatch(dim.trim());
-  if (m == null) {
-    return 0.0;
-  }
-  final double val = double.tryParse(m.group(1)!) ?? 0.0;
-  final String unit = m.group(2) ?? 'em';
-  switch (unit) {
-    case 'em':
-      return val;
-    case 'ex':
-      return val * 0.45;
-    case 'mu':
-      return val / 18.0;
-    case 'pt':
-    case 'bp':
-      return val / 10.0;
-    case 'px':
-      return val / 16.0;
-    case 'pc':
-      return val * 1.2;
-    case 'in':
-      return val * 7.227;
-    case 'cm':
-      return val * 2.845;
-    case 'mm':
-      return val * 0.2845;
-    default:
-      return val;
-  }
-}
 
 Map<String, String> _parseKeyValues(String raw) {
   final Map<String, String> result = <String, String>{};
@@ -4778,11 +4781,25 @@ String _extractOperatorText(MathNode node) {
       return '\u2006';
     case MathGroupNode(:final List<MathNode> children):
     case MathRootNode(:final List<MathNode> children):
+    case StyleNode(:final List<MathNode> children):
+    case ColorNode(:final List<MathNode> children):
       return children.map(_extractOperatorText).join();
-    default:
+    case OperatorNode(:final String operatorName):
+      return operatorName;
+    case FractionNode():
+    case ScriptNode():
+    case RadicalNode():
+    case AccentNode():
+    case DelimiterNode():
+    case MatrixNode():
+    case TagNode():
+    case ErrorNode():
       return '';
   }
 }
+
+List<MathNode> _unmodifiableNodes(List<MathNode> nodes) =>
+    nodes.isEmpty ? const <MathNode>[] : List<MathNode>.unmodifiable(nodes);
 
 const Map<String, String> _textAccentCombining = <String, String>{
   "'": '\u0301',
@@ -4855,12 +4872,6 @@ final RegExp _newExtArrowCsPattern = RegExp(r'^\\([a-zA-Z]+|.)$');
 final RegExp _newExtArrowSpacePattern = RegExp(r'^\d+,\d+$');
 final RegExp _dimenSuffixPattern = RegExp(
   r'(pt|pc|in|bp|cm|mm|dd|cc|sp|em|ex|mu|px)$',
-);
-final RegExp _validTexDimensionPattern = RegExp(
-  r'^[+-]?(?:\d+(?:\.\d*)?|\.\d+)\s*(?:pt|pc|in|bp|cm|mm|dd|cc|sp|em|ex|mu|px)$',
-);
-final RegExp _parseTexDimensionPattern = RegExp(
-  r'^([+-]?(?:\d+(?:\.\d*)?|\.\d+))\s*(pt|pc|in|bp|cm|mm|dd|cc|sp|em|ex|mu|px)?$',
 );
 
 bool _isAsciiDigitUnit(int c) => c >= 0x30 && c <= 0x39;

@@ -2,6 +2,8 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:test/test.dart';
+import 'package:tex_math/src/layout/box.dart';
+import 'package:tex_math/src/layout/style_spacing.dart';
 import 'package:tex_math/tex_math.dart';
 
 void main() {

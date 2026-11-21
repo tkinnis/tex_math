@@ -1,76 +1,14 @@
 import 'package:meta/meta.dart';
 
-import 'ast.dart';
+import 'break_point.dart';
 import 'error.dart';
-import 'export/mathml.dart';
-import 'export/spoken_text.dart';
 import 'font/outline.dart';
 import 'format_utils.dart';
 import 'options.dart';
+import 'shared/colors.dart';
 import 'source_span.dart';
 
-/// Semantic classification of a potential line-breaking opportunity in math.
-enum MathBreakKind {
-  /// No automatic line break opportunity attached to this box.
-  none,
-
-  /// Discretionary break opportunity immediately after a binary operator.
-  afterBinary,
-
-  /// Discretionary break opportunity immediately after a relation symbol.
-  afterRelation,
-
-  /// Explicit numeric break penalty attached to a box.
-  penalty,
-
-  /// Explicit forced line break (such as `\\` in multiline structures).
-  explicit,
-}
-
-/// Line-breaking metadata attached to laid-out boxes for downstream wrapping.
-@immutable
-final class BreakPoint {
-  /// Creates break-hint metadata describing whether and how a line break may
-  /// occur at this box boundary.
-  const BreakPoint({
-    this.kind = MathBreakKind.none,
-    this.penalty = 0,
-    this.isExplicit = false,
-    this.isGood = false,
-  });
-
-  /// Sentinel representing the absence of any break hint.
-  static const BreakPoint none = BreakPoint();
-
-  /// Category of this break hint.
-  final MathBreakKind kind;
-
-  /// TeX-style line-breaking penalty value (`0` for neutral).
-  final int penalty;
-
-  /// Whether this break point forces a mandatory line break.
-  final bool isExplicit;
-
-  /// Whether this break point represents a preferred break site.
-  final bool isGood;
-
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is BreakPoint &&
-          kind == other.kind &&
-          penalty == other.penalty &&
-          isExplicit == other.isExplicit &&
-          isGood == other.isGood;
-
-  @override
-  int get hashCode => Object.hash(kind, penalty, isExplicit, isGood);
-
-  @override
-  String toString() =>
-      'BreakPoint(kind: $kind, penalty: $penalty, '
-      'isExplicit: $isExplicit, isGood: $isGood)';
-}
+export 'break_point.dart' show BreakPoint, MathBreakKind;
 
 /// Positioned line-break opportunity emitted at top-level split boundaries.
 @immutable
@@ -401,6 +339,7 @@ final class DisplayList {
     required this.items,
     this.source,
     this.breakHints = const <DisplayBreakHint>[],
+    this.fontSignature,
   });
 
   /// Overall bounding box and baseline metrics.
@@ -414,6 +353,9 @@ final class DisplayList {
 
   /// Ordered top-level line-breaking hints emitted during layout.
   final List<DisplayBreakHint> breakHints;
+
+  /// Optional [MathFont.signature] identifying the font used during layout.
+  final int? fontSignature;
 
   /// Serializes this display list as a standalone XML SVG document.
   ///
@@ -629,19 +571,26 @@ final class DisplayList {
             buffer.write(')"/>');
           }
       }
+      if (buffer.length > maxSvgLength) {
+        throw TexMathBudgetError(
+          'Generated SVG length ${buffer.length} exceeds limit $maxSvgLength.',
+          budgetName: 'maxSvgLength',
+          limit: maxSvgLength,
+          actual: buffer.length,
+        );
+      }
     }
 
     buffer.write('</svg>');
-    final String svg = buffer.toString();
-    if (svg.length > maxSvgLength) {
+    if (buffer.length > maxSvgLength) {
       throw TexMathBudgetError(
-        'Generated SVG length ${svg.length} exceeds limit $maxSvgLength.',
+        'Generated SVG length ${buffer.length} exceeds limit $maxSvgLength.',
         budgetName: 'maxSvgLength',
         limit: maxSvgLength,
-        actual: svg.length,
+        actual: buffer.length,
       );
     }
-    return svg;
+    return buffer.toString();
   }
 
   @override
@@ -650,6 +599,7 @@ final class DisplayList {
       other is DisplayList &&
           metrics == other.metrics &&
           source == other.source &&
+          fontSignature == other.fontSignature &&
           _itemListEquals(items, other.items) &&
           _listEquals(breakHints, other.breakHints);
 
@@ -657,70 +607,13 @@ final class DisplayList {
   int get hashCode => Object.hash(
     metrics,
     source,
+    fontSignature,
     Object.hashAll(items),
     Object.hashAll(breakHints),
   );
 
   @override
   String toString() => 'DisplayList(metrics: $metrics, items: ${items.length})';
-}
-
-/// Combined syntax tree and laid-out display result returned by rendering.
-@immutable
-final class RenderResult {
-  /// Creates a render result from [displayList] and [syntaxTree].
-  const RenderResult({
-    required this.displayList,
-    required this.syntaxTree,
-    this.source = '',
-  });
-
-  /// Flat display list ready for Canvas or SVG rendering.
-  final DisplayList displayList;
-
-  /// Parsed syntax tree preserving source spans.
-  final MathNode syntaxTree;
-
-  /// Original TeX source string.
-  final String source;
-
-  /// Serializes [displayList] into a standalone SVG XML document.
-  String toSvg({
-    double fontSize = 16.0,
-    int maxOutputItems = TexMathBudgets.defaultMaxOutputItems,
-    int maxSvgLength = TexMathBudgets.defaultMaxSvgLength,
-    Map<TexMathColorRole, String>? colors,
-    String? title,
-  }) {
-    return displayList.toSvg(
-      fontSize: fontSize,
-      maxOutputItems: maxOutputItems,
-      maxSvgLength: maxSvgLength,
-      colors: colors,
-      title: title,
-    );
-  }
-
-  /// Emits Presentation MathML from [syntaxTree].
-  String toMathMl() => mathNodeToMathMl(syntaxTree);
-
-  /// Emits plain spoken text for screen readers from [syntaxTree].
-  String toSpokenText() => mathNodeToSpokenText(syntaxTree);
-
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is RenderResult &&
-          displayList == other.displayList &&
-          syntaxTree == other.syntaxTree &&
-          source == other.source;
-
-  @override
-  int get hashCode => Object.hash(displayList, syntaxTree, source);
-
-  @override
-  String toString() =>
-      'RenderResult(displayList: $displayList, syntaxTree: $syntaxTree)';
 }
 
 bool _itemListEquals(List<DisplayItem> a, List<DisplayItem> b) {
@@ -750,17 +643,7 @@ String _resolvedRoleAttr(
   if (override != null && override.isNotEmpty) {
     return escapeXmlAttr(override);
   }
-  switch (role) {
-    case TexMathColorRole.foreground:
-    case TexMathColorRole.custom:
-      return '#111827';
-    case TexMathColorRole.accent:
-      return '#2563EB';
-    case TexMathColorRole.error:
-      return '#DC2626';
-    case TexMathColorRole.muted:
-      return '#6B7280';
-  }
+  return defaultRoleColorHex(role);
 }
 
 bool _isPrintableUnicodeScalar(int codePoint) {

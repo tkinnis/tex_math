@@ -1,11 +1,15 @@
 import 'dart:math' as math;
 
 import '../ast.dart';
+import '../break_point.dart';
 import '../font.dart';
+import '../shared/layout_constants.dart';
+import '../shared/math_symbols.dart';
 import '../source_span.dart';
 import 'box.dart';
-import 'glyph_resolve.dart';
 import 'style_spacing.dart';
+
+export '../shared/math_symbols.dart' show delimiterCodePoint;
 
 /// Builds a [GlyphBox] from a resolved [glyphId] and semantic [codePoint]
 /// scaled by [scale] using [font] metrics and outline data.
@@ -65,118 +69,11 @@ GlyphBox buildApplyFunctionBox({SourceSpan? span}) {
   );
 }
 
-/// Resolves the Unicode code point for a delimiter token string, or `null` for
-/// the TeX null delimiter `.`.
-int? delimiterCodePoint(String delimiter, {bool isStretchy = true}) {
-  final String trimmed = delimiter.trim();
-  if (trimmed.isEmpty || trimmed == '.') {
-    return null;
-  }
-  switch (trimmed) {
-    case '(':
-      return 0x28;
-    case ')':
-      return 0x29;
-    case '[':
-    case r'\lbrack':
-      return 0x5B;
-    case ']':
-    case r'\rbrack':
-      return 0x5D;
-    case '{':
-    case r'\{':
-    case r'\lbrace':
-      return 0x7B;
-    case '}':
-    case r'\}':
-    case r'\rbrace':
-      return 0x7D;
-    case '|':
-    case r'\vert':
-    case r'\lvert':
-    case r'\rvert':
-      return isStretchy ? 0x2223 : 0x7C;
-    case '\u2223':
-      return 0x2223;
-    case '‖':
-    case r'\|':
-    case r'\Vert':
-    case r'\lVert':
-    case r'\rVert':
-    case r'\Arrowvert':
-      return isStretchy ? 0x2225 : 0x2016;
-    case '\u2225':
-      return 0x2225;
-    case '/':
-      return 0x2F;
-    case r'\backslash':
-    case '\\':
-    case '\u2216':
-      return 0x5C;
-    case r'\langle':
-    case '⟨':
-    case '\u2329':
-      return 0x27E8;
-    case r'\rangle':
-    case '⟩':
-    case '\u232A':
-      return 0x27E9;
-    case r'\lfloor':
-    case '\u230A':
-      return 0x230A;
-    case r'\rfloor':
-    case '\u230B':
-      return 0x230B;
-    case r'\lceil':
-    case '\u2308':
-      return 0x2308;
-    case r'\rceil':
-    case '\u2309':
-      return 0x2309;
-    case r'\uparrow':
-    case '\u2191':
-      return 0x2191;
-    case r'\downarrow':
-    case '\u2193':
-      return 0x2193;
-    case r'\updownarrow':
-    case '\u2195':
-      return 0x2195;
-    case r'\Uparrow':
-    case '\u21D1':
-      return 0x21D1;
-    case r'\Downarrow':
-    case '\u21D3':
-      return 0x21D3;
-    case r'\Updownarrow':
-    case '\u21D5':
-      return 0x21D5;
-    case r'\lmoustache':
-    case '\u23B0':
-      return 0x23B0;
-    case r'\rmoustache':
-    case '\u23B1':
-      return 0x23B1;
-    case r'\lgroup':
-    case '\u27EE':
-      return 0x27EE;
-    case r'\rgroup':
-    case '\u27EF':
-      return 0x27EF;
-    case r'\arrowvert':
-    case '\u23D0':
-      return 0x23D0;
-    case r'\bracevert':
-      return 0x7C;
-    default:
-      return singleCodePointOrNull(trimmed);
-  }
-}
-
 /// Builds a vertically stretched or fixed-size delimiter box centered on
 /// `axisHeight` from OpenType `MATH` variants and `GlyphAssembly`.
 MathBox buildVerticalDelimiterBox({
   required MathFont font,
+  required MathTableData mathTable,
   required String? delimiter,
   required double targetSpanEm,
   required TexMathAtomClass atomClass,
@@ -200,22 +97,24 @@ MathBox buildVerticalDelimiterBox({
 
   final int baseGid = _resolveDelimiterGlyphId(font, cp);
   final double upem = font.unitsPerEm.toDouble();
-  final double axisEm =
-      ((font.mathTable?.constants.axisHeight ?? 250.0) / upem) * scale;
+  final double axisEm = (mathTable.constants.axisHeight / upem) * scale;
 
   final double desiredEm;
   if (fixedSizeEm != null) {
     // TeX \big/\Big/\bigg/\Bigg scale factors map via 1.2 / 0.85 to height.
-    desiredEm = fixedSizeEm * (1.2 / 0.85) * scale;
+    desiredEm = fixedSizeEm * LayoutDefaults.bigDelimiterScaleRatio * scale;
   } else if (exactSize) {
     desiredEm = targetSpanEm;
   } else {
     // TeX Appendix G delimiterfactor (901) / delimitershortfall (0.5em).
-    desiredEm = math.max(targetSpanEm * 0.901, targetSpanEm - 0.5 * scale);
+    desiredEm = math.max(
+      targetSpanEm * LayoutDefaults.delimiterFactorRatio,
+      targetSpanEm - LayoutDefaults.delimiterShortfallEm * scale,
+    );
   }
 
-  final MathVariants? variants = font.mathTable?.variants;
-  final MathGlyphConstruction? construction = variants?.verticalConstruction(
+  final MathVariants variants = mathTable.variants;
+  final MathGlyphConstruction? construction = variants.verticalConstruction(
     baseGid,
   );
 
@@ -250,7 +149,7 @@ MathBox buildVerticalDelimiterBox({
       return _assembleVerticalParts(
         font: font,
         assembly: assembly,
-        minConnectorOverlap: variants?.minConnectorOverlap ?? 0,
+        minConnectorOverlap: variants.minConnectorOverlap,
         targetHeightEm: desiredEm,
         scale: scale,
         axisCenterEm: axisEm,
@@ -286,6 +185,7 @@ MathBox buildVerticalDelimiterBox({
 /// natural top/bottom metrics for Appendix G vinculum alignment.
 MathBox buildVerticalSurdBox({
   required MathFont font,
+  required MathTableData mathTable,
   required double targetSpanEm,
   double scale = 1.0,
   SourceSpan? span,
@@ -293,8 +193,8 @@ MathBox buildVerticalSurdBox({
   const int cp = 0x221A;
   final int baseGid = font.glyphIdForCodePoint(cp);
   final double upem = font.unitsPerEm.toDouble();
-  final MathVariants? variants = font.mathTable?.variants;
-  final MathGlyphConstruction? construction = variants?.verticalConstruction(
+  final MathVariants variants = mathTable.variants;
+  final MathGlyphConstruction? construction = variants.verticalConstruction(
     baseGid,
   );
 
@@ -318,7 +218,7 @@ MathBox buildVerticalSurdBox({
       return _assembleVerticalParts(
         font: font,
         assembly: assembly,
-        minConnectorOverlap: variants?.minConnectorOverlap ?? 0,
+        minConnectorOverlap: variants.minConnectorOverlap,
         targetHeightEm: targetSpanEm,
         scale: scale,
         axisCenterEm: null,
@@ -353,6 +253,7 @@ MathBox buildVerticalSurdBox({
 /// `axisHeight` when selected via `displayOperatorMinHeight`.
 MathBox buildLargeOperatorBox({
   required MathFont font,
+  required MathTableData mathTable,
   required int codePoint,
   required TexMathStyle style,
   double scale = 1.0,
@@ -360,16 +261,16 @@ MathBox buildLargeOperatorBox({
 }) {
   final int baseGid = font.glyphIdForCodePoint(codePoint);
   final double upem = font.unitsPerEm.toDouble();
-  final MathConstants? constants = font.mathTable?.constants;
-  final double axisEm = ((constants?.axisHeight ?? 250.0) / upem) * scale;
+  final MathConstants constants = mathTable.constants;
+  final double axisEm = (constants.axisHeight / upem) * scale;
 
   int selectedGid = baseGid;
   if (isDisplayStyle(style)) {
-    final MathGlyphConstruction? construction = font.mathTable?.variants
+    final MathGlyphConstruction? construction = mathTable.variants
         .verticalConstruction(baseGid);
     if (construction != null && construction.variants.isNotEmpty) {
-      final double minDisplayUnits =
-          (constants?.displayOperatorMinHeight ?? 1300).toDouble();
+      final double minDisplayUnits = constants.displayOperatorMinHeight
+          .toDouble();
       int chosen = construction.variants.last.glyphId;
       for (final MathGlyphVariant variant in construction.variants) {
         if (variant.advanceMeasurement >= minDisplayUnits) {
@@ -409,6 +310,7 @@ MathBox buildLargeOperatorBox({
 /// `\overbrace`, `\xrightarrow`) reaching at least [targetWidthEm].
 MathBox buildHorizontalStretchyBox({
   required MathFont font,
+  required MathTableData mathTable,
   required int codePoint,
   required double targetWidthEm,
   double scale = 1.0,
@@ -417,8 +319,8 @@ MathBox buildHorizontalStretchyBox({
 }) {
   final int baseGid = font.glyphIdForCodePoint(codePoint);
   final double upem = font.unitsPerEm.toDouble();
-  final MathVariants? variants = font.mathTable?.variants;
-  MathGlyphConstruction? construction = variants?.horizontalConstruction(
+  final MathVariants variants = mathTable.variants;
+  MathGlyphConstruction? construction = variants.horizontalConstruction(
     baseGid,
   );
   int resolvedCodePoint = codePoint;
@@ -428,7 +330,7 @@ MathBox buildHorizontalStretchyBox({
     if (fallbackCp != null) {
       final int fallbackGid = font.glyphIdForCodePoint(fallbackCp);
       final MathGlyphConstruction? fallbackConstruction = variants
-          ?.horizontalConstruction(fallbackGid);
+          .horizontalConstruction(fallbackGid);
       if (fallbackConstruction != null &&
           (fallbackConstruction.variants.isNotEmpty ||
               fallbackConstruction.assembly != null)) {
@@ -458,7 +360,7 @@ MathBox buildHorizontalStretchyBox({
       return _assembleHorizontalParts(
         font: font,
         assembly: assembly,
-        minConnectorOverlap: variants?.minConnectorOverlap ?? 0,
+        minConnectorOverlap: variants.minConnectorOverlap,
         targetWidthEm: targetWidthEm,
         scale: scale,
         atomClass: atomClass,
@@ -597,28 +499,74 @@ _AssemblyPlan _planAssembly({
   }
 
   List<GlyphAssemblyPart> chosen = expand(0);
-  if (chosen.isEmpty && hasExtender) {
-    chosen = expand(1);
-  }
-  var (List<double> minOvs, List<double> maxOvs, double minLen, double maxLen) =
-      measure(chosen);
+  var (
+    List<double> minOvs,
+    List<double> maxOvs,
+    double minLen,
+    double maxLen,
+  ) = chosen.isEmpty
+      ? (const <double>[], const <double>[], 0.0, 0.0)
+      : measure(chosen);
 
-  if (hasExtender) {
-    for (int k = 1; k <= 512 && maxLen < safeTarget - 1e-6; k++) {
-      final List<GlyphAssemblyPart> candidate = expand(k);
-      final (
-        List<double> cMinOvs,
-        List<double> cMaxOvs,
-        double cMinLen,
-        double cMaxLen,
-      ) = measure(
-        candidate,
-      );
-      chosen = candidate;
-      minOvs = cMinOvs;
-      maxOvs = cMaxOvs;
-      minLen = cMinLen;
-      maxLen = cMaxLen;
+  if (hasExtender && (chosen.isEmpty || maxLen < safeTarget - 1e-6)) {
+    // For any repeat count k >= 1, every extender contributes a fixed linear
+    // increment (fullAdvance minus self-overlap) on top of the k = 1 measure.
+    final (
+      List<double> k1MinOvs,
+      List<double> k1MaxOvs,
+      double k1MinLen,
+      double k1MaxLen,
+    ) = measure(
+      rawParts,
+    );
+    if (k1MaxLen >= safeTarget - 1e-6) {
+      chosen = rawParts;
+      minOvs = k1MinOvs;
+      maxOvs = k1MaxOvs;
+      minLen = k1MinLen;
+      maxLen = k1MaxLen;
+    } else {
+      double step = 0.0;
+      for (final GlyphAssemblyPart part in rawParts) {
+        if (!part.isExtender) {
+          continue;
+        }
+        final double maxOv = math
+            .min(part.endConnectorLength, part.startConnectorLength)
+            .toDouble();
+        final double minOv = math.min(
+          minConnectorOverlap.toDouble(),
+          math.max(0.0, maxOv),
+        );
+        step += part.fullAdvance - minOv;
+      }
+      int repeatCount;
+      if (step <= 1e-9) {
+        repeatCount = 1;
+      } else {
+        repeatCount = 1 + ((safeTarget - 1e-6 - k1MaxLen) / step).ceil();
+        if (repeatCount > 512) {
+          repeatCount = 512;
+        }
+        while (repeatCount > 1 &&
+            k1MaxLen + (repeatCount - 2) * step >= safeTarget - 1e-6) {
+          repeatCount--;
+        }
+        if (repeatCount < 512 &&
+            k1MaxLen + (repeatCount - 1) * step < safeTarget - 1e-6) {
+          repeatCount++;
+        }
+      }
+      if (repeatCount <= 1) {
+        chosen = rawParts;
+        minOvs = k1MinOvs;
+        maxOvs = k1MaxOvs;
+        minLen = k1MinLen;
+        maxLen = k1MaxLen;
+      } else {
+        chosen = expand(repeatCount);
+        (minOvs, maxOvs, minLen, maxLen) = measure(chosen);
+      }
     }
   }
 
@@ -829,32 +777,40 @@ VBox _assembleHorizontalParts({
 
 /// Resolves the OpenType `MATH` horizontal top accent attachment X coordinate
 /// for [box] in ems, falling back to `widthEm / 2.0`.
-double boxTopAccentAnchorEm(MathBox box, MathFont font) {
+double boxTopAccentAnchorEm(
+  MathBox box,
+  MathFont font,
+  MathTableData mathTable,
+) {
   final double upem = font.unitsPerEm.toDouble();
   switch (box) {
     case GlyphBox(:final int glyphId, :final double scaleX):
-      final double? raw = font.mathTable?.glyphInfo.topAccentAttachment(
-        glyphId,
-      );
+      final double? raw = mathTable.glyphInfo.topAccentAttachment(glyphId);
       return raw != null ? (raw / upem) * scaleX : box.widthEm / 2.0;
     case HBox(:final List<MathBox> children):
-      final List<MathBox> visible = children
-          .where((MathBox c) => c is! KernBox && c is! AnchorBox)
-          .toList();
-      if (visible.length == 1) {
-        double offsetX = 0.0;
-        for (final MathBox c in children) {
-          if (identical(c, visible.first)) {
-            return offsetX + boxTopAccentAnchorEm(c, font);
+      MathBox? singleVisible;
+      double singleOffsetX = 0.0;
+      double cursorX = 0.0;
+      for (int i = 0; i < children.length; i++) {
+        final MathBox child = children[i];
+        if (child is! KernBox && child is! AnchorBox) {
+          if (singleVisible != null) {
+            return box.widthEm / 2.0;
           }
-          offsetX += c.widthEm;
+          singleVisible = child;
+          singleOffsetX = cursorX;
         }
+        cursorX += child.widthEm;
+      }
+      if (singleVisible != null) {
+        return singleOffsetX +
+            boxTopAccentAnchorEm(singleVisible, font, mathTable);
       }
       return box.widthEm / 2.0;
     case VBox(:final List<VBoxChild> placements):
       if (placements.isNotEmpty) {
         return placements.first.xEm +
-            boxTopAccentAnchorEm(placements.first.box, font);
+            boxTopAccentAnchorEm(placements.first.box, font, mathTable);
       }
       return box.widthEm / 2.0;
     case RuleBox():

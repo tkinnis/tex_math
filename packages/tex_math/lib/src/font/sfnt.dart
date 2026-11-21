@@ -921,14 +921,30 @@ final class GsubSstyTable {
     );
     final List<int> glyphs = cov.toGlyphList();
     final int n = glyphs.length < altSetCount ? glyphs.length : altSetCount;
+    const int maxTotalAlternateGlyphs = 131072;
+    int totalAlternateGlyphs = 0;
+    final Map<int, Uint16List> altSetCache = <int, Uint16List>{};
     for (int i = 0; i < n; i++) {
       final int altSetOff = subOff + reader.readUint16Fast(subOff + 6 + i * 2);
+      final Uint16List? cached = altSetCache[altSetOff];
+      if (cached != null) {
+        out.putIfAbsent(glyphs[i], () => cached);
+        continue;
+      }
       final int count = reader.readUint16(altSetOff, 'GSUB.AlternateSet.count');
+      totalAlternateGlyphs += count;
+      if (totalAlternateGlyphs > maxTotalAlternateGlyphs) {
+        throw TexMathFontError(
+          'GSUB AlternateSubst decoded glyph count ($totalAlternateGlyphs) '
+          'exceeds limit ($maxTotalAlternateGlyphs).',
+        );
+      }
       reader.checkRange(altSetOff + 2, count * 2, 'GSUB.AlternateSet.glyphIDs');
       final Uint16List alts = Uint16List(count);
       for (int j = 0; j < count; j++) {
         alts[j] = reader.readUint16Fast(altSetOff + 2 + j * 2);
       }
+      altSetCache[altSetOff] = alts;
       out.putIfAbsent(glyphs[i], () => alts);
     }
   }

@@ -298,10 +298,15 @@ final class ItemVariationStore {
       scalars[r] = scalar;
     }
 
-    // Parse ItemVariationData tables
+    // Parse ItemVariationData tables with offset deduplication and entry budget.
+    const int maxTotalVariationDeltas = 2000000;
+    int totalVariationDeltas = 0;
     final List<ItemVariationDataTable?> dataTables =
         List<ItemVariationDataTable?>.filled(dataCount, null);
     final Map<int, List<double>> cachedDataScalars = <int, List<double>>{};
+    final Map<int, ({ItemVariationDataTable table, List<double> scalars})>
+    parsedByOffset =
+        <int, ({ItemVariationDataTable table, List<double> scalars})>{};
 
     for (int d = 0; d < dataCount; d++) {
       final int dataOffset = store.readUint32(
@@ -309,6 +314,13 @@ final class ItemVariationStore {
         'ItemVariationStore.dataOffset',
       );
       if (dataOffset == 0) {
+        continue;
+      }
+      final ({ItemVariationDataTable table, List<double> scalars})? cached =
+          parsedByOffset[dataOffset];
+      if (cached != null) {
+        dataTables[d] = cached.table;
+        cachedDataScalars[d] = cached.scalars;
         continue;
       }
       final int itemCount = store.readUint16(
@@ -361,13 +373,22 @@ final class ItemVariationStore {
           wordDeltaCount * longWordSize +
           (regionIndexCount - wordDeltaCount) * shortWordSize;
       int deltaOffset = dataOffset + 6 + regionIndexCount * 2;
-      final List<List<int>> rows = <List<int>>[];
-      if (readDeltaSets && itemCount > 0) {
+      List<List<int>> rows = const <List<int>>[];
+      if (readDeltaSets && itemCount > 0 && regionIndexCount > 0) {
+        final int entryCount = itemCount * regionIndexCount;
+        totalVariationDeltas += entryCount;
+        if (totalVariationDeltas > maxTotalVariationDeltas) {
+          throw TexMathFontError(
+            'ItemVariationStore decoded delta count ($totalVariationDeltas) '
+            'exceeds limit ($maxTotalVariationDeltas).',
+          );
+        }
         store.checkRange(
           deltaOffset,
           itemCount * rowBytes,
           'ItemVariationData.deltaSets',
         );
+        rows = <List<int>>[];
         for (int item = 0; item < itemCount; item++) {
           final List<int> row = List<int>.filled(regionIndexCount, 0);
           int colOff = deltaOffset;
@@ -394,12 +415,15 @@ final class ItemVariationStore {
           deltaOffset += rowBytes;
         }
       }
-      dataTables[d] = ItemVariationDataTable(
+      final ItemVariationDataTable table = ItemVariationDataTable(
         itemCount: itemCount,
         regionIndexes: List<int>.unmodifiable(regIndexes),
         deltas: rows,
       );
-      cachedDataScalars[d] = List<double>.unmodifiable(subScalars);
+      final List<double> unmodScalars = List<double>.unmodifiable(subScalars);
+      parsedByOffset[dataOffset] = (table: table, scalars: unmodScalars);
+      dataTables[d] = table;
+      cachedDataScalars[d] = unmodScalars;
     }
 
     return ItemVariationStore._(

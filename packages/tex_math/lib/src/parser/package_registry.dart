@@ -46,6 +46,42 @@ final class TexPackageDescriptor {
 
   /// Whether `\require{name}` permits loading this package by default.
   final bool isRequireAllowedByDefault;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is TexPackageDescriptor &&
+          name == other.name &&
+          tier == other.tier &&
+          description == other.description &&
+          isDefaultJupyterLab == other.isDefaultJupyterLab &&
+          isRequireAllowedByDefault == other.isRequireAllowedByDefault &&
+          _stringListEquals(dependencies, other.dependencies);
+
+  @override
+  int get hashCode => Object.hash(
+    name,
+    tier,
+    description,
+    isDefaultJupyterLab,
+    isRequireAllowedByDefault,
+    Object.hashAll(dependencies),
+  );
+}
+
+bool _stringListEquals(List<String> a, List<String> b) {
+  if (identical(a, b)) {
+    return true;
+  }
+  if (a.length != b.length) {
+    return false;
+  }
+  for (int i = 0; i < a.length; i++) {
+    if (a[i] != b[i]) {
+      return false;
+    }
+  }
+  return true;
 }
 
 /// Compile-time immutable registry of all 42 MathJax `4.1.3` TeX packages.

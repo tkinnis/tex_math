@@ -1,5 +1,6 @@
 import '../ast.dart';
 import '../error.dart';
+import '../shared/math_symbols.dart';
 import '../source_span.dart';
 import 'parser_host.dart';
 import 'tokenizer.dart';
@@ -481,13 +482,7 @@ abstract final class PhysicsParser {
     if (next == null || next.kind != TexTokenKind.controlSequence) {
       return null;
     }
-    final double? size = switch (next.text) {
-      'big' => 0.85,
-      'Big' => 1.15,
-      'bigg' => 1.45,
-      'Bigg' => 1.75,
-      _ => null,
-    };
+    final double? size = sizeForBigCommand(next.text);
     if (size != null) {
       host.cursor.next();
     }
@@ -1213,6 +1208,31 @@ abstract final class PhysicsParser {
     );
   }
 
+  static const int _maxMatrixCells = 4096;
+
+  static void _enforceMatrixCellBudget(
+    int rows,
+    int cols,
+    String commandName,
+    SourceSpan span,
+  ) {
+    if (rows > _maxMatrixCells ||
+        cols > _maxMatrixCells ||
+        rows * cols > _maxMatrixCells) {
+      final int actual = rows > _maxMatrixCells || cols > _maxMatrixCells
+          ? (rows > cols ? rows : cols)
+          : rows * cols;
+      throw TexMathBudgetError(
+        'Matrix cell count for \\$commandName ($rows x $cols) exceeds limit '
+        '($_maxMatrixCells).',
+        budgetName: 'maxOutputItems',
+        limit: _maxMatrixCells,
+        actual: actual,
+        span: span,
+      );
+    }
+  }
+
   static MathNode _parseDiagMatrix(
     TexParserHost host,
     String commandName,
@@ -1221,20 +1241,25 @@ abstract final class PhysicsParser {
   }) {
     final String raw = host.readArgumentText(commandName);
     final List<String> entries = _splitTopLevelCommas(raw);
-    final StringBuffer rows = StringBuffer();
-    for (int i = 0; i < entries.length; i++) {
-      if (i > 0) {
-        rows.write(r' \\ ');
-      }
-      final int leadCols = anti ? entries.length - 1 - i : i;
-      for (int c = 0; c < leadCols; c++) {
-        rows.write('& ');
-      }
-      rows.write(entries[i].trim());
-    }
-    return host.parseSyntheticTex(
-      '\\begin{matrix} $rows \\end{matrix}',
+    final int n = entries.length;
+    _enforceMatrixCellBudget(n, n, commandName, span);
+    final List<List<MathNode>> rows = List<List<MathNode>>.generate(n, (int r) {
+      final int diagCol = anti ? n - 1 - r : r;
+      final List<MathNode> cells = List<MathNode>.generate(diagCol + 1, (
+        int c,
+      ) {
+        if (c < diagCol) {
+          return MathGroupNode(span: span, children: const <MathNode>[]);
+        }
+        return host.parseSyntheticTex(entries[r].trim(), span: span);
+      }, growable: false);
+      return List<MathNode>.unmodifiable(cells);
+    }, growable: false);
+    return MatrixNode(
       span: span,
+      rows: List<List<MathNode>>.unmodifiable(rows),
+      environment: 'matrix',
+      columnAlignments: const <String>['c'],
     );
   }
 
@@ -1254,21 +1279,24 @@ abstract final class PhysicsParser {
     if (size <= 1) {
       return SymbolNode(span: span, value: '1');
     }
-    final StringBuffer rows = StringBuffer();
-    for (int r = 0; r < size; r++) {
-      if (r > 0) {
-        rows.write(r' \\ ');
-      }
-      for (int c = 0; c < size; c++) {
-        if (c > 0) {
-          rows.write(' & ');
-        }
-        rows.write(r == c ? '1' : '0');
-      }
-    }
-    return host.parseSyntheticTex(
-      '\\begin{matrix} $rows \\end{matrix}',
+    _enforceMatrixCellBudget(size, size, commandName, span);
+    final SymbolNode one = SymbolNode(span: span, value: '1');
+    final SymbolNode zero = SymbolNode(span: span, value: '0');
+    final List<List<MathNode>> rows = List<List<MathNode>>.generate(size, (
+      int r,
+    ) {
+      final List<MathNode> cells = List<MathNode>.generate(
+        size,
+        (int c) => r == c ? one : zero,
+        growable: false,
+      );
+      return List<MathNode>.unmodifiable(cells);
+    }, growable: false);
+    return MatrixNode(
       span: span,
+      rows: List<List<MathNode>>.unmodifiable(rows),
+      environment: 'matrix',
+      columnAlignments: const <String>['c'],
     );
   }
 
@@ -1289,31 +1317,66 @@ abstract final class PhysicsParser {
         span: span,
       );
     }
-    final StringBuffer buf = StringBuffer();
-    for (int r = 1; r <= rows; r++) {
-      if (r > 1) {
-        buf.write(r' \\ ');
-      }
-      for (int c = 1; c <= cols; c++) {
-        if (c > 1) {
-          buf.write(' & ');
-        }
-        if (!star) {
-          buf.write(elem);
-        } else if (rows == 1 && cols == 1) {
-          buf.write(elem);
-        } else if (rows == 1) {
-          buf.write('${elem}_{$c}');
-        } else if (cols == 1) {
-          buf.write('${elem}_{$r}');
-        } else {
-          buf.write('${elem}_{{$r}{$c}}');
-        }
-      }
-    }
-    return host.parseSyntheticTex(
-      '\\begin{matrix} $buf \\end{matrix}',
+    _enforceMatrixCellBudget(rows, cols, commandName, span);
+    final MathNode elemNode = host.parseSyntheticTex(elem, span: span);
+    final List<List<MathNode>> matrixRows = List<List<MathNode>>.generate(
+      rows,
+      (int rIdx) {
+        final int r = rIdx + 1;
+        final List<MathNode> cells = List<MathNode>.generate(cols, (int cIdx) {
+          final int c = cIdx + 1;
+          if (!star || (rows == 1 && cols == 1)) {
+            return elemNode;
+          }
+          final MathNode sub;
+          if (rows == 1) {
+            sub = _digitsToNode('$c', span);
+          } else if (cols == 1) {
+            sub = _digitsToNode('$r', span);
+          } else {
+            sub = MathGroupNode(
+              span: span,
+              children: List<MathNode>.unmodifiable(<MathNode>[
+                MathGroupNode(
+                  span: span,
+                  children: List<MathNode>.unmodifiable(<MathNode>[
+                    _digitsToNode('$r', span),
+                  ]),
+                ),
+                MathGroupNode(
+                  span: span,
+                  children: List<MathNode>.unmodifiable(<MathNode>[
+                    _digitsToNode('$c', span),
+                  ]),
+                ),
+              ]),
+            );
+          }
+          return ScriptNode(span: span, base: elemNode, subscript: sub);
+        }, growable: false);
+        return List<MathNode>.unmodifiable(cells);
+      },
+      growable: false,
+    );
+    return MatrixNode(
       span: span,
+      rows: List<List<MathNode>>.unmodifiable(matrixRows),
+      environment: 'matrix',
+      columnAlignments: const <String>['c'],
+    );
+  }
+
+  static MathNode _digitsToNode(String digits, SourceSpan span) {
+    if (digits.length == 1) {
+      return SymbolNode(span: span, value: digits);
+    }
+    return MathGroupNode(
+      span: span,
+      isExplicitGroup: false,
+      children: List<MathNode>.unmodifiable(<MathNode>[
+        for (int i = 0; i < digits.length; i++)
+          SymbolNode(span: span, value: digits[i]),
+      ]),
     );
   }
 
@@ -1332,21 +1395,22 @@ abstract final class PhysicsParser {
         span: span,
       );
     }
-    final StringBuffer buf = StringBuffer();
-    for (int r = 0; r < rows; r++) {
-      if (r > 0) {
-        buf.write(r' \\ ');
-      }
-      for (int c = 0; c < cols; c++) {
-        if (c > 0) {
-          buf.write(' & ');
-        }
-        buf.write('0');
-      }
-    }
-    return host.parseSyntheticTex(
-      '\\begin{matrix} $buf \\end{matrix}',
+    _enforceMatrixCellBudget(rows, cols, commandName, span);
+    final SymbolNode zero = SymbolNode(span: span, value: '0');
+    final List<List<MathNode>> matrixRows = List<List<MathNode>>.unmodifiable(
+      List<List<MathNode>>.generate(
+        rows,
+        (_) => List<MathNode>.unmodifiable(
+          List<MathNode>.filled(cols, zero, growable: false),
+        ),
+        growable: false,
+      ),
+    );
+    return MatrixNode(
       span: span,
+      rows: matrixRows,
+      environment: 'matrix',
+      columnAlignments: const <String>['c'],
     );
   }
 
@@ -1356,19 +1420,53 @@ abstract final class PhysicsParser {
     SourceSpan span,
   ) {
     final String arg = host.readArgumentText(commandName).trim();
-    final String body = switch (arg) {
-      '0' => r'1 & 0 \\ 0 & 1',
-      '1' || 'x' => r'0 & 1 \\ 1 & 0',
-      '2' || 'y' => r'0 & -i \\ i & 0',
-      '3' || 'z' => r'1 & 0 \\ 0 & -1',
+    final SymbolNode zero = SymbolNode(span: span, value: '0');
+    final SymbolNode one = SymbolNode(span: span, value: '1');
+    final SymbolNode iSym = SymbolNode(span: span, value: 'i');
+    final SymbolNode minus = SymbolNode(
+      span: span,
+      value: '\u2212',
+      atomClass: TexMathAtomClass.bin,
+    );
+    final MathNode negOne = MathGroupNode(
+      span: span,
+      isExplicitGroup: false,
+      children: List<MathNode>.unmodifiable(<MathNode>[minus, one]),
+    );
+    final MathNode negI = MathGroupNode(
+      span: span,
+      isExplicitGroup: false,
+      children: List<MathNode>.unmodifiable(<MathNode>[minus, iSym]),
+    );
+    final List<List<MathNode>> rows = switch (arg) {
+      '0' => <List<MathNode>>[
+        <MathNode>[one, zero],
+        <MathNode>[zero, one],
+      ],
+      '1' || 'x' => <List<MathNode>>[
+        <MathNode>[zero, one],
+        <MathNode>[one, zero],
+      ],
+      '2' || 'y' => <List<MathNode>>[
+        <MathNode>[zero, negI],
+        <MathNode>[iSym, zero],
+      ],
+      '3' || 'z' => <List<MathNode>>[
+        <MathNode>[one, zero],
+        <MathNode>[zero, negOne],
+      ],
       _ => throw TexMathSyntaxError(
         'Invalid Pauli matrix index "$arg".',
         span: span,
       ),
     };
-    return host.parseSyntheticTex(
-      '\\begin{matrix} $body \\end{matrix}',
+    return MatrixNode(
       span: span,
+      rows: List<List<MathNode>>.unmodifiable(
+        rows.map(List<MathNode>.unmodifiable),
+      ),
+      environment: 'matrix',
+      columnAlignments: const <String>['c'],
     );
   }
 

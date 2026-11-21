@@ -2,6 +2,15 @@ import 'package:meta/meta.dart';
 
 import '../ast.dart';
 
+export '../shared/colors.dart' show resolveTexColor, standardTexColors;
+export '../shared/math_symbols.dart'
+    show
+        fontSizeCommands,
+        literalDelimiterMap,
+        mathSpacingCommands,
+        mathUnicodeCodePoint,
+        notRemap;
+
 /// Metadata describing a TeX math or text symbol command.
 @immutable
 final class TexSymbolSpec {
@@ -52,6 +61,37 @@ final class TexSymbolSpec {
 
   /// Whether this accent attaches underneath its base.
   final bool isUnderAccent;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is TexSymbolSpec &&
+          unicode == other.unicode &&
+          atomClass == other.atomClass &&
+          fontVariant == other.fontVariant &&
+          hasLimits == other.hasLimits &&
+          isLarge == other.isLarge &&
+          isStretchy == other.isStretchy &&
+          isOperator == other.isOperator &&
+          isDelimiter == other.isDelimiter &&
+          isAccent == other.isAccent &&
+          isWideAccent == other.isWideAccent &&
+          isUnderAccent == other.isUnderAccent;
+
+  @override
+  int get hashCode => Object.hash(
+    unicode,
+    atomClass,
+    fontVariant,
+    hasLimits,
+    isLarge,
+    isStretchy,
+    isOperator,
+    isDelimiter,
+    isAccent,
+    isWideAccent,
+    isUnderAccent,
+  );
 }
 
 /// Core TeX `base` package symbol definitions keyed by control sequence name
@@ -1523,91 +1563,6 @@ const Map<String, TexSymbolSpec> bboldxSymbolMap = <String, TexSymbolSpec>{
   ),
 };
 
-/// Mapping of negated base characters when preceded by `\not`.
-const Map<String, String> notRemap = <String, String>{
-  '\u2190': '\u219A',
-  '\u2192': '\u219B',
-  '\u2194': '\u21AE',
-  '\u21D0': '\u21CD',
-  '\u21D2': '\u21CF',
-  '\u21D4': '\u21CE',
-  '\u2208': '\u2209',
-  '\u220B': '\u220C',
-  '\u2223': '\u2224',
-  '\u2225': '\u2226',
-  '\u223C': '\u2241',
-  '\u007E': '\u2241',
-  '\u2243': '\u2244',
-  '\u2245': '\u2247',
-  '\u2248': '\u2249',
-  '\u224D': '\u226D',
-  '\u003D': '\u2260',
-  '\u2261': '\u2262',
-  '\u003C': '\u226E',
-  '\u003E': '\u226F',
-  '\u2264': '\u2270',
-  '\u2265': '\u2271',
-  '\u2272': '\u2274',
-  '\u2273': '\u2275',
-  '\u2276': '\u2278',
-  '\u2277': '\u2279',
-  '\u227A': '\u2280',
-  '\u227B': '\u2281',
-  '\u2282': '\u2284',
-  '\u2283': '\u2285',
-  '\u2286': '\u2288',
-  '\u2287': '\u2289',
-  '\u22A2': '\u22AC',
-  '\u22A8': '\u22AD',
-  '\u22A9': '\u22AE',
-  '\u22AB': '\u22AF',
-  '\u227C': '\u22E0',
-  '\u227D': '\u22E1',
-  '\u2291': '\u22E2',
-  '\u2292': '\u22E3',
-  '\u22B2': '\u22EA',
-  '\u22B3': '\u22EB',
-  '\u22B4': '\u22EC',
-  '\u22B5': '\u22ED',
-  '\u2203': '\u2204',
-};
-
-/// Horizontal spacing commands mapped to em widths.
-const Map<String, double> mathSpacingCommands = <String, double>{
-  ',': 3.0 / 18.0,
-  ':': 4.0 / 18.0,
-  '>': 4.0 / 18.0,
-  ';': 5.0 / 18.0,
-  '!': -3.0 / 18.0,
-  'enspace': 0.5,
-  'quad': 1.0,
-  'qquad': 2.0,
-  'thinspace': 3.0 / 18.0,
-  'negthinspace': -3.0 / 18.0,
-  'medspace': 4.0 / 18.0,
-  'negmedspace': -4.0 / 18.0,
-  'thickspace': 5.0 / 18.0,
-  'negthickspace': -5.0 / 18.0,
-  ' ': 0.25,
-  'space': 0.25,
-  'nobreakspace': 0.25,
-  '\u00A0': 0.25,
-};
-
-/// Single-character literal delimiters accepted after `\left`, `\right`,
-/// `\middle`, and `\big` variants.
-const Map<String, String> literalDelimiterMap = <String, String>{
-  '(': '(',
-  ')': ')',
-  '[': '[',
-  ']': ']',
-  '<': '\u27E8',
-  '>': '\u27E9',
-  '/': '/',
-  '|': '|',
-  '.': '',
-};
-
 /// Math accent command configurations (`unicode`, `isWide`, `isUnder`).
 const Map<String, ({String unicode, bool isWide, bool isUnder})>
 mathAccentCommands = <String, ({String unicode, bool isWide, bool isUnder})>{
@@ -1641,342 +1596,3 @@ mathAccentCommands = <String, ({String unicode, bool isWide, bool isUnder})>{
   'overleftrightarrow': (unicode: '\u2194', isWide: true, isUnder: false),
   'underleftrightarrow': (unicode: '\u2194', isWide: true, isUnder: true),
 };
-
-/// Font size scale factors for `fontsizev3` / `base` sizing switches.
-const Map<String, double> fontSizeCommands = <String, double>{
-  'Tiny': 0.5,
-  'tiny': 0.6,
-  'scriptsize': 0.7,
-  'SMALL': 0.7,
-  'Small': 0.8,
-  'footnotesize': 0.8,
-  'small': 0.9,
-  'normalsize': 1.0,
-  'large': 1.095,
-  'Large': 1.2,
-  'LARGE': 1.44,
-  'huge': 1.728,
-  'Huge': 2.074,
-  'HUGE': 2.49,
-};
-
-/// Named colors normalized to hex `#RRGGBB` values.
-const Map<String, String> standardTexColors = <String, String>{
-  'black': '#000000',
-  'blue': '#0000FF',
-  'brown': '#A52A2A',
-  'cyan': '#00FFFF',
-  'darkgray': '#A9A9A9',
-  'gray': '#808080',
-  'green': '#008000',
-  'lightblue': '#ADD8E6',
-  'lightgray': '#D3D3D3',
-  'lime': '#00FF00',
-  'magenta': '#FF00FF',
-  'olive': '#808000',
-  'orange': '#FFA500',
-  'pink': '#FFC0CB',
-  'purple': '#800080',
-  'red': '#FF0000',
-  'teal': '#008080',
-  'violet': '#EE82EE',
-  'white': '#FFFFFF',
-  'yellow': '#FFFF00',
-  'lavender': '#E6E6FA',
-  'crimson': '#DC143C',
-  'navy': '#000080',
-  'silver': '#C0C0C0',
-  'maroon': '#800000',
-  'aqua': '#00FFFF',
-  'fuchsia': '#FF00FF',
-};
-
-/// Resolves a TeX color expression (`name`, `rgb`, `RGB`, `HTML`, `gray`) into
-/// a CSS/hex color string.
-String resolveTexColor(
-  String colorSpec, {
-  String model = '',
-  Map<String, String> customColors = const <String, String>{},
-}) {
-  final String normalizedModel = model.trim().toLowerCase();
-  final String spec = colorSpec.trim();
-
-  if (normalizedModel == 'rgb') {
-    final List<String> parts = spec.split(',');
-    if (parts.length == 3) {
-      final int r = _floatToChannel(parts[0]);
-      final int g = _floatToChannel(parts[1]);
-      final int b = _floatToChannel(parts[2]);
-      return '#${_hexByte(r)}${_hexByte(g)}${_hexByte(b)}';
-    }
-  } else if (normalizedModel == 'html') {
-    final String cleaned = spec.startsWith('#') ? spec.substring(1) : spec;
-    return '#${cleaned.toUpperCase()}';
-  } else if (normalizedModel == 'gray') {
-    final int c = _floatToChannel(spec);
-    return '#${_hexByte(c)}${_hexByte(c)}${_hexByte(c)}';
-  } else if (model.trim() == 'RGB') {
-    final List<String> parts = spec.split(',');
-    if (parts.length == 3) {
-      final int r = (int.tryParse(parts[0].trim()) ?? 0).clamp(0, 255);
-      final int g = (int.tryParse(parts[1].trim()) ?? 0).clamp(0, 255);
-      final int b = (int.tryParse(parts[2].trim()) ?? 0).clamp(0, 255);
-      return '#${_hexByte(r)}${_hexByte(g)}${_hexByte(b)}';
-    }
-  }
-
-  final String lower = spec.toLowerCase();
-  final String? custom = customColors[lower] ?? customColors[spec];
-  if (custom != null) {
-    return custom;
-  }
-  final String? named = standardTexColors[lower];
-  if (named != null) {
-    return named;
-  }
-  if (spec.startsWith('#')) {
-    return spec.toUpperCase();
-  }
-  return spec;
-}
-
-int _floatToChannel(String raw) {
-  final double? value = double.tryParse(raw.trim());
-  if (value == null) {
-    return 0;
-  }
-  return (value * 255.0).round().clamp(0, 255);
-}
-
-String _hexByte(int value) =>
-    value.toRadixString(16).padLeft(2, '0').toUpperCase();
-
-/// Maps a base Unicode code point and [TexMathFontVariant] to the matching
-/// Mathematical Alphanumeric Symbol code point when one exists.
-int mathUnicodeCodePoint(int baseCodePoint, TexMathFontVariant? variant) {
-  if (variant == null || variant == TexMathFontVariant.normal) {
-    return baseCodePoint;
-  }
-
-  // ASCII uppercase A-Z.
-  if (baseCodePoint >= 0x41 && baseCodePoint <= 0x5A) {
-    final int offset = baseCodePoint - 0x41;
-    switch (variant) {
-      case TexMathFontVariant.normal:
-        return baseCodePoint;
-      case TexMathFontVariant.bold:
-        return 0x1D400 + offset;
-      case TexMathFontVariant.italic:
-        return 0x1D434 + offset;
-      case TexMathFontVariant.boldItalic:
-        return 0x1D468 + offset;
-      case TexMathFontVariant.script:
-        return _scriptUpperExceptions[baseCodePoint] ?? (0x1D49C + offset);
-      case TexMathFontVariant.boldScript:
-        return 0x1D4D0 + offset;
-      case TexMathFontVariant.fraktur:
-        return _frakturUpperExceptions[baseCodePoint] ?? (0x1D504 + offset);
-      case TexMathFontVariant.boldFraktur:
-        return 0x1D56C + offset;
-      case TexMathFontVariant.sansSerif:
-        return 0x1D5A0 + offset;
-      case TexMathFontVariant.boldSansSerif:
-        return 0x1D5D4 + offset;
-      case TexMathFontVariant.sansSerifItalic:
-        return 0x1D608 + offset;
-      case TexMathFontVariant.sansSerifBoldItalic:
-        return 0x1D63C + offset;
-      case TexMathFontVariant.monospace:
-        return 0x1D670 + offset;
-      case TexMathFontVariant.doubleStruck:
-      case TexMathFontVariant.doubleStruckBold:
-      case TexMathFontVariant.doubleStruckSans:
-      case TexMathFontVariant.doubleStruckMonospace:
-        return _doubleStruckUpperExceptions[baseCodePoint] ??
-            (0x1D538 + offset);
-    }
-  }
-
-  // ASCII lowercase a-z.
-  if (baseCodePoint >= 0x61 && baseCodePoint <= 0x7A) {
-    final int offset = baseCodePoint - 0x61;
-    switch (variant) {
-      case TexMathFontVariant.normal:
-        return baseCodePoint;
-      case TexMathFontVariant.bold:
-        return 0x1D41A + offset;
-      case TexMathFontVariant.italic:
-        return baseCodePoint == 0x68 ? 0x210E : (0x1D44E + offset);
-      case TexMathFontVariant.boldItalic:
-        return 0x1D482 + offset;
-      case TexMathFontVariant.script:
-        return _scriptLowerExceptions[baseCodePoint] ?? (0x1D4B6 + offset);
-      case TexMathFontVariant.boldScript:
-        return 0x1D4EA + offset;
-      case TexMathFontVariant.fraktur:
-        return 0x1D51E + offset;
-      case TexMathFontVariant.boldFraktur:
-        return 0x1D586 + offset;
-      case TexMathFontVariant.sansSerif:
-        return 0x1D5BA + offset;
-      case TexMathFontVariant.boldSansSerif:
-        return 0x1D5EE + offset;
-      case TexMathFontVariant.sansSerifItalic:
-        return 0x1D622 + offset;
-      case TexMathFontVariant.sansSerifBoldItalic:
-        return 0x1D656 + offset;
-      case TexMathFontVariant.monospace:
-        return 0x1D68A + offset;
-      case TexMathFontVariant.doubleStruck:
-      case TexMathFontVariant.doubleStruckBold:
-      case TexMathFontVariant.doubleStruckSans:
-      case TexMathFontVariant.doubleStruckMonospace:
-        return 0x1D552 + offset;
-    }
-  }
-
-  // ASCII digits 0-9.
-  if (baseCodePoint >= 0x30 && baseCodePoint <= 0x39) {
-    final int offset = baseCodePoint - 0x30;
-    switch (variant) {
-      case TexMathFontVariant.bold:
-        return 0x1D7CE + offset;
-      case TexMathFontVariant.doubleStruck:
-      case TexMathFontVariant.doubleStruckBold:
-      case TexMathFontVariant.doubleStruckSans:
-      case TexMathFontVariant.doubleStruckMonospace:
-        return 0x1D7D8 + offset;
-      case TexMathFontVariant.sansSerif:
-        return 0x1D7E2 + offset;
-      case TexMathFontVariant.boldSansSerif:
-        return 0x1D7EC + offset;
-      case TexMathFontVariant.monospace:
-        return 0x1D7F6 + offset;
-      default:
-        return baseCodePoint;
-    }
-  }
-
-  // Greek uppercase & lowercase math variants.
-  if (baseCodePoint >= 0x0391 && baseCodePoint <= 0x03A9) {
-    final int offset = baseCodePoint - 0x0391;
-    switch (variant) {
-      case TexMathFontVariant.bold:
-        return 0x1D6A8 + offset;
-      case TexMathFontVariant.italic:
-        return 0x1D6E2 + offset;
-      case TexMathFontVariant.boldItalic:
-        return 0x1D71C + offset;
-      case TexMathFontVariant.boldSansSerif:
-        return 0x1D756 + offset;
-      case TexMathFontVariant.sansSerifBoldItalic:
-        return 0x1D790 + offset;
-      default:
-        return baseCodePoint;
-    }
-  }
-  if (baseCodePoint >= 0x03B1 && baseCodePoint <= 0x03C9) {
-    final int offset = baseCodePoint - 0x03B1;
-    switch (variant) {
-      case TexMathFontVariant.bold:
-        return 0x1D6C2 + offset;
-      case TexMathFontVariant.italic:
-        return 0x1D6FC + offset;
-      case TexMathFontVariant.boldItalic:
-        return 0x1D736 + offset;
-      case TexMathFontVariant.boldSansSerif:
-        return 0x1D770 + offset;
-      case TexMathFontVariant.sansSerifBoldItalic:
-        return 0x1D7AA + offset;
-      default:
-        return baseCodePoint;
-    }
-  }
-
-  final Map<TexMathFontVariant, int>? specialGreek =
-      _greekVariantExceptions[baseCodePoint];
-  if (specialGreek != null) {
-    return specialGreek[variant] ?? baseCodePoint;
-  }
-
-  return baseCodePoint;
-}
-
-const Map<int, int> _scriptUpperExceptions = <int, int>{
-  0x42: 0x212C,
-  0x45: 0x2130,
-  0x46: 0x2131,
-  0x48: 0x210B,
-  0x49: 0x2110,
-  0x4C: 0x2112,
-  0x4D: 0x2133,
-  0x52: 0x211B,
-};
-
-const Map<int, int> _scriptLowerExceptions = <int, int>{
-  0x65: 0x212F,
-  0x67: 0x210A,
-  0x6F: 0x2134,
-};
-
-const Map<int, int> _frakturUpperExceptions = <int, int>{
-  0x43: 0x212D,
-  0x48: 0x210C,
-  0x49: 0x2111,
-  0x52: 0x211C,
-  0x5A: 0x2128,
-};
-
-const Map<int, int> _doubleStruckUpperExceptions = <int, int>{
-  0x43: 0x2102,
-  0x48: 0x210D,
-  0x4E: 0x2115,
-  0x50: 0x2119,
-  0x51: 0x211A,
-  0x52: 0x211D,
-  0x5A: 0x2124,
-};
-
-const Map<int, Map<TexMathFontVariant, int>> _greekVariantExceptions =
-    <int, Map<TexMathFontVariant, int>>{
-      0x03F5: <TexMathFontVariant, int>{
-        TexMathFontVariant.bold: 0x1D6DC,
-        TexMathFontVariant.italic: 0x1D716,
-        TexMathFontVariant.boldItalic: 0x1D750,
-      },
-      0x03D1: <TexMathFontVariant, int>{
-        TexMathFontVariant.bold: 0x1D6DD,
-        TexMathFontVariant.italic: 0x1D717,
-        TexMathFontVariant.boldItalic: 0x1D751,
-      },
-      0x03F0: <TexMathFontVariant, int>{
-        TexMathFontVariant.bold: 0x1D6DE,
-        TexMathFontVariant.italic: 0x1D718,
-        TexMathFontVariant.boldItalic: 0x1D752,
-      },
-      0x03D5: <TexMathFontVariant, int>{
-        TexMathFontVariant.bold: 0x1D6DF,
-        TexMathFontVariant.italic: 0x1D719,
-        TexMathFontVariant.boldItalic: 0x1D753,
-      },
-      0x03F1: <TexMathFontVariant, int>{
-        TexMathFontVariant.bold: 0x1D6E0,
-        TexMathFontVariant.italic: 0x1D71A,
-        TexMathFontVariant.boldItalic: 0x1D754,
-      },
-      0x03D6: <TexMathFontVariant, int>{
-        TexMathFontVariant.bold: 0x1D6E1,
-        TexMathFontVariant.italic: 0x1D71B,
-        TexMathFontVariant.boldItalic: 0x1D755,
-      },
-      0x2202: <TexMathFontVariant, int>{
-        TexMathFontVariant.bold: 0x1D6DB,
-        TexMathFontVariant.italic: 0x1D715,
-        TexMathFontVariant.boldItalic: 0x1D74F,
-      },
-      0x2207: <TexMathFontVariant, int>{
-        TexMathFontVariant.bold: 0x1D6C1,
-        TexMathFontVariant.italic: 0x1D6FB,
-        TexMathFontVariant.boldItalic: 0x1D735,
-      },
-    };

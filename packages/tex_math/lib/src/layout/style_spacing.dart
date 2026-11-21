@@ -1,19 +1,18 @@
 import '../ast.dart';
 import '../font.dart';
-import '../parser/symbol_map.dart';
+import '../shared/layout_constants.dart';
+import '../shared/math_symbols.dart';
 import 'glyph_resolve.dart';
 
-/// Standard TeX thin math space (`3/18 em`).
-const double thinMuSkipEm = 3.0 / 18.0;
-
-/// Standard TeX medium math space (`4/18 em`).
-const double medMuSkipEm = 4.0 / 18.0;
-
-/// Standard TeX thick math space (`5/18 em`).
-const double thickMuSkipEm = 5.0 / 18.0;
-
-/// Standard TeX null delimiter space (`0.12 em`).
-const double nullDelimiterSpaceEm = 0.12;
+export '../shared/colors.dart' show resolveColorSpecArgb;
+export '../shared/math_symbols.dart'
+    show
+        medMuSkipEm,
+        namedFunctionOperators,
+        namedLimitOperators,
+        nullDelimiterSpaceEm,
+        thickMuSkipEm,
+        thinMuSkipEm;
 
 /// Returns whether [style] is a cramped math style.
 bool isCrampedStyle(TexMathStyle style) {
@@ -61,11 +60,11 @@ double scaleForStyle(TexMathStyle style, MathConstants constants) {
     case 1:
       return constants.scriptPercentScaleDown > 0
           ? constants.scriptPercentScaleDown / 100.0
-          : 0.70;
+          : LayoutDefaults.scriptScaleRatio;
     default:
       return constants.scriptScriptPercentScaleDown > 0
           ? constants.scriptScriptPercentScaleDown / 100.0
-          : 0.50;
+          : LayoutDefaults.scriptScriptScaleRatio;
   }
 }
 
@@ -243,85 +242,4 @@ int resolveScriptVariantGlyphId({
   final int clampedLevel = scriptLevel > 2 ? 2 : scriptLevel;
   final int? variant = font.scriptVariantGlyph(baseGlyphId, clampedLevel);
   return (variant != null && variant != 0) ? variant : baseGlyphId;
-}
-
-/// Named function operators (`NamedFn` in TeX/MathJax) that emit invisible
-/// function-application (`U+2061`) semantics before following operands.
-const Set<String> namedFunctionOperators = <String>{
-  'arccos',
-  'arcsin',
-  'arctan',
-  'arg',
-  'cos',
-  'cosh',
-  'cot',
-  'coth',
-  'csc',
-  'deg',
-  'dim',
-  'exp',
-  'hom',
-  'ker',
-  'lg',
-  'ln',
-  'log',
-  'sec',
-  'sin',
-  'sinh',
-  'tan',
-  'tanh',
-};
-
-/// Named limit operators (`NamedOp` in TeX/MathJax) that do not emit `U+2061`.
-const Set<String> namedLimitOperators = <String>{
-  'det',
-  'gcd',
-  'inf',
-  'injlim',
-  'lim',
-  'liminf',
-  'limsup',
-  'max',
-  'min',
-  'Pr',
-  'projlim',
-  'sup',
-};
-
-/// Resolves a TeX or CSS color specification (such as `red`, `#2563EB`, or
-/// `#f00`) into a 32-bit ARGB integer, or `null` when unrecognized.
-int? resolveColorSpecArgb(String? raw) {
-  if (raw == null || raw.trim().isEmpty) {
-    return null;
-  }
-  final int? direct = _parseHexArgb(raw);
-  if (direct != null) {
-    return direct;
-  }
-  final String resolved = resolveTexColor(raw.trim());
-  return _parseHexArgb(resolved);
-}
-
-int? _parseHexArgb(String? raw) {
-  if (raw == null || raw.isEmpty) {
-    return null;
-  }
-  String hex = raw.trim();
-  if (hex.startsWith('#')) {
-    hex = hex.substring(1);
-  }
-  if (hex.length == 3) {
-    final String r = hex[0];
-    final String g = hex[1];
-    final String b = hex[2];
-    hex = '$r$r$g$g$b$b';
-  }
-  if (hex.length == 6) {
-    final int? rgb = int.tryParse(hex, radix: 16);
-    return rgb != null ? (0xFF000000 | rgb) : null;
-  }
-  if (hex.length == 8) {
-    return int.tryParse(hex, radix: 16);
-  }
-  return null;
 }

@@ -1,23 +1,30 @@
 import '../ast.dart';
 import '../format_utils.dart';
 import '../options.dart';
+import '../shared/colors.dart';
+import '../shared/math_symbols.dart';
 
 /// Serializes [node] into a Presentation MathML XML string.
 ///
 /// Traverses all 16 sealed [MathNode] subclasses exhaustively to produce clean,
 /// accessible MathML suitable for screen readers and external interchange.
 String mathNodeToMathMl(MathNode node, {bool includeXmlNamespace = true}) {
-  final String body = _emitMathMlNode(node);
+  final StringBuffer out = StringBuffer();
   if (node is MathRootNode) {
-    return body;
+    _writeMathMlNode(out, node);
+    return out.toString();
   }
-  final String nsAttr = includeXmlNamespace
-      ? ' xmlns="http://www.w3.org/1998/Math/MathML"'
-      : '';
-  return '<math$nsAttr>$body</math>';
+  out.write(
+    includeXmlNamespace
+        ? '<math xmlns="http://www.w3.org/1998/Math/MathML">'
+        : '<math>',
+  );
+  _writeMathMlNode(out, node);
+  out.write('</math>');
+  return out.toString();
 }
 
-String _emitMathMlNode(MathNode node) {
+void _writeMathMlNode(StringBuffer out, MathNode node) {
   switch (node) {
     case MathRootNode(
       :final List<MathNode> children,
@@ -26,8 +33,11 @@ String _emitMathMlNode(MathNode node) {
       final String display = displayMode == TexMathDisplayMode.display
           ? 'block'
           : 'inline';
-      final String inner = _emitMathMlList(children);
-      return '<math xmlns="http://www.w3.org/1998/Math/MathML" display="$display">$inner</math>';
+      out.write('<math xmlns="http://www.w3.org/1998/Math/MathML" display="');
+      out.write(display);
+      out.write('">');
+      _writeMathMlList(out, children);
+      out.write('</math>');
 
     case MathGroupNode(
       :final List<MathNode> children,
@@ -35,84 +45,159 @@ String _emitMathMlNode(MathNode node) {
       :final String? role,
       :final Map<String, String> attributes,
     ):
-      final String inner = _emitMathMlList(children);
       if (role == 'phantom' || role == 'hphantom' || role == 'vphantom') {
-        return '<mphantom>$inner</mphantom>';
+        out.write('<mphantom>');
+        _writeMathMlList(out, children);
+        out.write('</mphantom>');
+        return;
       }
       if (role == 'boxed') {
-        return '<menclose notation="box">$inner</menclose>';
+        out.write('<menclose notation="box">');
+        _writeMathMlList(out, children);
+        out.write('</menclose>');
+        return;
       }
       if (role == 'cancel') {
-        return '<menclose notation="updiagonalstrike">$inner</menclose>';
+        out.write('<menclose notation="updiagonalstrike">');
+        _writeMathMlList(out, children);
+        out.write('</menclose>');
+        return;
       }
       if (role == 'bcancel') {
-        return '<menclose notation="downdiagonalstrike">$inner</menclose>';
+        out.write('<menclose notation="downdiagonalstrike">');
+        _writeMathMlList(out, children);
+        out.write('</menclose>');
+        return;
       }
       if (role == 'xcancel') {
-        return '<menclose notation="updiagonalstrike downdiagonalstrike">$inner</menclose>';
+        out.write('<menclose notation="updiagonalstrike downdiagonalstrike">');
+        _writeMathMlList(out, children);
+        out.write('</menclose>');
+        return;
       }
       if (role == 'cancelto' && children.length >= 2) {
-        return '<msup><menclose notation="updiagonalstrike">${_emitMathMlNode(children[0])}</menclose>${_emitMathMlNode(children[1])}</msup>';
+        out.write('<msup><menclose notation="updiagonalstrike">');
+        _writeMathMlNode(out, children[0]);
+        out.write('</menclose>');
+        _writeMathMlNode(out, children[1]);
+        out.write('</msup>');
+        return;
       }
       if (role == 'enclose') {
         final String notation = attributes['notation'] ?? 'box';
-        return '<menclose notation="${_escapeXml(notation)}">$inner</menclose>';
+        out.write('<menclose notation="');
+        writeEscapedXmlAttr(out, notation);
+        out.write('">');
+        _writeMathMlList(out, children);
+        out.write('</menclose>');
+        return;
       }
       if (role == 'toggle') {
-        return '<maction actiontype="toggle">$inner</maction>';
+        out.write('<maction actiontype="toggle">');
+        _writeMathMlList(out, children);
+        out.write('</maction>');
+        return;
       }
       if ((role == 'mathtip' || role == 'texttip') && children.length >= 2) {
-        return '<maction actiontype="tooltip">${_emitMathMlNode(children[0])}${_emitMathMlNode(children[1])}</maction>';
+        out.write('<maction actiontype="tooltip">');
+        _writeMathMlNode(out, children[0]);
+        _writeMathMlNode(out, children[1]);
+        out.write('</maction>');
+        return;
       }
       if (role == 'href' && attributes.containsKey('href')) {
-        return '<mrow href="${_escapeXml(attributes['href']!)}">$inner</mrow>';
+        final String hrefVal = attributes['href']!;
+        if (isSafeHrefUri(hrefVal)) {
+          out.write('<mrow href="');
+          writeEscapedXmlAttr(out, hrefVal);
+          out.write('">');
+        } else {
+          out.write('<mrow>');
+        }
+        _writeMathMlList(out, children);
+        out.write('</mrow>');
+        return;
       }
       if (role == 'bbox') {
-        final String bg = attributes['background'] ?? '';
-        final String attr = bg.isEmpty
-            ? ''
-            : ' mathbackground="${_escapeXml(bg)}"';
-        return '<mpadded$attr>$inner</mpadded>';
+        final String? bg = sanitizeMathMlColor(attributes['background']);
+        if (bg == null) {
+          out.write('<mpadded>');
+        } else {
+          out.write('<mpadded mathbackground="');
+          writeEscapedXmlAttr(out, bg);
+          out.write('">');
+        }
+        _writeMathMlList(out, children);
+        out.write('</mpadded>');
+        return;
       }
       final String? variantAttr = _mathVariantAttr(fontVariant);
       if (variantAttr != null) {
-        return '<mstyle mathvariant="$variantAttr">$inner</mstyle>';
+        out.write('<mstyle mathvariant="');
+        out.write(variantAttr);
+        out.write('">');
+        _writeMathMlList(out, children);
+        out.write('</mstyle>');
+        return;
       }
       if (children.length == 1) {
-        return _emitMathMlNode(children.first);
+        _writeMathMlNode(out, children.first);
+        return;
       }
-      return '<mrow>$inner</mrow>';
+      out.write('<mrow>');
+      _writeMathMlList(out, children);
+      out.write('</mrow>');
 
     case SymbolNode(
       :final String value,
       :final TexMathAtomClass? atomClass,
       :final TexMathFontVariant? fontVariant,
     ):
-      final String escaped = _escapeXml(value);
       final String? rawVariant = _mathVariantAttr(fontVariant);
-      final String mv = rawVariant == null ? '' : ' mathvariant="$rawVariant"';
+      final String tag;
+      final String? effectiveVariant;
       if (_isDigitRun(value)) {
-        return '<mn$mv>$escaped</mn>';
-      }
-      if (atomClass == TexMathAtomClass.bin ||
+        tag = 'mn';
+        effectiveVariant = rawVariant;
+      } else if (atomClass == TexMathAtomClass.bin ||
           atomClass == TexMathAtomClass.rel ||
           atomClass == TexMathAtomClass.open ||
           atomClass == TexMathAtomClass.close ||
           atomClass == TexMathAtomClass.punct ||
           atomClass == TexMathAtomClass.op ||
           _isOperatorChar(value)) {
-        return '<mo$mv>$escaped</mo>';
+        tag = 'mo';
+        effectiveVariant = rawVariant;
+      } else {
+        tag = 'mi';
+        effectiveVariant = (rawVariant == 'italic' && value.runes.length == 1)
+            ? null
+            : rawVariant;
       }
-      final String miVariant =
-          (rawVariant == 'italic' && value.runes.length == 1) ? '' : mv;
-      return '<mi$miVariant>$escaped</mi>';
+      out.write('<');
+      out.write(tag);
+      if (effectiveVariant != null) {
+        out.write(' mathvariant="');
+        out.write(effectiveVariant);
+        out.write('"');
+      }
+      out.write('>');
+      writeEscapedXmlAttr(out, value);
+      out.write('</');
+      out.write(tag);
+      out.write('>');
 
     case OperatorNode(:final String operatorName, :final bool isLarge):
-      final String escaped = _escapeXml(operatorName);
-      if (isLarge || _isSymbolOperator(operatorName)) {
-        return '<mo>$escaped</mo>';
-      }
-      return '<mi>$escaped</mi>';
+      final String tag = (isLarge || _isSymbolOperator(operatorName))
+          ? 'mo'
+          : 'mi';
+      out.write('<');
+      out.write(tag);
+      out.write('>');
+      writeEscapedXmlAttr(out, operatorName);
+      out.write('</');
+      out.write(tag);
+      out.write('>');
 
     case FractionNode(
       :final MathNode numerator,
@@ -122,28 +207,41 @@ String _emitMathMlNode(MathNode node) {
       :final String? rightDelimiter,
       :final bool isBevelled,
     ):
-      final String num = _emitMathMlNode(numerator);
-      final String den = _emitMathMlNode(denominator);
-      final StringBuffer attrs = StringBuffer();
+      final bool hasDelims = leftDelimiter != null || rightDelimiter != null;
+      if (hasDelims) {
+        out.write('<mrow>');
+        if (leftDelimiter != null) {
+          out.write('<mo stretchy="true">');
+          writeEscapedXmlAttr(out, leftDelimiter);
+          out.write('</mo>');
+        }
+      }
+      out.write('<mfrac');
       if (ruleThicknessEm != null) {
-        attrs.write(
-          ' linethickness="${ruleThicknessEm == 0 ? '0' : '${ruleThicknessEm}em'}"',
-        );
+        out.write(' linethickness="');
+        if (ruleThicknessEm == 0) {
+          out.write('0');
+        } else {
+          out.write(ruleThicknessEm);
+          out.write('em');
+        }
+        out.write('"');
       }
       if (isBevelled) {
-        attrs.write(' bevelled="true"');
+        out.write(' bevelled="true"');
       }
-      final String frac = '<mfrac$attrs>$num$den</mfrac>';
-      if (leftDelimiter != null || rightDelimiter != null) {
-        final String open = leftDelimiter == null
-            ? ''
-            : '<mo stretchy="true">${_escapeXml(leftDelimiter)}</mo>';
-        final String close = rightDelimiter == null
-            ? ''
-            : '<mo stretchy="true">${_escapeXml(rightDelimiter)}</mo>';
-        return '<mrow>$open$frac$close</mrow>';
+      out.write('>');
+      _writeMathMlNode(out, numerator);
+      _writeMathMlNode(out, denominator);
+      out.write('</mfrac>');
+      if (hasDelims) {
+        if (rightDelimiter != null) {
+          out.write('<mo stretchy="true">');
+          writeEscapedXmlAttr(out, rightDelimiter);
+          out.write('</mo>');
+        }
+        out.write('</mrow>');
       }
-      return frac;
 
     case ScriptNode(
       :final MathNode base,
@@ -153,54 +251,96 @@ String _emitMathMlNode(MathNode node) {
       :final MathNode? presubscript,
       :final MathNode? presuperscript,
     ):
-      final String baseMl = _emitMathMlNode(base);
       if (presubscript != null || presuperscript != null) {
-        final String sub = subscript == null
-            ? '<none/>'
-            : _emitMathMlNode(subscript);
-        final String sup = superscript == null
-            ? '<none/>'
-            : _emitMathMlNode(superscript);
-        final String preSub = presubscript == null
-            ? '<none/>'
-            : _emitMathMlNode(presubscript);
-        final String preSup = presuperscript == null
-            ? '<none/>'
-            : _emitMathMlNode(presuperscript);
-        final String post = (subscript != null || superscript != null)
-            ? '$sub$sup'
-            : '';
-        return '<mmultiscripts>$baseMl$post<mprescripts/>$preSub$preSup</mmultiscripts>';
+        out.write('<mmultiscripts>');
+        _writeMathMlNode(out, base);
+        if (subscript != null || superscript != null) {
+          if (subscript == null) {
+            out.write('<none/>');
+          } else {
+            _writeMathMlNode(out, subscript);
+          }
+          if (superscript == null) {
+            out.write('<none/>');
+          } else {
+            _writeMathMlNode(out, superscript);
+          }
+        }
+        out.write('<mprescripts/>');
+        if (presubscript == null) {
+          out.write('<none/>');
+        } else {
+          _writeMathMlNode(out, presubscript);
+        }
+        if (presuperscript == null) {
+          out.write('<none/>');
+        } else {
+          _writeMathMlNode(out, presuperscript);
+        }
+        out.write('</mmultiscripts>');
+        return;
       }
       if (limitsAboveBelow) {
         if (subscript != null && superscript != null) {
-          return '<munderover>$baseMl${_emitMathMlNode(subscript)}${_emitMathMlNode(superscript)}</munderover>';
+          out.write('<munderover>');
+          _writeMathMlNode(out, base);
+          _writeMathMlNode(out, subscript);
+          _writeMathMlNode(out, superscript);
+          out.write('</munderover>');
+          return;
         }
         if (subscript != null) {
-          return '<munder>$baseMl${_emitMathMlNode(subscript)}</munder>';
+          out.write('<munder>');
+          _writeMathMlNode(out, base);
+          _writeMathMlNode(out, subscript);
+          out.write('</munder>');
+          return;
         }
         if (superscript != null) {
-          return '<mover>$baseMl${_emitMathMlNode(superscript)}</mover>';
+          out.write('<mover>');
+          _writeMathMlNode(out, base);
+          _writeMathMlNode(out, superscript);
+          out.write('</mover>');
+          return;
         }
-        return baseMl;
+        _writeMathMlNode(out, base);
+        return;
       }
       if (subscript != null && superscript != null) {
-        return '<msubsup>$baseMl${_emitMathMlNode(subscript)}${_emitMathMlNode(superscript)}</msubsup>';
+        out.write('<msubsup>');
+        _writeMathMlNode(out, base);
+        _writeMathMlNode(out, subscript);
+        _writeMathMlNode(out, superscript);
+        out.write('</msubsup>');
+        return;
       }
       if (subscript != null) {
-        return '<msub>$baseMl${_emitMathMlNode(subscript)}</msub>';
+        out.write('<msub>');
+        _writeMathMlNode(out, base);
+        _writeMathMlNode(out, subscript);
+        out.write('</msub>');
+        return;
       }
       if (superscript != null) {
-        return '<msup>$baseMl${_emitMathMlNode(superscript)}</msup>';
+        out.write('<msup>');
+        _writeMathMlNode(out, base);
+        _writeMathMlNode(out, superscript);
+        out.write('</msup>');
+        return;
       }
-      return baseMl;
+      _writeMathMlNode(out, base);
 
     case RadicalNode(:final MathNode radicand, :final MathNode? index):
-      final String radMl = _emitMathMlNode(radicand);
       if (index != null) {
-        return '<mroot>$radMl${_emitMathMlNode(index)}</mroot>';
+        out.write('<mroot>');
+        _writeMathMlNode(out, radicand);
+        _writeMathMlNode(out, index);
+        out.write('</mroot>');
+        return;
       }
-      return '<msqrt>$radMl</msqrt>';
+      out.write('<msqrt>');
+      _writeMathMlNode(out, radicand);
+      out.write('</msqrt>');
 
     case AccentNode(
       :final MathNode base,
@@ -208,13 +348,16 @@ String _emitMathMlNode(MathNode node) {
       :final bool isWide,
       :final bool isUnder,
     ):
-      final String baseMl = _emitMathMlNode(base);
-      final String stretchyAttr = isWide ? ' stretchy="true"' : '';
-      final String accentOp =
-          '<mo accent="true"$stretchyAttr>${_escapeXml(accent)}</mo>';
-      return isUnder
-          ? '<munder accentunder="true">$baseMl$accentOp</munder>'
-          : '<mover accent="true">$baseMl$accentOp</mover>';
+      out.write(
+        isUnder ? '<munder accentunder="true">' : '<mover accent="true">',
+      );
+      _writeMathMlNode(out, base);
+      out.write(
+        isWide ? '<mo accent="true" stretchy="true">' : '<mo accent="true">',
+      );
+      writeEscapedXmlAttr(out, accent);
+      out.write('</mo>');
+      out.write(isUnder ? '</munder>' : '</mover>');
 
     case DelimiterNode(
       :final List<MathNode> children,
@@ -223,38 +366,59 @@ String _emitMathMlNode(MathNode node) {
       :final double? fixedSizeEm,
     ):
       final String stretchy = fixedSizeEm == 0.0 ? 'false' : 'true';
-      final String open = leftDelimiter == null || leftDelimiter.isEmpty
-          ? ''
-          : '<mo stretchy="$stretchy">${_escapeXml(leftDelimiter)}</mo>';
-      final String close = rightDelimiter == null || rightDelimiter.isEmpty
-          ? ''
-          : '<mo stretchy="$stretchy">${_escapeXml(rightDelimiter)}</mo>';
-      return '<mrow>$open${_emitMathMlList(children)}$close</mrow>';
+      out.write('<mrow>');
+      if (leftDelimiter != null && leftDelimiter.isNotEmpty) {
+        out.write('<mo stretchy="');
+        out.write(stretchy);
+        out.write('">');
+        writeEscapedXmlAttr(out, leftDelimiter);
+        out.write('</mo>');
+      }
+      _writeMathMlList(out, children);
+      if (rightDelimiter != null && rightDelimiter.isNotEmpty) {
+        out.write('<mo stretchy="');
+        out.write(stretchy);
+        out.write('">');
+        writeEscapedXmlAttr(out, rightDelimiter);
+        out.write('</mo>');
+      }
+      out.write('</mrow>');
 
     case MatrixNode(
       :final List<List<MathNode>> rows,
       :final String? leftDelimiter,
       :final String? rightDelimiter,
     ):
-      final StringBuffer table = StringBuffer('<mtable>');
-      for (final List<MathNode> row in rows) {
-        table.write('<mtr>');
-        for (final MathNode cell in row) {
-          table.write('<mtd>${_emitMathMlNode(cell)}</mtd>');
+      final bool hasLeft = leftDelimiter != null && leftDelimiter.isNotEmpty;
+      final bool hasRight = rightDelimiter != null && rightDelimiter.isNotEmpty;
+      final bool wrapRow = leftDelimiter != null || rightDelimiter != null;
+      if (wrapRow) {
+        out.write('<mrow>');
+        if (hasLeft) {
+          out.write('<mo stretchy="true">');
+          writeEscapedXmlAttr(out, leftDelimiter);
+          out.write('</mo>');
         }
-        table.write('</mtr>');
       }
-      table.write('</mtable>');
-      if (leftDelimiter != null || rightDelimiter != null) {
-        final String open = leftDelimiter == null || leftDelimiter.isEmpty
-            ? ''
-            : '<mo stretchy="true">${_escapeXml(leftDelimiter)}</mo>';
-        final String close = rightDelimiter == null || rightDelimiter.isEmpty
-            ? ''
-            : '<mo stretchy="true">${_escapeXml(rightDelimiter)}</mo>';
-        return '<mrow>$open$table$close</mrow>';
+      out.write('<mtable>');
+      for (final List<MathNode> row in rows) {
+        out.write('<mtr>');
+        for (final MathNode cell in row) {
+          out.write('<mtd>');
+          _writeMathMlNode(out, cell);
+          out.write('</mtd>');
+        }
+        out.write('</mtr>');
       }
-      return table.toString();
+      out.write('</mtable>');
+      if (wrapRow) {
+        if (hasRight) {
+          out.write('<mo stretchy="true">');
+          writeEscapedXmlAttr(out, rightDelimiter);
+          out.write('</mo>');
+        }
+        out.write('</mrow>');
+      }
 
     case TextNode(
       :final String text,
@@ -262,20 +426,26 @@ String _emitMathMlNode(MathNode node) {
       :final List<MathNode> children,
     ):
       if (children.isNotEmpty) {
-        return '<mrow>${_emitMathMlList(children)}</mrow>';
+        out.write('<mrow>');
+        _writeMathMlList(out, children);
+        out.write('</mrow>');
+        return;
       }
-      final String? mv = switch (styleCommand) {
-        'textbf' || 'textbfbb' => 'bold',
-        'textit' || 'emph' => 'italic',
-        'textsf' => 'sans-serif',
-        'texttt' => 'monospace',
-        _ => null,
-      };
-      final String attr = mv == null ? '' : ' mathvariant="$mv"';
-      return '<mtext$attr>${_escapeXml(text)}</mtext>';
+      final String? mv = mathMlVariantForTextStyle(styleCommand);
+      if (mv == null) {
+        out.write('<mtext>');
+      } else {
+        out.write('<mtext mathvariant="');
+        out.write(mv);
+        out.write('">');
+      }
+      writeEscapedXmlAttr(out, text);
+      out.write('</mtext>');
 
     case SpaceNode(:final double widthEm):
-      return '<mspace width="${_formatNumber(widthEm)}em"/>';
+      out.write('<mspace width="');
+      out.write(_formatNumber(widthEm));
+      out.write('em"/>');
 
     case StyleNode(
       :final TexMathStyle style,
@@ -287,20 +457,26 @@ String _emitMathMlNode(MathNode node) {
         TexMathStyle.text || TexMathStyle.crampedText => false,
         _ => null,
       };
-      final StringBuffer attrs = StringBuffer();
+      out.write('<mstyle');
       if (disp != null) {
-        attrs.write(' displaystyle="$disp"');
+        out.write(' displaystyle="');
+        out.write(disp);
+        out.write('"');
       }
       if (style == TexMathStyle.script || style == TexMathStyle.crampedScript) {
-        attrs.write(' scriptlevel="1"');
+        out.write(' scriptlevel="1"');
       } else if (style == TexMathStyle.scriptScript ||
           style == TexMathStyle.crampedScriptScript) {
-        attrs.write(' scriptlevel="2"');
+        out.write(' scriptlevel="2"');
       }
       if (scaleEm != null) {
-        attrs.write(' mathsize="${_formatNumber(scaleEm)}em"');
+        out.write(' mathsize="');
+        out.write(_formatNumber(scaleEm));
+        out.write('em"');
       }
-      return '<mstyle$attrs>${_emitMathMlList(children)}</mstyle>';
+      out.write('>');
+      _writeMathMlList(out, children);
+      out.write('</mstyle>');
 
     case ColorNode(
       :final TexMathColorRole role,
@@ -308,16 +484,27 @@ String _emitMathMlNode(MathNode node) {
       :final String? backgroundColor,
       :final List<MathNode> children,
     ):
-      final String? fg =
-          colorValue ?? (role == TexMathColorRole.error ? '#DC2626' : null);
-      final StringBuffer attrs = StringBuffer();
-      if (fg != null && fg.isNotEmpty) {
-        attrs.write(' mathcolor="${_escapeXml(fg)}"');
+      final String? rawFg =
+          colorValue ??
+          (role == TexMathColorRole.error
+              ? defaultRoleColorHex(TexMathColorRole.error)
+              : null);
+      final String? fg = sanitizeMathMlColor(rawFg);
+      final String? bg = sanitizeMathMlColor(backgroundColor);
+      out.write('<mstyle');
+      if (fg != null) {
+        out.write(' mathcolor="');
+        writeEscapedXmlAttr(out, fg);
+        out.write('"');
       }
-      if (backgroundColor != null && backgroundColor.isNotEmpty) {
-        attrs.write(' mathbackground="${_escapeXml(backgroundColor)}"');
+      if (bg != null) {
+        out.write(' mathbackground="');
+        writeEscapedXmlAttr(out, bg);
+        out.write('"');
       }
-      return '<mstyle$attrs>${_emitMathMlList(children)}</mstyle>';
+      out.write('>');
+      _writeMathMlList(out, children);
+      out.write('</mstyle>');
 
     case TagNode(
       :final String label,
@@ -327,29 +514,39 @@ String _emitMathMlNode(MathNode node) {
       :final bool isLabelDefinition,
     ):
       if (isLabelDefinition) {
-        return '<mspace id="${_escapeXml(label)}"/>';
+        out.write('<mspace id="');
+        writeEscapedXmlAttr(out, label);
+        out.write('"/>');
+        return;
       }
       final String formatted = isStarred ? label : '($label)';
-      final String tagMl = '<mtext>${_escapeXml(formatted)}</mtext>';
       if (isReference || body == null) {
-        return tagMl;
+        out.write('<mtext>');
+        writeEscapedXmlAttr(out, formatted);
+        out.write('</mtext>');
+        return;
       }
-      return '<mrow>${_emitMathMlNode(body)}$tagMl</mrow>';
+      out.write('<mrow>');
+      _writeMathMlNode(out, body);
+      out.write('<mtext>');
+      writeEscapedXmlAttr(out, formatted);
+      out.write('</mtext></mrow>');
 
     case ErrorNode(:final String rawSource):
-      return '<merror><mtext>${_escapeXml(rawSource)}</mtext></merror>';
+      out.write('<merror><mtext>');
+      writeEscapedXmlAttr(out, rawSource);
+      out.write('</mtext></merror>');
   }
 }
 
-String _emitMathMlList(List<MathNode> children) {
+void _writeMathMlList(StringBuffer out, List<MathNode> children) {
   if (children.isEmpty) {
-    return '<mrow/>';
+    out.write('<mrow/>');
+    return;
   }
-  final StringBuffer buffer = StringBuffer();
   for (final MathNode child in children) {
-    buffer.write(_emitMathMlNode(child));
+    _writeMathMlNode(out, child);
   }
-  return buffer.toString();
 }
 
 String? _mathVariantAttr(TexMathFontVariant? variant) {
@@ -431,5 +628,3 @@ bool _isSymbolOperator(String value) =>
     value.length == 1 && value.codeUnitAt(0) > 0x7F;
 
 String _formatNumber(double value) => formatTrimmedNumber(value);
-
-String _escapeXml(String text) => escapeXmlAttr(text);

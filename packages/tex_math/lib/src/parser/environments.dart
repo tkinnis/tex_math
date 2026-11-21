@@ -1,6 +1,7 @@
 import '../ast.dart';
 import '../error.dart';
 import '../options.dart';
+import '../shared/math_symbols.dart';
 import '../source_span.dart';
 import 'parser_host.dart';
 import 'tokenizer.dart';
@@ -517,7 +518,8 @@ MathNode parseEnvironment({
   }
 
   List<String> colAligns = spec.defaultAlignments;
-  Map<int, String> colSeparators = const <int, String>{};
+  Map<int, String> colLines = const <int, String>{};
+  Map<int, MathNode> colSeparators = const <int, MathNode>{};
   Map<int, List<TexToken>> colPrefixes = const <int, List<TexToken>>{};
   if (spec.optionalColAlign) {
     final String? opt = host.readOptionalBracketText('begin{$envName}');
@@ -532,6 +534,7 @@ MathNode parseEnvironment({
     );
     final _ParsedColSpec parsedSpec = _parseArrayColSpec(specTokens, host);
     colAligns = parsedSpec.alignments;
+    colLines = parsedSpec.lines;
     colSeparators = parsedSpec.separators;
     colPrefixes = parsedSpec.prefixes;
   }
@@ -685,16 +688,19 @@ MathNode parseEnvironment({
 
   final MatrixNode matrix = MatrixNode(
     span: totalSpan,
-    rows: rows,
+    rows: List<List<MathNode>>.unmodifiable(
+      rows.map(List<MathNode>.unmodifiable),
+    ),
     environment: envName,
-    columnAlignments: colAligns,
+    columnAlignments: List<String>.unmodifiable(colAligns),
     verticalAlignment: vAlign,
     leftDelimiter: spec.leftDelimiter,
     rightDelimiter: spec.rightDelimiter,
     isNumbered: spec.isNumbered,
-    rowLines: rowLines,
-    columnSeparators: colSeparators,
-    rowTags: rowTags,
+    rowLines: Map<int, String>.unmodifiable(rowLines),
+    columnLines: Map<int, String>.unmodifiable(colLines),
+    columnSeparators: Map<int, MathNode>.unmodifiable(colSeparators),
+    rowTags: Map<int, TagNode>.unmodifiable(rowTags),
   );
 
   if (casesLhs != null) {
@@ -717,19 +723,22 @@ bool _isAtEndEnv(TexParserHost host, String envName) {
 final class _ParsedColSpec {
   const _ParsedColSpec({
     required this.alignments,
+    required this.lines,
     required this.separators,
     required this.prefixes,
   });
 
   final List<String> alignments;
-  final Map<int, String> separators;
+  final Map<int, String> lines;
+  final Map<int, MathNode> separators;
   final Map<int, List<TexToken>> prefixes;
 }
 
 _ParsedColSpec _parseArrayColSpec(List<TexToken> tokens, TexParserHost host) {
   final List<TexToken> expanded = _expandColSpecStars(tokens, host);
   final List<String> alignments = <String>[];
-  final Map<int, String> separators = <int, String>{};
+  final Map<int, String> lines = <int, String>{};
+  final Map<int, MathNode> separators = <int, MathNode>{};
   final Map<int, List<TexToken>> prefixes = <int, List<TexToken>>{};
   List<TexToken> pendingPrefix = <TexToken>[];
 
@@ -742,10 +751,10 @@ _ParsedColSpec _parseArrayColSpec(List<TexToken> tokens, TexParserHost host) {
     }
     if (t.kind == TexTokenKind.other && t.text == '|') {
       final int colPos = alignments.length;
-      if (separators[colPos] == 'solid') {
-        separators[colPos] = 'double';
+      if (lines[colPos] == 'solid') {
+        lines[colPos] = 'double';
       } else {
-        separators[colPos] = 'solid';
+        lines[colPos] = 'solid';
       }
       i++;
       continue;
@@ -754,9 +763,10 @@ _ParsedColSpec _parseArrayColSpec(List<TexToken> tokens, TexParserHost host) {
       i++;
       final (:group, :nextIndex) = _readBalancedGroupFromList(expanded, i);
       i = nextIndex;
-      separators[alignments.length] = group
-          .map((TexToken tok) => tok.rawText)
-          .join();
+      final SourceSpan sepSpan = group.isEmpty
+          ? t.span
+          : group.first.span.merge(group.last.span);
+      separators[alignments.length] = host.parseSubTokens(group, span: sepSpan);
       continue;
     }
     if (t.kind == TexTokenKind.other && t.text == '>') {
@@ -800,6 +810,7 @@ _ParsedColSpec _parseArrayColSpec(List<TexToken> tokens, TexParserHost host) {
 
   return _ParsedColSpec(
     alignments: alignments.isEmpty ? const <String>['c'] : alignments,
+    lines: lines,
     separators: separators,
     prefixes: prefixes,
   );
@@ -822,11 +833,18 @@ List<TexToken> _expandColSpecStars(List<TexToken> tokens, TexParserHost host) {
       final ({List<TexToken> group, int nextIndex}) bodyRead =
           _readBalancedGroupFromList(tokens, i);
       i = bodyRead.nextIndex;
-      final List<TexToken> repeatedBody = _expandColSpecStars(
-        bodyRead.group,
-        host,
-      );
-      for (int c = 0; c < count && out.length < 256; c++) {
+      final List<TexToken> repeatedBody;
+      host.enterNesting(t.span);
+      try {
+        repeatedBody = _expandColSpecStars(bodyRead.group, host);
+      } finally {
+        host.exitNesting();
+      }
+      if (repeatedBody.isEmpty || count <= 0) {
+        continue;
+      }
+      final int cappedCount = count > 256 ? 256 : count;
+      for (int c = 0; c < cappedCount && out.length < 256; c++) {
         out.addAll(repeatedBody);
       }
       continue;
@@ -990,68 +1008,7 @@ MathNode _parseEmpheqBody({
   );
 }
 
-String? _resolveEmpheqDelim(String raw) {
-  switch (raw) {
-    case r'\empheqlbrace':
-    case r'\empheqbiglbrace':
-    case r'\{':
-      return '{';
-    case r'\empheqrbrace':
-    case r'\empheqbigrbrace':
-    case r'\}':
-      return '}';
-    case r'\empheqlbrack':
-    case r'\empheqbiglbrack':
-    case '[':
-      return '[';
-    case r'\empheqrbrack':
-    case r'\empheqbigrbrack':
-    case ']':
-      return ']';
-    case r'\empheqlangle':
-    case r'\empheqbiglangle':
-    case r'\langle':
-      return '\u27E8';
-    case r'\empheqrangle':
-    case r'\empheqbigrangle':
-    case r'\rangle':
-      return '\u27E9';
-    case r'\empheqlparen':
-    case r'\empheqbiglparen':
-    case '(':
-      return '(';
-    case r'\empheqrparen':
-    case r'\empheqbigrparen':
-    case ')':
-      return ')';
-    case r'\empheqlvert':
-    case r'\empheqrvert':
-    case r'\empheqbiglvert':
-    case r'\empheqbigrvert':
-    case '|':
-      return '|';
-    case r'\empheqlVert':
-    case r'\empheqrVert':
-    case r'\empheqbiglVert':
-    case r'\empheqbigrVert':
-    case r'\|':
-      return '\u2016';
-    case r'\empheqlfloor':
-    case r'\empheqbiglfloor':
-      return '\u230A';
-    case r'\empheqrfloor':
-    case r'\empheqbigrfloor':
-      return '\u230B';
-    case r'\empheqlceil':
-    case r'\empheqbiglceil':
-      return '\u2308';
-    case r'\empheqrceil':
-    case r'\empheqbigrceil':
-      return '\u2309';
-    default:
-      return raw.isEmpty ? null : raw;
-  }
-}
+String? _resolveEmpheqDelim(String raw) => resolveEmpheqDelimiter(raw);
 
 MathNode _parseCdEnvironment(TexParserHost host, SourceSpan beginSpan) {
   final List<List<MathNode>> rows = <List<MathNode>>[];

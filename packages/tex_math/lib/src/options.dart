@@ -1,3 +1,5 @@
+import 'dart:collection';
+
 import 'package:meta/meta.dart';
 
 /// Mathematical typesetting mode controlling display style vs inline layout.
@@ -36,6 +38,7 @@ final class TexMathBudgets {
     this.maxInputLength = defaultMaxInputLength,
     this.maxMacroDepth = defaultMaxMacroDepth,
     this.maxMacroExpansions = defaultMaxMacroExpansions,
+    this.maxTokens = defaultMaxTokens,
     this.maxNestingDepth = defaultMaxNestingDepth,
     this.maxOutputItems = defaultMaxOutputItems,
     this.maxSvgLength = defaultMaxSvgLength,
@@ -45,6 +48,7 @@ final class TexMathBudgets {
          maxMacroExpansions >= 0,
          'maxMacroExpansions must be non-negative',
        ),
+       assert(maxTokens >= 0, 'maxTokens must be non-negative'),
        assert(maxNestingDepth >= 0, 'maxNestingDepth must be non-negative'),
        assert(maxOutputItems >= 0, 'maxOutputItems must be non-negative'),
        assert(maxSvgLength >= 0, 'maxSvgLength must be non-negative');
@@ -57,6 +61,10 @@ final class TexMathBudgets {
 
   /// Default maximum total macro expansions per expression (`10000`).
   static const int defaultMaxMacroExpansions = 10000;
+
+  /// Default maximum cumulative tokens processed or generated per parse
+  /// (`100000`).
+  static const int defaultMaxTokens = 100000;
 
   /// Default maximum AST or group nesting depth (`64`).
   static const int defaultMaxNestingDepth = 64;
@@ -76,6 +84,9 @@ final class TexMathBudgets {
   /// Maximum total macro expansions allowed for one expression.
   final int maxMacroExpansions;
 
+  /// Maximum cumulative tokens buffered or synthesized during macro expansion.
+  final int maxTokens;
+
   /// Maximum group or syntax-tree nesting depth.
   final int maxNestingDepth;
 
@@ -90,6 +101,7 @@ final class TexMathBudgets {
     int? maxInputLength,
     int? maxMacroDepth,
     int? maxMacroExpansions,
+    int? maxTokens,
     int? maxNestingDepth,
     int? maxOutputItems,
     int? maxSvgLength,
@@ -98,6 +110,7 @@ final class TexMathBudgets {
       maxInputLength: maxInputLength ?? this.maxInputLength,
       maxMacroDepth: maxMacroDepth ?? this.maxMacroDepth,
       maxMacroExpansions: maxMacroExpansions ?? this.maxMacroExpansions,
+      maxTokens: maxTokens ?? this.maxTokens,
       maxNestingDepth: maxNestingDepth ?? this.maxNestingDepth,
       maxOutputItems: maxOutputItems ?? this.maxOutputItems,
       maxSvgLength: maxSvgLength ?? this.maxSvgLength,
@@ -111,6 +124,7 @@ final class TexMathBudgets {
           maxInputLength == other.maxInputLength &&
           maxMacroDepth == other.maxMacroDepth &&
           maxMacroExpansions == other.maxMacroExpansions &&
+          maxTokens == other.maxTokens &&
           maxNestingDepth == other.maxNestingDepth &&
           maxOutputItems == other.maxOutputItems &&
           maxSvgLength == other.maxSvgLength;
@@ -120,6 +134,7 @@ final class TexMathBudgets {
     maxInputLength,
     maxMacroDepth,
     maxMacroExpansions,
+    maxTokens,
     maxNestingDepth,
     maxOutputItems,
     maxSvgLength,
@@ -131,6 +146,7 @@ final class TexMathBudgets {
       'maxInputLength: $maxInputLength, '
       'maxMacroDepth: $maxMacroDepth, '
       'maxMacroExpansions: $maxMacroExpansions, '
+      'maxTokens: $maxTokens, '
       'maxNestingDepth: $maxNestingDepth, '
       'maxOutputItems: $maxOutputItems, '
       'maxSvgLength: $maxSvgLength)';
@@ -142,13 +158,18 @@ final class TexMathOptions {
   /// Creates rendering and parsing options.
   const TexMathOptions({
     this.displayMode = TexMathDisplayMode.display,
-    this.packages = defaultPackages,
-    this.requireAllowlist = defaultRequireAllowlist,
-    this.macros = const <String, String>{},
+    List<String> packages = defaultPackages,
+    List<String> requireAllowlist = defaultRequireAllowlist,
+    Map<String, String> macros = const <String, String>{},
     this.budgets = const TexMathBudgets(),
     this.strictErrors = true,
     this.useOpticalScriptVariants = false,
-  });
+    // ignore: prefer_initializing_formals
+  }) : _packages = packages,
+       // ignore: prefer_initializing_formals
+       _requireAllowlist = requireAllowlist,
+       // ignore: prefer_initializing_formals
+       _macros = macros;
 
   /// Default active TeX package list matching JupyterLab defaults without
   /// `noerrors` or `noundefined`.
@@ -231,15 +252,32 @@ final class TexMathOptions {
   /// Typesetting display mode (`inline` or `display`).
   final TexMathDisplayMode displayMode;
 
-  /// Ordered list of enabled TeX extension package names.
-  final List<String> packages;
+  final List<String> _packages;
 
-  /// Package names permitted for synchronous loading via `\require{pkg}`.
-  final List<String> requireAllowlist;
+  final List<String> _requireAllowlist;
 
-  /// Preconfigured macro definitions mapping control sequence names (without
-  /// leading backslash) to TeX replacement bodies.
-  final Map<String, String> macros;
+  final Map<String, String> _macros;
+
+  /// Ordered unmodifiable list of enabled TeX extension package names.
+  List<String> get packages => identical(_packages, defaultPackages)
+      ? defaultPackages
+      : (_packages.isEmpty
+            ? const <String>[]
+            : UnmodifiableListView<String>(_packages));
+
+  /// Unmodifiable package names permitted for synchronous `\require{pkg}`.
+  List<String> get requireAllowlist =>
+      identical(_requireAllowlist, defaultRequireAllowlist)
+      ? defaultRequireAllowlist
+      : (_requireAllowlist.isEmpty
+            ? const <String>[]
+            : UnmodifiableListView<String>(_requireAllowlist));
+
+  /// Preconfigured unmodifiable macro definitions mapping control sequence
+  /// names (without leading backslash) to TeX replacement bodies.
+  Map<String, String> get macros => _macros.isEmpty
+      ? const <String, String>{}
+      : UnmodifiableMapView<String, String>(_macros);
 
   /// Safety limits enforced during parsing, expansion, layout, and export.
   final TexMathBudgets budgets;
@@ -264,9 +302,21 @@ final class TexMathOptions {
   }) {
     return TexMathOptions(
       displayMode: displayMode ?? this.displayMode,
-      packages: packages ?? this.packages,
-      requireAllowlist: requireAllowlist ?? this.requireAllowlist,
-      macros: macros ?? this.macros,
+      packages: packages == null
+          ? _packages
+          : (packages.isEmpty
+                ? const <String>[]
+                : List<String>.unmodifiable(packages)),
+      requireAllowlist: requireAllowlist == null
+          ? _requireAllowlist
+          : (requireAllowlist.isEmpty
+                ? const <String>[]
+                : List<String>.unmodifiable(requireAllowlist)),
+      macros: macros == null
+          ? _macros
+          : (macros.isEmpty
+                ? const <String, String>{}
+                : Map<String, String>.unmodifiable(macros)),
       budgets: budgets ?? this.budgets,
       strictErrors: strictErrors ?? this.strictErrors,
       useOpticalScriptVariants:
@@ -279,48 +329,65 @@ final class TexMathOptions {
     defaultRequireAllowlist,
   );
   static final int _emptyMacrosHash = Object.hashAllUnordered(const <int>[]);
+  static final Expando<int> _customHashCache = Expando<int>();
 
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
       other is TexMathOptions &&
           displayMode == other.displayMode &&
-          _stringListEquals(packages, other.packages) &&
-          _stringListEquals(requireAllowlist, other.requireAllowlist) &&
-          _stringMapEquals(macros, other.macros) &&
+          _stringListEquals(_packages, other._packages) &&
+          _stringListEquals(_requireAllowlist, other._requireAllowlist) &&
+          _stringMapEquals(_macros, other._macros) &&
           budgets == other.budgets &&
           strictErrors == other.strictErrors &&
           useOpticalScriptVariants == other.useOpticalScriptVariants;
 
   @override
-  int get hashCode => Object.hash(
-    displayMode,
-    identical(packages, defaultPackages)
-        ? _defaultPackagesHash
-        : Object.hashAll(packages),
-    identical(requireAllowlist, defaultRequireAllowlist)
-        ? _defaultAllowlistHash
-        : Object.hashAll(requireAllowlist),
-    macros.isEmpty
-        ? _emptyMacrosHash
-        : Object.hashAllUnordered(
-            macros.entries.map(
-              (MapEntry<String, String> entry) =>
-                  Object.hash(entry.key, entry.value),
+  int get hashCode {
+    final bool hasCustom =
+        !identical(_packages, defaultPackages) ||
+        !identical(_requireAllowlist, defaultRequireAllowlist) ||
+        _macros.isNotEmpty;
+    if (hasCustom) {
+      final int? cached = _customHashCache[this];
+      if (cached != null) {
+        return cached;
+      }
+    }
+    final int computed = Object.hash(
+      displayMode,
+      identical(_packages, defaultPackages)
+          ? _defaultPackagesHash
+          : Object.hashAll(_packages),
+      identical(_requireAllowlist, defaultRequireAllowlist)
+          ? _defaultAllowlistHash
+          : Object.hashAll(_requireAllowlist),
+      _macros.isEmpty
+          ? _emptyMacrosHash
+          : Object.hashAllUnordered(
+              _macros.entries.map(
+                (MapEntry<String, String> entry) =>
+                    Object.hash(entry.key, entry.value),
+              ),
             ),
-          ),
-    budgets,
-    strictErrors,
-    useOpticalScriptVariants,
-  );
+      budgets,
+      strictErrors,
+      useOpticalScriptVariants,
+    );
+    if (hasCustom) {
+      _customHashCache[this] = computed;
+    }
+    return computed;
+  }
 
   @override
   String toString() =>
       'TexMathOptions('
       'displayMode: $displayMode, '
-      'packages: $packages, '
-      'requireAllowlist: $requireAllowlist, '
-      'macros: $macros, '
+      'packages: $_packages, '
+      'requireAllowlist: $_requireAllowlist, '
+      'macros: $_macros, '
       'budgets: $budgets, '
       'strictErrors: $strictErrors, '
       'useOpticalScriptVariants: $useOpticalScriptVariants)';

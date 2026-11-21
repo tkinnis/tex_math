@@ -29,11 +29,14 @@ final class TexMathEngine {
   /// Parses [source] into a typed [MathNode] syntax tree.
   ///
   /// Enforces [TexMathBudgets.maxInputLength], [TexMathBudgets.maxMacroDepth],
-  /// [TexMathBudgets.maxMacroExpansions], and [TexMathBudgets.maxNestingDepth].
+  /// [TexMathBudgets.maxMacroExpansions], [TexMathBudgets.maxTokens], and
+  /// [TexMathBudgets.maxNestingDepth].
   MathNode parse(String source, {TexMathOptions? options}) {
     final TexMathOptions effective = options ?? defaultOptions;
     _enforceInputLengthBudget(source, effective.budgets);
-    return parseTexInternal(source, options: effective);
+    final MathNode tree = parseTexInternal(source, options: effective);
+    _enforceNestingDepthBudget(tree, effective.budgets, 1);
+    return tree;
   }
 
   /// Lays out [syntaxTree] into a flat [DisplayList].
@@ -67,7 +70,6 @@ final class TexMathEngine {
   }) {
     final TexMathOptions effective = options ?? defaultOptions;
     final MathNode tree = parse(source, options: effective);
-    _enforceNestingDepthBudget(tree, effective.budgets, 1);
     final MathFont? effectiveFont = font ?? this.font;
     if (effectiveFont == null) {
       throw TexMathFontError(
@@ -188,11 +190,17 @@ final class TexMathEngine {
         }
       case AccentNode(:final MathNode base):
         _enforceNestingDepthBudget(base, budgets, depth + 1);
-      case MatrixNode(:final List<List<MathNode>> rows):
+      case MatrixNode(
+        :final List<List<MathNode>> rows,
+        :final Map<int, MathNode> columnSeparators,
+      ):
         for (final List<MathNode> row in rows) {
           for (final MathNode cell in row) {
             _enforceNestingDepthBudget(cell, budgets, depth + 1);
           }
+        }
+        for (final MathNode sep in columnSeparators.values) {
+          _enforceNestingDepthBudget(sep, budgets, depth + 1);
         }
       case TagNode(:final MathNode? body):
         if (body != null) {
@@ -205,6 +213,74 @@ final class TexMathEngine {
         break;
     }
   }
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is TexMathEngine &&
+          defaultOptions == other.defaultOptions &&
+          font == other.font;
+
+  @override
+  int get hashCode => Object.hash(defaultOptions, font);
+}
+
+/// Combined syntax tree and laid-out display result returned by rendering.
+@immutable
+final class RenderResult {
+  /// Creates a render result from [displayList] and [syntaxTree].
+  const RenderResult({
+    required this.displayList,
+    required this.syntaxTree,
+    this.source = '',
+  });
+
+  /// Flat display list ready for Canvas or SVG rendering.
+  final DisplayList displayList;
+
+  /// Parsed syntax tree preserving source spans.
+  final MathNode syntaxTree;
+
+  /// Original TeX source string.
+  final String source;
+
+  /// Serializes [displayList] into a standalone SVG XML document.
+  String toSvg({
+    double fontSize = 16.0,
+    int maxOutputItems = TexMathBudgets.defaultMaxOutputItems,
+    int maxSvgLength = TexMathBudgets.defaultMaxSvgLength,
+    Map<TexMathColorRole, String>? colors,
+    String? title,
+  }) {
+    return displayList.toSvg(
+      fontSize: fontSize,
+      maxOutputItems: maxOutputItems,
+      maxSvgLength: maxSvgLength,
+      colors: colors,
+      title: title,
+    );
+  }
+
+  /// Emits Presentation MathML from [syntaxTree].
+  String toMathMl() => mathNodeToMathMl(syntaxTree);
+
+  /// Emits plain spoken text for screen readers from [syntaxTree].
+  String toSpokenText() => mathNodeToSpokenText(syntaxTree);
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is RenderResult &&
+          displayList == other.displayList &&
+          syntaxTree == other.syntaxTree &&
+          source == other.source;
+
+  @override
+  int get hashCode => Object.hash(displayList, syntaxTree, source);
+
+  @override
+  String toString() =>
+      'RenderResult(displayList: $displayList, syntaxTree: $syntaxTree)';
 }
 
 /// Top-level convenience wrapper calling [TexMathEngine.parse].

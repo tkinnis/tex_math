@@ -124,71 +124,118 @@ void writeCssHexRgb(StringBuffer buffer, int argb) {
     ..writeCharCode(_upperHexDigits.codeUnitAt(argb & 0xF));
 }
 
-/// Writes XML-escaped text (`&`, `<`, `>`) directly into [buffer].
+/// Writes XML 1.0 escaped text (`&`, `<`, `>`) directly into [buffer],
+/// stripping disallowed XML 1.0 control characters and lone surrogates.
 void writeEscapedXmlText(StringBuffer buffer, String value) {
-  int start = 0;
-  final int len = value.length;
-  for (int i = 0; i < len; i++) {
-    final String? entity = switch (value.codeUnitAt(i)) {
-      0x26 => '&amp;',
-      0x3C => '&lt;',
-      0x3E => '&gt;',
-      _ => null,
-    };
-    if (entity != null) {
-      if (i > start) {
-        buffer.write(value.substring(start, i));
-      }
-      buffer.write(entity);
-      start = i + 1;
-    }
-  }
-  if (start == 0) {
-    buffer.write(value);
-  } else if (start < len) {
-    buffer.write(value.substring(start));
-  }
+  _writeEscapedXml(buffer, value, isAttribute: false);
 }
 
-/// Writes XML-escaped attribute text (`&`, `<`, `>`, `"`, `'`) into [buffer].
+/// Writes XML 1.0 escaped attribute text (`&`, `<`, `>`, `"`, `'`) into
+/// [buffer], stripping disallowed XML 1.0 control characters and lone
+/// surrogates.
 void writeEscapedXmlAttr(StringBuffer buffer, String value) {
-  int start = 0;
-  final int len = value.length;
-  for (int i = 0; i < len; i++) {
-    final String? entity = switch (value.codeUnitAt(i)) {
-      0x26 => '&amp;',
-      0x3C => '&lt;',
-      0x3E => '&gt;',
-      0x22 => '&quot;',
-      0x27 => '&#39;',
-      _ => null,
-    };
-    if (entity != null) {
-      if (i > start) {
-        buffer.write(value.substring(start, i));
-      }
-      buffer.write(entity);
-      start = i + 1;
-    }
-  }
-  if (start == 0) {
-    buffer.write(value);
-  } else if (start < len) {
-    buffer.write(value.substring(start));
-  }
+  _writeEscapedXml(buffer, value, isAttribute: true);
 }
 
 /// Returns [value] escaped for XML text or attributes, returning [value]
-/// directly with zero allocations when no special characters appear.
+/// directly with zero allocations when no special or disallowed characters
+/// appear.
 String escapeXmlAttr(String value) {
   final int len = value.length;
   for (int i = 0; i < len; i++) {
     final int cu = value.codeUnitAt(i);
-    if (cu == 0x26 || cu == 0x3C || cu == 0x3E || cu == 0x22 || cu == 0x27) {
+    if (cu == 0x26 ||
+        cu == 0x3C ||
+        cu == 0x3E ||
+        cu == 0x22 ||
+        cu == 0x27 ||
+        _isDisallowedXmlUnit(value, i, cu)) {
       final StringBuffer buffer = StringBuffer();
-      writeEscapedXmlAttr(buffer, value);
+      _writeEscapedXml(buffer, value, isAttribute: true);
       return buffer.toString();
+    }
+    if (cu >= 0xD800 && cu <= 0xDBFF) {
+      // Valid surrogate pair already checked by _isDisallowedXmlUnit == false.
+      i++;
     }
   }
   return value;
+}
+
+bool _isDisallowedXmlUnit(String value, int index, int cu) {
+  if (cu < 0x20) {
+    return cu != 0x09 && cu != 0x0A && cu != 0x0D;
+  }
+  if (cu == 0x7F || cu == 0xFFFE || cu == 0xFFFF) {
+    return true;
+  }
+  if (cu >= 0xD800 && cu <= 0xDBFF) {
+    if (index + 1 >= value.length) {
+      return true;
+    }
+    final int low = value.codeUnitAt(index + 1);
+    return low < 0xDC00 || low > 0xDFFF;
+  }
+  return cu >= 0xDC00 && cu <= 0xDFFF;
+}
+
+void _writeEscapedXml(
+  StringBuffer buffer,
+  String value, {
+  required bool isAttribute,
+}) {
+  int start = 0;
+  final int len = value.length;
+  int i = 0;
+  while (i < len) {
+    final int cu = value.codeUnitAt(i);
+    final String? entity = switch (cu) {
+      0x26 => '&amp;',
+      0x3C => '&lt;',
+      0x3E => '&gt;',
+      0x22 when isAttribute => '&quot;',
+      0x27 when isAttribute => '&#39;',
+      _ => null,
+    };
+    if (entity != null) {
+      if (i > start) {
+        buffer.write(value.substring(start, i));
+      }
+      buffer.write(entity);
+      start = i + 1;
+      i++;
+      continue;
+    }
+    if (cu >= 0xD800 && cu <= 0xDBFF) {
+      if (i + 1 < len) {
+        final int low = value.codeUnitAt(i + 1);
+        if (low >= 0xDC00 && low <= 0xDFFF) {
+          i += 2;
+          continue;
+        }
+      }
+      if (i > start) {
+        buffer.write(value.substring(start, i));
+      }
+      start = i + 1;
+      i++;
+      continue;
+    }
+    if ((cu >= 0xDC00 && cu <= 0xDFFF) ||
+        (cu < 0x20 && cu != 0x09 && cu != 0x0A && cu != 0x0D) ||
+        cu == 0x7F ||
+        cu == 0xFFFE ||
+        cu == 0xFFFF) {
+      if (i > start) {
+        buffer.write(value.substring(start, i));
+      }
+      start = i + 1;
+    }
+    i++;
+  }
+  if (start == 0) {
+    buffer.write(value);
+  } else if (start < len) {
+    buffer.write(value.substring(start));
+  }
 }

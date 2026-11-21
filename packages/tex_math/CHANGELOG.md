@@ -1,3 +1,3 @@
 ## 0.1.0-dev
 
-- Initial Phase 1 package scaffold defining the pure-Dart public API contract, safety budgets, error hierarchy, AST nodes, display list model, standalone SVG exporter, and unit tests.
+- Pure-Dart five-stage TeX math engine (`TexMathEngine`), OpenType `MATH`/CFF/CFF2/`glyf` parser (`MathFont`), Appendix G layout engine, MathML/spoken-text/SVG exporters, immutable AST and display list models, safety budgets (`TexMathBudgets`), and MathJax `4.1.3` parity test coverage.

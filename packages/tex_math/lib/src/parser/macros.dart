@@ -480,12 +480,47 @@ List<TexToken> validateMacroBody({
   return body;
 }
 
+/// Shared mutable macro expansion and cumulative token-allocation counters
+/// carried across the root [TexTokenCursor] and nested subexpression cursors.
+final class TexTokenBudgetState {
+  /// Cumulative macro expansions performed across the whole parse.
+  int expansionCount = 0;
+
+  /// Cumulative tokens materialized across tokenization and macro substitution.
+  int tokenCount = 0;
+
+  /// Records [count] tokens and throws [TexMathBudgetError] when exceeding
+  /// [budgets.maxTokens].
+  void chargeTokens(
+    int count, {
+    required TexMathBudgets budgets,
+    SourceSpan? span,
+  }) {
+    if (count <= 0) {
+      return;
+    }
+    tokenCount += count;
+    if (tokenCount > budgets.maxTokens) {
+      throw TexMathBudgetError(
+        'Token count ($tokenCount) exceeded maxTokens (${budgets.maxTokens}).',
+        budgetName: 'maxTokens',
+        limit: budgets.maxTokens,
+        actual: tokenCount,
+        span: span,
+      );
+    }
+  }
+}
+
 /// Substitutes `#1`..`#9` placeholders in [body] with [args], preserving valid
-/// [SourceSpan] coordinates on every emitted token.
+/// [SourceSpan] coordinates on every emitted token and enforcing
+/// [TexMathBudgets.maxTokens] via optional [budgetState].
 List<TexToken> substituteMacroParams({
   required List<TexToken> body,
   required List<List<TexToken>> args,
   required SourceSpan fallbackSpan,
+  TexMathBudgets? budgets,
+  TexTokenBudgetState? budgetState,
 }) {
   final List<TexToken> result = <TexToken>[];
   for (int i = 0; i < body.length; i++) {
@@ -493,6 +528,11 @@ List<TexToken> substituteMacroParams({
     if (token.kind == TexTokenKind.parameter && i + 1 < body.length) {
       final TexToken next = body[i + 1];
       if (next.kind == TexTokenKind.parameter) {
+        budgetState?.chargeTokens(
+          1,
+          budgets: budgets ?? const TexMathBudgets(),
+          span: fallbackSpan,
+        );
         result.add(
           TexToken(
             kind: TexTokenKind.parameter,
@@ -509,13 +549,24 @@ List<TexToken> substituteMacroParams({
         if (code >= 0x31 && code <= 0x39) {
           final int argIndex = code - 0x31;
           if (argIndex < args.length) {
-            result.addAll(args[argIndex]);
+            final List<TexToken> argTokens = args[argIndex];
+            budgetState?.chargeTokens(
+              argTokens.length,
+              budgets: budgets ?? const TexMathBudgets(),
+              span: fallbackSpan,
+            );
+            result.addAll(argTokens);
           }
           i++;
           continue;
         }
       }
     }
+    budgetState?.chargeTokens(
+      1,
+      budgets: budgets ?? const TexMathBudgets(),
+      span: fallbackSpan,
+    );
     result.add(
       TexToken(
         kind: token.kind,
@@ -529,15 +580,24 @@ List<TexToken> substituteMacroParams({
   return result;
 }
 
-/// Queue-backed expandable TeX token cursor enforcing macro depth and total
-/// expansion budgets.
+/// Queue-backed expandable TeX token cursor enforcing macro depth, expansion,
+/// and cumulative token budgets.
 final class TexTokenCursor {
   /// Creates a token cursor over [source] and its scanned [initialTokens].
   TexTokenCursor({
     required this.source,
     required List<TexToken> initialTokens,
     required this.budgets,
-  }) : _pending = _reverseTokens(initialTokens);
+    TexTokenBudgetState? budgetState,
+    int initialMacroDepth = 0,
+  }) : budgetState = budgetState ?? TexTokenBudgetState(),
+       _minMacroDepth = initialMacroDepth,
+       _macroDepth = initialMacroDepth,
+       _pending = _reverseTokens(initialTokens) {
+    if (budgetState == null) {
+      this.budgetState.chargeTokens(initialTokens.length, budgets: budgets);
+    }
+  }
 
   /// Raw UTF-16 input string (used for verbatim slicing and span validation).
   final String source;
@@ -545,14 +605,18 @@ final class TexTokenCursor {
   /// Safety budgets enforced during expansion.
   final TexMathBudgets budgets;
 
+  /// Shared cumulative expansion and token budget state.
+  final TexTokenBudgetState budgetState;
+
+  final int _minMacroDepth;
+
   /// Reversed stack of queued tokens and frame markers (top is at `last`).
   final List<Object> _pending;
 
-  int _macroDepth = 0;
-  int _expansionCount = 0;
+  int _macroDepth;
 
   /// Total macro/environment expansions executed so far.
-  int get expansionCount => _expansionCount;
+  int get expansionCount => budgetState.expansionCount;
 
   /// Current active macro expansion depth.
   int get macroDepth => _macroDepth;
@@ -641,16 +705,21 @@ final class TexTokenCursor {
   }
 
   /// Pushes a macro expansion [tokens] onto the stream while enforcing
-  /// [TexMathBudgets.maxMacroDepth] and [TexMathBudgets.maxMacroExpansions].
-  void pushMacroExpansion(List<TexToken> tokens, {SourceSpan? span}) {
-    _expansionCount++;
-    if (_expansionCount > budgets.maxMacroExpansions) {
+  /// [TexMathBudgets.maxMacroDepth], [TexMathBudgets.maxMacroExpansions], and
+  /// [TexMathBudgets.maxTokens].
+  void pushMacroExpansion(
+    List<TexToken> tokens, {
+    SourceSpan? span,
+    bool chargeTokens = true,
+  }) {
+    budgetState.expansionCount++;
+    if (budgetState.expansionCount > budgets.maxMacroExpansions) {
       throw TexMathBudgetError(
-        'Macro expansions ($_expansionCount) exceeded maxMacroExpansions '
-        '(${budgets.maxMacroExpansions}).',
+        'Macro expansions (${budgetState.expansionCount}) exceeded '
+        'maxMacroExpansions (${budgets.maxMacroExpansions}).',
         budgetName: 'maxMacroExpansions',
         limit: budgets.maxMacroExpansions,
-        actual: _expansionCount,
+        actual: budgetState.expansionCount,
         span: span,
       );
     }
@@ -665,9 +734,54 @@ final class TexTokenCursor {
         span: span,
       );
     }
+    if (chargeTokens) {
+      budgetState.chargeTokens(tokens.length, budgets: budgets, span: span);
+    }
     _pending.add(const _EndMacroFrame());
     for (int i = tokens.length - 1; i >= 0; i--) {
       _pending.add(tokens[i]);
+    }
+  }
+
+  /// Zero-allocation lookahead checking whether upcoming non-ignorable tokens
+  /// in [_pending] match every non-space token of [delimiter].
+  bool matchesDelimiterAhead(List<TexToken> delimiter) {
+    _popFinishedFrames();
+    int pendingIdx = _pending.length - 1;
+    for (int i = 0; i < delimiter.length; i++) {
+      final TexToken exp = delimiter[i];
+      if (exp.kind == TexTokenKind.space) {
+        continue;
+      }
+      TexToken? matched;
+      while (pendingIdx >= 0) {
+        final Object item = _pending[pendingIdx--];
+        if (item is _EndMacroFrame) {
+          continue;
+        }
+        final TexToken candidate = item as TexToken;
+        if (candidate.isIgnorableInMath) {
+          continue;
+        }
+        matched = candidate;
+        break;
+      }
+      if (matched == null ||
+          matched.kind != exp.kind ||
+          matched.text != exp.text) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  /// Consumes the non-ignorable tokens matched by [matchesDelimiterAhead].
+  void consumeDelimiterAhead(List<TexToken> delimiter) {
+    for (int i = 0; i < delimiter.length; i++) {
+      if (delimiter[i].kind == TexTokenKind.space) {
+        continue;
+      }
+      next();
     }
   }
 
@@ -700,7 +814,7 @@ final class TexTokenCursor {
   void _popFinishedFrames() {
     while (_pending.isNotEmpty && _pending.last is _EndMacroFrame) {
       _pending.removeLast();
-      if (_macroDepth > 0) {
+      if (_macroDepth > _minMacroDepth) {
         _macroDepth--;
       }
     }

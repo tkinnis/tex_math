@@ -226,16 +226,19 @@ final class CoverageTable {
       final Uint16List starts = Uint16List(count);
       final Uint16List ends = Uint16List(count);
       final Uint16List startIndices = Uint16List(count);
+      int prevEnd = -1;
       for (int i = 0; i < count; i++) {
         final int pos = offset + 4 + i * 6;
         final int start = reader.readUint16Fast(pos);
         final int end = reader.readUint16Fast(pos + 2);
         final int startIdx = reader.readUint16Fast(pos + 4);
-        if (end < start) {
+        if (end < start || start <= prevEnd) {
           throw TexMathFontError(
-            'Invalid $context Format 2 range: end ($end) < start ($start).',
+            'Invalid $context Format 2 range [$start, $end] '
+            'following $prevEnd.',
           );
         }
+        prevEnd = end;
         starts[i] = start;
         ends[i] = end;
         startIndices[i] = startIdx;

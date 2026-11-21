@@ -71,7 +71,7 @@ abstract interface class TexParserHost {
     String? styleCommand,
   });
 
-  /// Parses an inline TeX snippet string using [callSiteSpan] for valid spans.
+  /// Parses an inline TeX snippet string using [span] for valid spans.
   MathNode parseSyntheticTex(
     String tex, {
     required SourceSpan span,

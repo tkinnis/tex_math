@@ -1,3 +1,4 @@
+import 'dart:collection';
 import 'dart:typed_data';
 
 import 'package:meta/meta.dart';
@@ -153,6 +154,8 @@ final class MathFont {
     }
 
     final _LoadedFontData loaded = _LoadedFontData(
+      sfntSignature: _computeSfntSignature(bytes),
+      sfntLength: bytes.length,
       head: head,
       maxp: maxp,
       hhea: hhea,
@@ -217,16 +220,33 @@ final class MathFont {
   int? get typoDescender => _data?.os2.typoDescender;
 
   /// Declared variation axes from `fvar` (empty for static fonts).
-  List<FontVariationAxis> get axes =>
-      _data?.variationSpace.axes ?? const <FontVariationAxis>[];
+  List<FontVariationAxis> get axes {
+    final List<FontVariationAxis>? list = _data?.variationSpace.axes;
+    return (list == null || list.isEmpty)
+        ? const <FontVariationAxis>[]
+        : UnmodifiableListView<FontVariationAxis>(list);
+  }
 
   /// Active clamped user-space variation axis coordinates keyed by tag.
-  Map<String, double> get variationAxes =>
-      _data?.variationSpace.resolvedUserCoords ?? const <String, double>{};
+  Map<String, double> get variationAxes {
+    final Map<String, double>? map = _data?.variationSpace.resolvedUserCoords;
+    return (map == null || map.isEmpty)
+        ? const <String, double>{}
+        : UnmodifiableMapView<String, double>(map);
+  }
 
   /// Active normalized variation coordinates in `[-1.0, 1.0]`.
-  List<double> get normalizedVariationCoordinates =>
-      _data?.variationSpace.normalizedCoords ?? const <double>[];
+  List<double> get normalizedVariationCoordinates {
+    final List<double>? list = _data?.variationSpace.normalizedCoords;
+    return (list == null || list.isEmpty)
+        ? const <double>[]
+        : UnmodifiableListView<double>(list);
+  }
+
+  /// Fast deterministic payload-and-variation signature distinguishing distinct
+  /// fonts even when typographic header fields match.
+  int get signature =>
+      _data?.fontSignature ?? Object.hash(0, familyName, unitsPerEm);
 
   /// Parsed OpenType `MATH` table, or `null` if absent (or on stub fonts).
   MathTableData? get mathTable => _data?.mathTable;
@@ -299,29 +319,30 @@ final class MathFont {
   }
 
   @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is MathFont &&
-          familyName == other.familyName &&
-          unitsPerEm == other.unitsPerEm &&
-          numGlyphs == other.numGlyphs &&
-          ascender == other.ascender &&
-          descender == other.descender &&
-          _doubleMapEquals(variationAxes, other.variationAxes);
+  bool operator ==(Object other) {
+    if (identical(this, other)) {
+      return true;
+    }
+    if (other is! MathFont) {
+      return false;
+    }
+    if ((_data == null) != (other._data == null)) {
+      return false;
+    }
+    return signature == other.signature &&
+        _data?.sfntSignature == other._data?.sfntSignature &&
+        _data?.sfntLength == other._data?.sfntLength &&
+        familyName == other.familyName &&
+        unitsPerEm == other.unitsPerEm &&
+        numGlyphs == other.numGlyphs &&
+        ascender == other.ascender &&
+        descender == other.descender &&
+        _doubleMapEquals(variationAxes, other.variationAxes);
+  }
 
   @override
-  int get hashCode => Object.hash(
-    familyName,
-    unitsPerEm,
-    numGlyphs,
-    ascender,
-    descender,
-    Object.hashAllUnordered(
-      variationAxes.entries.map(
-        (MapEntry<String, double> e) => Object.hash(e.key, e.value),
-      ),
-    ),
-  );
+  int get hashCode =>
+      _data?.fontHashCode ?? Object.hash(0, familyName, unitsPerEm);
 
   @override
   String toString() =>
@@ -331,6 +352,8 @@ final class MathFont {
 
 final class _LoadedFontData {
   _LoadedFontData({
+    required this.sfntSignature,
+    required this.sfntLength,
     required this.head,
     required this.maxp,
     required this.hhea,
@@ -346,8 +369,26 @@ final class _LoadedFontData {
   }) : _outlineDecoded = Uint8List(maxp.numGlyphs),
        _outlineCache = List<GlyphOutline?>.filled(maxp.numGlyphs, null),
        _cffCache = List<DecodedCffOutline?>.filled(maxp.numGlyphs, null),
-       _metricsCache = List<GlyphMetrics?>.filled(maxp.numGlyphs, null);
+       _metricsCache = List<GlyphMetrics?>.filled(maxp.numGlyphs, null),
+       fontSignature = _mixSignature(
+         sfntSignature,
+         sfntLength,
+         variationSpace.normalizedCoords,
+       ),
+       fontHashCode = Object.hash(
+         sfntSignature,
+         sfntLength,
+         head.unitsPerEm,
+         maxp.numGlyphs,
+         hhea.ascender,
+         hhea.descender,
+         Object.hashAll(variationSpace.normalizedCoords),
+       );
 
+  final int sfntSignature;
+  final int sfntLength;
+  final int fontSignature;
+  final int fontHashCode;
   final HeadTable head;
   final MaxpTable maxp;
   final HheaTable hhea;
@@ -365,6 +406,8 @@ final class _LoadedFontData {
   final List<GlyphOutline?> _outlineCache;
   final List<DecodedCffOutline?> _cffCache;
   final List<GlyphMetrics?> _metricsCache;
+  final Map<(int, double), GlyphOutline> _hintedOutlineCache =
+      <(int, double), GlyphOutline>{};
 
   double advanceWidthFor(int glyphId) {
     final double base = hmtx.advanceWidthFor(glyphId).toDouble();
@@ -398,6 +441,11 @@ final class _LoadedFontData {
     final double effectivePpem = (ppem != null && ppem.isFinite && ppem > 0.0)
         ? ppem
         : 16.0;
+    final (int, double) hintKey = (glyphId, effectivePpem);
+    final GlyphOutline? cachedHinted = _hintedOutlineCache[hintKey];
+    if (cachedHinted != null) {
+      return cachedHinted;
+    }
     final List<PathCommand> hintedCommands = applyStemHinting(
       commands: base.commands,
       stems: cff.stems,
@@ -405,11 +453,13 @@ final class _LoadedFontData {
       ppem: effectivePpem,
       context: cff.hintContext,
     );
-    return GlyphOutline(
+    final GlyphOutline hinted = GlyphOutline.cached(
       glyphId: glyphId,
-      commands: List<PathCommand>.unmodifiable(hintedCommands),
+      commands: hintedCommands,
       advanceWidth: base.advanceWidth,
     );
+    _hintedOutlineCache[hintKey] = hinted;
+    return hinted;
   }
 
   List<StemHint> stemHintsForGlyph(int glyphId) {
@@ -482,4 +532,50 @@ bool _doubleMapEquals(Map<String, double> a, Map<String, double> b) {
     }
   }
   return true;
+}
+
+int _computeSfntSignature(Uint8List bytes) {
+  int h1 = 0x811C9DC5 ^ bytes.length;
+  int h2 = 0x9E3779B9 ^ bytes.length;
+
+  void mix(int value) {
+    h1 = ((h1 ^ value) * 0x01000193) & 0x7FFFFFFF;
+    h2 = ((h2 + value + 0x9E3779B9) * 0x85EBCA6B) & 0x7FFFFFFF;
+  }
+
+  // Mix SFNT header and full table directory (tag, checksum, offset, length).
+  final int numTables = bytes.length >= 6 ? ((bytes[4] << 8) | bytes[5]) : 0;
+  final int directoryEnd = 12 + numTables * 16;
+  final int headerScanEnd = directoryEnd <= bytes.length
+      ? directoryEnd
+      : (bytes.length < 256 ? bytes.length : 256);
+  for (int i = 0; i < headerScanEnd; i++) {
+    mix(bytes[i]);
+  }
+
+  // Mix full payload for small test fonts or strided samples + tail for large
+  // fonts to catch un-checksummed single-byte mutations quickly.
+  if (bytes.length <= 8192) {
+    for (int i = headerScanEnd; i < bytes.length; i++) {
+      mix(bytes[i]);
+    }
+  } else {
+    final int step = bytes.length ~/ 256;
+    for (int i = 0; i < bytes.length; i += step) {
+      mix(bytes[i]);
+    }
+    final int tailStart = bytes.length - 32;
+    for (int i = tailStart; i < bytes.length; i++) {
+      mix(bytes[i]);
+    }
+  }
+  return (h1 << 21) ^ h2;
+}
+
+int _mixSignature(int sfntSig, int len, List<double> normalizedCoords) {
+  if (normalizedCoords.isEmpty) {
+    return sfntSig;
+  }
+  return Object.hash(sfntSig, len, Object.hashAll(normalizedCoords)) &
+      0x1FFFFFFFFFFFFF;
 }

@@ -2,20 +2,60 @@
 /// `\pu{...}` physical unit expressions into standard TeX math syntax.
 library;
 
-/// Converts the body of `\ce{...}` or `\pu{...}` into TeX math source.
-String translateMhchemToTex(String input, {required bool isPhysicalUnits}) {
-  final String normalized = input
-      .replaceAll('\n', ' ')
-      .replaceAll('\u2212', '-')
-      .replaceAll('\u2013', '-')
-      .replaceAll('\u2014', '-');
+import '../error.dart';
+import '../options.dart';
+
+/// Converts the body of `\ce{...}` or `\pu{...}` into TeX math source while
+/// enforcing [maxNestingDepth].
+String translateMhchemToTex(
+  String input, {
+  required bool isPhysicalUnits,
+  int maxNestingDepth = TexMathBudgets.defaultMaxNestingDepth,
+}) {
+  final String normalized = _normalizeMhchemInput(input);
   if (isPhysicalUnits) {
     return _translatePu(normalized);
   }
-  return _translateCe(normalized);
+  return _translateCe(normalized, depth: 0, maxDepth: maxNestingDepth);
 }
 
-String _translateCe(String input) {
+String _normalizeMhchemInput(String input) {
+  final int len = input.length;
+  int firstReplace = -1;
+  for (int i = 0; i < len; i++) {
+    final int cu = input.codeUnitAt(i);
+    if (cu == 0x0A || cu == 0x2212 || cu == 0x2013 || cu == 0x2014) {
+      firstReplace = i;
+      break;
+    }
+  }
+  if (firstReplace < 0) {
+    return input;
+  }
+  final StringBuffer sb = StringBuffer()
+    ..write(input.substring(0, firstReplace));
+  for (int i = firstReplace; i < len; i++) {
+    final int cu = input.codeUnitAt(i);
+    if (cu == 0x0A) {
+      sb.writeCharCode(0x20);
+    } else if (cu == 0x2212 || cu == 0x2013 || cu == 0x2014) {
+      sb.writeCharCode(0x2D);
+    } else {
+      sb.writeCharCode(cu);
+    }
+  }
+  return sb.toString();
+}
+
+String _translateCe(String input, {required int depth, required int maxDepth}) {
+  if (depth > maxDepth) {
+    throw TexMathBudgetError(
+      'mhchem group nesting depth $depth exceeds maxNestingDepth ($maxDepth).',
+      budgetName: 'maxNestingDepth',
+      limit: maxDepth,
+      actual: depth,
+    );
+  }
   final StringBuffer out = StringBuffer();
   int i = 0;
   final int len = input.length;
@@ -30,7 +70,7 @@ String _translateCe(String input) {
         i++;
       }
       if (out.isNotEmpty) {
-        out.write(' ');
+        out.writeCharCode(0x20);
       }
       atTermStart = true;
       continue;
@@ -49,9 +89,9 @@ String _translateCe(String input) {
     if (ch == 0x7B) {
       final int end = _findMatchingBrace(input, i);
       final String inner = input.substring(i + 1, end);
-      out.write('{');
-      out.write(_translateCe(inner));
-      out.write('}');
+      out.writeCharCode(0x7B);
+      out.write(_translateCe(inner, depth: depth + 1, maxDepth: maxDepth));
+      out.writeCharCode(0x7D);
       i = end < len ? end + 1 : len;
       atTermStart = false;
       continue;
@@ -85,26 +125,28 @@ String _translateCe(String input) {
     }
 
     // Reaction arrows: <=>>, <<=>, <--> , <->, <=>, ->, <-
-    final ({String tex, int length})? arrow = _matchReactionArrow(input, i);
-    if (arrow != null) {
-      i += arrow.length;
-      String? above;
-      String? below;
-      if (i < len && input.codeUnitAt(i) == 0x5B) {
-        final int end1 = _findMatchingBracket(input, i);
-        above = input.substring(i + 1, end1).trim();
-        i = end1 < len ? end1 + 1 : len;
+    if (ch == 0x3C || ch == 0x2D) {
+      final ({String tex, int length})? arrow = _matchReactionArrow(input, i);
+      if (arrow != null) {
+        i += arrow.length;
+        String? above;
+        String? below;
         if (i < len && input.codeUnitAt(i) == 0x5B) {
-          final int end2 = _findMatchingBracket(input, i);
-          below = input.substring(i + 1, end2).trim();
-          i = end2 < len ? end2 + 1 : len;
+          final int end1 = _findMatchingBracket(input, i);
+          above = input.substring(i + 1, end1).trim();
+          i = end1 < len ? end1 + 1 : len;
+          if (i < len && input.codeUnitAt(i) == 0x5B) {
+            final int end2 = _findMatchingBracket(input, i);
+            below = input.substring(i + 1, end2).trim();
+            i = end2 < len ? end2 + 1 : len;
+          }
         }
+        out.writeCharCode(0x20);
+        out.write(_formatArrowTex(arrow.tex, above: above, below: below));
+        out.writeCharCode(0x20);
+        atTermStart = true;
+        continue;
       }
-      out.write(' ');
-      out.write(_formatArrowTex(arrow.tex, above: above, below: below));
-      out.write(' ');
-      atTermStart = true;
-      continue;
     }
 
     // Gas (^) and precipitate (v) tokens when standalone.
@@ -270,7 +312,7 @@ String _translateCe(String input) {
     }
 
     // Parentheses/brackets/punctuation
-    out.write(input.substring(i, i + 1));
+    out.writeCharCode(ch);
     i++;
     atTermStart = ch == 0x28 || ch == 0x5B || ch == 0x2C;
   }
@@ -349,7 +391,7 @@ String _translatePuToken(String token) {
       i++;
       continue;
     }
-    out.write(token.substring(i, i + 1));
+    out.writeCharCode(ch);
     i++;
   }
   return out.toString();

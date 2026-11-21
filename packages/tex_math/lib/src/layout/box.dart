@@ -9,8 +9,6 @@ import '../font.dart';
 import '../options.dart';
 import '../source_span.dart';
 
-export '../display_list.dart' show BreakPoint, MathBreakKind;
-
 /// Immutable TeX-style rectangular box node produced during math layout.
 ///
 /// Coordinates follow the mathematical Y-up convention in em units where the
@@ -69,6 +67,33 @@ sealed class MathBox {
   /// Total vertical extent (`heightEm + depthEm`) in ems.
   double get totalHeightEm => heightEm + depthEm;
 
+  bool _baseEquals(MathBox other) =>
+      widthEm == other.widthEm &&
+      heightEm == other.heightEm &&
+      depthEm == other.depthEm &&
+      atomClass == other.atomClass &&
+      italicsCorrectionEm == other.italicsCorrectionEm &&
+      shiftYEm == other.shiftYEm &&
+      span == other.span &&
+      colorRole == other.colorRole &&
+      customColor == other.customColor &&
+      inheritColor == other.inheritColor &&
+      breakPoint == other.breakPoint;
+
+  int get _baseHash => Object.hash(
+    widthEm,
+    heightEm,
+    depthEm,
+    atomClass,
+    italicsCorrectionEm,
+    shiftYEm,
+    span,
+    colorRole,
+    customColor,
+    inheritColor,
+    breakPoint,
+  );
+
   /// Returns a wrapper or copy of this box with overridden metadata.
   MathBox withMetadata({
     TexMathAtomClass? atomClass,
@@ -89,6 +114,7 @@ sealed class MathBox {
     int unitsPerEm = 1000,
     String? source,
     int maxOutputItems = TexMathBudgets.defaultMaxOutputItems,
+    int? fontSignature,
   }) {
     final List<DisplayItem> items = <DisplayItem>[];
     final List<DisplayBreakHint> breakHints = <DisplayBreakHint>[];
@@ -115,6 +141,7 @@ sealed class MathBox {
       breakHints: breakHints.isEmpty
           ? const <DisplayBreakHint>[]
           : List<DisplayBreakHint>.unmodifiable(breakHints),
+      fontSignature: fontSignature,
     );
   }
 
@@ -311,6 +338,33 @@ final class GlyphBox extends MathBox {
       span,
     );
   }
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is GlyphBox &&
+          _baseEquals(other) &&
+          glyphId == other.glyphId &&
+          codePoint == other.codePoint &&
+          scaleX == other.scaleX &&
+          scaleY == other.scaleY &&
+          advanceEm == other.advanceEm &&
+          xOffsetEm == other.xOffsetEm &&
+          yOffsetEm == other.yOffsetEm &&
+          outline == other.outline;
+
+  @override
+  int get hashCode => Object.hash(
+    _baseHash,
+    glyphId,
+    codePoint,
+    scaleX,
+    scaleY,
+    advanceEm,
+    xOffsetEm,
+    yOffsetEm,
+    outline,
+  );
 }
 
 /// Rectangular filled or stroked rule box (fraction bars, radical overbars,
@@ -394,6 +448,16 @@ final class RuleBox extends MathBox {
       span,
     );
   }
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is RuleBox &&
+          _baseEquals(other) &&
+          strokeWidthEm == other.strokeWidthEm;
+
+  @override
+  int get hashCode => Object.hash(_baseHash, strokeWidthEm);
 }
 
 /// Invisible horizontal spacing or kern box (positive or negative).
@@ -452,6 +516,13 @@ final class KernBox extends MathBox {
   }) {
     // Invisible spacing emits no primitive.
   }
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) || other is KernBox && _baseEquals(other);
+
+  @override
+  int get hashCode => Object.hash(KernBox, _baseHash);
 }
 
 /// Non-inked semantic anchor box emitting an [AnchorItem] for labels and tags.
@@ -538,6 +609,17 @@ final class AnchorBox extends MathBox {
       span,
     );
   }
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is AnchorBox &&
+          _baseEquals(other) &&
+          id == other.id &&
+          label == other.label;
+
+  @override
+  int get hashCode => Object.hash(_baseHash, id, label);
 }
 
 /// Horizontal box laying out [children] sequentially along the X axis.
@@ -600,9 +682,7 @@ final class HBox extends MathBox {
       }
     }
     return HBox._(
-      children: children.isEmpty
-          ? const <MathBox>[]
-          : List<MathBox>.unmodifiable(children),
+      children: children.isEmpty ? const <MathBox>[] : children,
       widthEm: widthEm ?? computedWidth,
       heightEm: heightEm ?? math.max(0.0, computedHeight),
       depthEm: depthEm ?? math.max(0.0, computedDepth),
@@ -676,6 +756,16 @@ final class HBox extends MathBox {
       cursorX += child.widthEm;
     }
   }
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is HBox &&
+          _baseEquals(other) &&
+          _listEquals(children, other.children);
+
+  @override
+  int get hashCode => Object.hash(_baseHash, Object.hashAll(children));
 }
 
 /// Baseline-relative coordinate placement of a [MathBox] inside a [VBox].
@@ -693,6 +783,17 @@ final class VBoxChild {
 
   /// Baseline-relative vertical offset in ems (positive upward).
   final double yEm;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is VBoxChild &&
+          box == other.box &&
+          xEm == other.xEm &&
+          yEm == other.yEm;
+
+  @override
+  int get hashCode => Object.hash(box, xEm, yEm);
 }
 
 /// Vertical or arbitrarily positioned container box whose [placements] carry
@@ -760,9 +861,7 @@ final class VBox extends MathBox {
       }
     }
     return VBox._(
-      placements: children.isEmpty
-          ? const <VBoxChild>[]
-          : List<VBoxChild>.unmodifiable(children),
+      placements: children.isEmpty ? const <VBoxChild>[] : children,
       widthEm: widthEm ?? computedWidth,
       heightEm: heightEm ?? math.max(0.0, computedHeight),
       depthEm: depthEm ?? math.max(0.0, computedDepth),
@@ -912,4 +1011,29 @@ final class VBox extends MathBox {
       );
     }
   }
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is VBox &&
+          _baseEquals(other) &&
+          _listEquals(placements, other.placements);
+
+  @override
+  int get hashCode => Object.hash(_baseHash, Object.hashAll(placements));
+}
+
+bool _listEquals<T>(List<T> a, List<T> b) {
+  if (identical(a, b)) {
+    return true;
+  }
+  if (a.length != b.length) {
+    return false;
+  }
+  for (int i = 0; i < a.length; i++) {
+    if (a[i] != b[i]) {
+      return false;
+    }
+  }
+  return true;
 }

@@ -1,3 +1,5 @@
+import 'dart:collection';
+
 import 'package:meta/meta.dart';
 
 import '../format_utils.dart';
@@ -166,29 +168,54 @@ final class GlyphOutline {
   /// Creates a glyph outline record for [glyphId].
   const GlyphOutline({
     required this.glyphId,
-    required this.commands,
+    required List<PathCommand> commands,
     this.advanceWidth = 0.0,
-  });
+    // ignore: prefer_initializing_formals
+  }) : _commands = commands,
+       _precomputedHash = null;
+
+  /// Creates an immutable [GlyphOutline] with unmodifiable [commands] and a
+  /// memoized [hashCode] computed upfront for `O(1)` repeated cache lookups.
+  GlyphOutline.cached({
+    required this.glyphId,
+    required List<PathCommand> commands,
+    this.advanceWidth = 0.0,
+  }) : _commands = commands.isEmpty
+           ? const <PathCommand>[]
+           : List<PathCommand>.unmodifiable(commands),
+       _precomputedHash = Object.hash(
+         glyphId,
+         advanceWidth,
+         commands.isEmpty ? _emptyCommandsHash : Object.hashAll(commands),
+       );
+
+  static final int _emptyCommandsHash = Object.hashAll(const <PathCommand>[]);
 
   /// OpenType glyph index within the owning font.
   final int glyphId;
 
-  /// Ordered vector path commands forming the glyph contours.
-  final List<PathCommand> commands;
+  final List<PathCommand> _commands;
+
+  final int? _precomputedHash;
+
+  /// Ordered unmodifiable vector path commands forming the glyph contours.
+  List<PathCommand> get commands => _commands.isEmpty
+      ? const <PathCommand>[]
+      : UnmodifiableListView<PathCommand>(_commands);
 
   /// Horizontal advance width in font design units.
   final double advanceWidth;
 
   /// Whether this glyph contains no contour commands (e.g. whitespace).
-  bool get isEmpty => commands.isEmpty;
+  bool get isEmpty => _commands.isEmpty;
 
   /// Formats [commands] into an SVG `d` path attribute string.
   String toSvgPathData() {
-    if (commands.isEmpty) {
+    if (_commands.isEmpty) {
       return '';
     }
     final StringBuffer buffer = StringBuffer();
-    writeGlyphOutlineSvgPathData(buffer, commands);
+    writeGlyphOutlineSvgPathData(buffer, _commands);
     return buffer.toString();
   }
 
@@ -198,11 +225,12 @@ final class GlyphOutline {
       other is GlyphOutline &&
           glyphId == other.glyphId &&
           advanceWidth == other.advanceWidth &&
-          _commandListEquals(commands, other.commands);
+          _commandListEquals(_commands, other._commands);
 
   @override
   int get hashCode =>
-      Object.hash(glyphId, advanceWidth, Object.hashAll(commands));
+      _precomputedHash ??
+      Object.hash(glyphId, advanceWidth, Object.hashAll(_commands));
 
   @override
   String toString() =>

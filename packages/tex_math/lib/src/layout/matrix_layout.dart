@@ -3,7 +3,7 @@ import 'dart:math' as math;
 import '../ast.dart';
 import '../font.dart';
 import '../options.dart';
-import '../parser/parser.dart';
+import '../shared/layout_constants.dart';
 import '../source_span.dart';
 import 'box.dart';
 import 'glyph_resolve.dart';
@@ -62,10 +62,11 @@ typedef MatrixCellLayouter = MathBox Function(
 
 /// Lays out a [MatrixNode] (arrays, matrices, cases, AMS alignments,
 /// commutative diagrams, and proof-tree steps) using OpenType `MATH`
-/// parameters from [font].
+/// parameters from [mathTable] and [font].
 MathBox layoutMatrixNode({
   required MatrixNode node,
   required MathFont font,
+  required MathTableData mathTable,
   required TexMathStyle currentStyle,
   required MatrixCellLayouter layoutCell,
   double fontScale = 1.0,
@@ -75,6 +76,7 @@ MathBox layoutMatrixNode({
     return _layoutCdMatrix(
       node: node,
       font: font,
+      mathTable: mathTable,
       currentStyle: currentStyle,
       layoutCell: layoutCell,
       fontScale: fontScale,
@@ -84,13 +86,14 @@ MathBox layoutMatrixNode({
     return layoutProoftreeElement(
       node,
       font: font,
+      mathTable: mathTable,
       currentStyle: currentStyle,
       layoutCell: layoutCell,
       fontScale: fontScale,
     );
   }
 
-  final MathConstants constants = font.mathTable!.constants;
+  final MathConstants constants = mathTable.constants;
   final double upem = font.unitsPerEm.toDouble();
   final double scale = scaleForStyle(currentStyle, constants) * fontScale;
   final double axisEm = (constants.axisHeight / upem) * scale;
@@ -209,15 +212,14 @@ MathBox layoutMatrixNode({
   final Map<int, ({double xEm, MathBox box})> customColSeparators =
       <int, ({double xEm, MathBox box})>{};
 
-  final bool hasLeftBorderRule =
-      _barCountForSeparator(node.columnSeparators[0]) > 0;
+  final bool hasLeftBorderRule = _barCountForSeparator(node.columnLines[0]) > 0;
   final bool hasRightBorderRule =
-      _barCountForSeparator(node.columnSeparators[colCount]) > 0;
+      _barCountForSeparator(node.columnLines[colCount]) > 0;
   double cursorX = hasLeftBorderRule ? 0.0 : outerPadX;
   for (int c = 0; c <= colCount; c++) {
-    final String? sep = node.columnSeparators[c];
-    final int barCount = _barCountForSeparator(sep);
-    final bool hasCustomSep = sep != null && sep.isNotEmpty && barCount == 0;
+    final int barCount = _barCountForSeparator(node.columnLines[c]);
+    final MathNode? sepNode = node.columnSeparators[c];
+    final bool hasCustomSep = sepNode != null && barCount == 0;
     if (barCount > 0) {
       if (c > 0) {
         cursorX += 0.50 * scale;
@@ -236,8 +238,7 @@ MathBox layoutMatrixNode({
         cursorX += 0.50 * scale;
       }
     } else if (hasCustomSep) {
-      final MathNode sepTree = parseTexInternal(sep);
-      final MathBox sepBox = layoutCell(sepTree, style: spec.cellStyle);
+      final MathBox sepBox = layoutCell(sepNode, style: spec.cellStyle);
       customColSeparators[c] = (xEm: cursorX, box: sepBox);
       barSpansAtBoundary[c] = (cursorX, cursorX + sepBox.widthEm);
       cursorX += sepBox.widthEm;
@@ -288,7 +289,11 @@ MathBox layoutMatrixNode({
     final int hBars = _hlineCount(hline);
     if (hBars > 0) {
       if (r > 0) {
-        cursorTop -= (r < rowCount ? spec.rowGapEm * 0.5 : 0.04) * scale;
+        cursorTop -=
+            (r < rowCount
+                ? spec.rowGapEm * 0.5
+                : LayoutDefaults.fallbackRuleThicknessEm) *
+            scale;
       }
       final double ruleTop = cursorTop;
       for (int b = 0; b < hBars; b++) {
@@ -301,7 +306,11 @@ MathBox layoutMatrixNode({
       final double ruleBottom = cursorTop;
       hRuleSpanAtBoundary[r] = (ruleTop, ruleBottom);
       if (r < rowCount) {
-        cursorTop -= (r > 0 ? spec.rowGapEm * 0.5 : 0.04) * scale;
+        cursorTop -=
+            (r > 0
+                ? spec.rowGapEm * 0.5
+                : LayoutDefaults.fallbackRuleThicknessEm) *
+            scale;
       }
     } else if (r > 0 && r < rowCount) {
       final double midGap = cursorTop - (spec.rowGapEm * 0.5) * scale;
@@ -503,6 +512,7 @@ MathBox layoutMatrixNode({
     wrapped.add(
       buildVerticalDelimiterBox(
         font: font,
+        mathTable: mathTable,
         delimiter: isRightCases && leftDelim == null ? '.' : leftDelim,
         targetSpanEm: targetDelimSpan,
         atomClass: TexMathAtomClass.open,
@@ -517,6 +527,7 @@ MathBox layoutMatrixNode({
     wrapped.add(
       buildVerticalDelimiterBox(
         font: font,
+        mathTable: mathTable,
         delimiter: rightDelim,
         targetSpanEm: targetDelimSpan,
         atomClass: TexMathAtomClass.close,
@@ -972,11 +983,12 @@ bool _isCdRowVerticalOnly(List<MathNode> row) {
 MathBox _layoutCdMatrix({
   required MatrixNode node,
   required MathFont font,
+  required MathTableData mathTable,
   required TexMathStyle currentStyle,
   required MatrixCellLayouter layoutCell,
   required double fontScale,
 }) {
-  final MathConstants constants = font.mathTable!.constants;
+  final MathConstants constants = mathTable.constants;
   final double upem = font.unitsPerEm.toDouble();
   final double scale = scaleForStyle(currentStyle, constants) * fontScale;
   final double axisEm = (constants.axisHeight / upem) * scale;
@@ -1073,6 +1085,7 @@ MathBox _layoutCdMatrix({
       } else {
         final MathBox probe = buildVerticalDelimiterBox(
           font: font,
+          mathTable: mathTable,
           delimiter: String.fromCharCode(dir.codePoint),
           targetSpanEm: minVertArrowEm,
           atomClass: TexMathAtomClass.rel,
@@ -1122,6 +1135,7 @@ MathBox _layoutCdMatrix({
         if (!data.isVertical) {
           final MathBox arrow = buildHorizontalStretchyBox(
             font: font,
+            mathTable: mathTable,
             codePoint: data.codePoint,
             targetWidthEm: colWidths[c],
             scale: scale,
@@ -1173,6 +1187,7 @@ MathBox _layoutCdMatrix({
           );
           final MathBox arrow = buildVerticalDelimiterBox(
             font: font,
+            mathTable: mathTable,
             delimiter: String.fromCharCode(data.codePoint),
             targetSpanEm: spanTarget,
             atomClass: TexMathAtomClass.rel,
@@ -1318,6 +1333,7 @@ class _CdCellData {
 MathBox layoutProoftreeGroup({
   required MathGroupNode node,
   required MathFont font,
+  required MathTableData mathTable,
   required TexMathStyle currentStyle,
   required MatrixCellLayouter layoutCell,
   double fontScale = 1.0,
@@ -1326,12 +1342,13 @@ MathBox layoutProoftreeGroup({
     return layoutProoftreeElement(
       node,
       font: font,
+      mathTable: mathTable,
       currentStyle: currentStyle,
       layoutCell: layoutCell,
       fontScale: fontScale,
     );
   }
-  final MathConstants constants = font.mathTable!.constants;
+  final MathConstants constants = mathTable.constants;
   final double upem = font.unitsPerEm.toDouble();
   final double scale = scaleForStyle(currentStyle, constants) * fontScale;
   final double axisEm = (constants.axisHeight / upem) * scale;
@@ -1343,6 +1360,7 @@ MathBox layoutProoftreeGroup({
     combined = layoutProoftreeElement(
       node.children.first,
       font: font,
+      mathTable: mathTable,
       currentStyle: currentStyle,
       layoutCell: layoutCell,
       fontScale: fontScale,
@@ -1357,6 +1375,7 @@ MathBox layoutProoftreeGroup({
         layoutProoftreeElement(
           node.children[i],
           font: font,
+          mathTable: mathTable,
           currentStyle: currentStyle,
           layoutCell: layoutCell,
           fontScale: fontScale,
@@ -1382,11 +1401,12 @@ MathBox layoutProoftreeGroup({
 MathBox layoutProoftreeElement(
   MathNode node, {
   required MathFont font,
+  required MathTableData mathTable,
   required TexMathStyle currentStyle,
   required MatrixCellLayouter layoutCell,
   double fontScale = 1.0,
 }) {
-  final MathConstants constants = font.mathTable!.constants;
+  final MathConstants constants = mathTable.constants;
   final double upem = font.unitsPerEm.toDouble();
   final double scale = scaleForStyle(currentStyle, constants) * fontScale;
   final double ruleThicknessEm =
@@ -1435,6 +1455,7 @@ MathBox layoutProoftreeElement(
       return layoutProoftreeElement(
         items.first,
         font: font,
+        mathTable: mathTable,
         currentStyle: currentStyle,
         layoutCell: layoutCell,
         fontScale: fontScale,
@@ -1450,6 +1471,7 @@ MathBox layoutProoftreeElement(
         layoutProoftreeElement(
           items[i],
           font: font,
+          mathTable: mathTable,
           currentStyle: currentStyle,
           layoutCell: layoutCell,
           fontScale: fontScale,
