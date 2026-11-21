@@ -204,6 +204,7 @@ final class StudioInspectionFailure extends StudioInspectionResult {
   /// Creates an inspection failure state.
   StudioInspectionFailure({
     required this.error,
+    this.source,
     this.syntaxTree,
     String? mathMl,
     String? spokenText,
@@ -213,6 +214,9 @@ final class StudioInspectionFailure extends StudioInspectionResult {
 
   /// Structured TeX math error thrown by the pure-Dart engine.
   final TexMathError error;
+
+  /// Original TeX math input that triggered [error], when available.
+  final String? source;
 
   /// Optional parsed AST if parsing succeeded before layout failure.
   final MathNode? syntaxTree;
@@ -250,13 +254,19 @@ final class StudioInspectionFailure extends StudioInspectionResult {
       identical(this, other) ||
       other is StudioInspectionFailure &&
           error == other.error &&
+          source == other.source &&
           syntaxTree == other.syntaxTree &&
           _explicitMathMl == other._explicitMathMl &&
           _explicitSpokenText == other._explicitSpokenText;
 
   @override
-  int get hashCode =>
-      Object.hash(error, syntaxTree, _explicitMathMl, _explicitSpokenText);
+  int get hashCode => Object.hash(
+    error,
+    source,
+    syntaxTree,
+    _explicitMathMl,
+    _explicitSpokenText,
+  );
 }
 
 /// Evaluates [source] synchronously through [TexMathEngine] once to collect
@@ -284,7 +294,7 @@ StudioInspectionResult inspectTexExpression({
   try {
     tree = engine.parse(source, options: effectiveOptions);
   } on TexMathError catch (error) {
-    return StudioInspectionFailure(error: error);
+    return StudioInspectionFailure(error: error, source: source);
   }
 
   if (font == null) {
@@ -337,7 +347,11 @@ StudioInspectionResult inspectTexExpression({
       oracleDepthEm: matchesCorpusEntry ? selectedEntry.oracleBoxDepthEm : null,
     );
   } on TexMathError catch (error) {
-    return StudioInspectionFailure(error: error, syntaxTree: tree);
+    return StudioInspectionFailure(
+      error: error,
+      source: source,
+      syntaxTree: tree,
+    );
   }
 }
 
@@ -468,7 +482,14 @@ final class _StudioMetricsInspectorState extends State<StudioMetricsInspector>
             child: Text('Loading NewCMMath-Regular.otf metrics…'),
           ),
         );
-      case StudioInspectionFailure(:final TexMathError error):
+      case StudioInspectionFailure(
+        :final TexMathError error,
+        :final String? source,
+      ):
+        final SourceSpan? span = error.span;
+        final String diagnosticText = source != null && span != null
+            ? error.formatWithSource(source)
+            : error.formattedMessage;
         return SingleChildScrollView(
           padding: const EdgeInsets.all(12.0),
           child: Column(
@@ -481,9 +502,19 @@ final class _StudioMetricsInspectorState extends State<StudioMetricsInspector>
                   color: Theme.of(context).colorScheme.error,
                 ),
               ),
+              if (span != null) ...<Widget>[
+                const SizedBox(height: 2.0),
+                Text(
+                  'Position: ${error.position} (span ${span.start}..${span.end})',
+                  style: const TextStyle(
+                    fontFamily: 'monospace',
+                    fontSize: 12.0,
+                  ),
+                ),
+              ],
               const SizedBox(height: 4.0),
               SelectableText(
-                error.message,
+                diagnosticText,
                 style: const TextStyle(fontFamily: 'monospace', fontSize: 12.0),
               ),
             ],

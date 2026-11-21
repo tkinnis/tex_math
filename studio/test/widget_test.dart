@@ -714,6 +714,75 @@ void main() {
       },
     );
 
+    test('StudioWebHarnessBuilder centers with margin auto and pins regular KaTeX_Math-Italic weight', () {
+      String cssRuleBody(String html, String selector) {
+        final RegExp pattern = RegExp(
+          '${RegExp.escape(selector)}\\s*\\{([^}]*)\\}',
+        );
+        final RegExpMatch? match = pattern.firstMatch(html);
+        expect(
+          match,
+          isNotNull,
+          reason: 'Expected CSS rule for $selector in harness HTML',
+        );
+        return match!.group(1)!;
+      }
+
+      final String mathJaxHtml = StudioWebHarnessBuilder.buildMathJaxHtml(
+        origin: 'http://127.0.0.1:9999',
+        sessionToken: 'tok123',
+      );
+      final String katexHtml = StudioWebHarnessBuilder.buildKatexHtml(
+        origin: 'http://127.0.0.1:9999',
+        sessionToken: 'tok123',
+      );
+
+      for (final String html in <String>[mathJaxHtml, katexHtml]) {
+        final String stageCss = cssRuleBody(html, '#stage');
+        expect(stageCss, contains('display: flex;'));
+        expect(stageCss, contains('padding: 16px;'));
+        expect(stageCss, contains('overflow: auto;'));
+        expect(stageCss, isNot(contains('justify-content: center;')));
+        expect(stageCss, isNot(contains('align-items: center;')));
+
+        final String mathOutCss = cssRuleBody(html, '#math-out');
+        expect(mathOutCss, contains('margin: auto;'));
+
+        final String errorBoxCss = cssRuleBody(html, '#error-box');
+        expect(errorBoxCss, contains('margin: auto;'));
+      }
+
+      final int cssLinkIndex = katexHtml.indexOf(
+        '<link rel="stylesheet" href="http://127.0.0.1:9999/s/tok123/katex/katex.min.css">',
+      );
+      final int fontFaceIndex = katexHtml.indexOf(
+        "font-family: 'StudioKaTeXMathItalic';",
+      );
+      expect(cssLinkIndex, greaterThanOrEqualTo(0));
+      expect(fontFaceIndex, greaterThan(cssLinkIndex));
+
+      final String fontFaceCss = cssRuleBody(katexHtml, '@font-face');
+      expect(fontFaceCss, contains("font-family: 'StudioKaTeXMathItalic';"));
+      expect(fontFaceCss, contains('font-style: italic;'));
+      expect(fontFaceCss, contains('font-weight: 400;'));
+      expect(
+        fontFaceCss,
+        contains(
+          "url('http://127.0.0.1:9999/s/tok123/katex/fonts/KaTeX_Math-Italic.woff2') format('woff2')",
+        ),
+      );
+
+      final String mathNormalCss = cssRuleBody(katexHtml, '.katex .mathnormal');
+      expect(
+        mathNormalCss,
+        contains("font-family: 'StudioKaTeXMathItalic', KaTeX_Math;"),
+      );
+      expect(mathNormalCss, contains('font-style: italic;'));
+      expect(mathNormalCss, contains('font-weight: 400;'));
+      expect(mathNormalCss, contains('font-synthesis: none;'));
+      expect(katexHtml, isNot(contains('.boldsymbol')));
+    });
+
     test(
       'StudioCorpusEntry enforces immutability and safe expectation parsing',
       () async {
@@ -1640,6 +1709,148 @@ void main() {
         );
         expect(tileFirstRect.top, greaterThanOrEqualTo(listRect.top - 0.5));
         expect(tileFirstRect.bottom, lessThanOrEqualTo(listRect.bottom + 0.5));
+      },
+    );
+
+    testWidgets(
+      'StudioMetricsInspector displays error position, span, and caret source snippet',
+      (WidgetTester tester) async {
+        const String failingSource = "x^2'";
+        final StudioInspectionResult result = inspectTexExpression(
+          source: failingSource,
+          displayMode: TexMathDisplayMode.display,
+          font: loadedFont,
+        );
+        expect(result, isA<StudioInspectionFailure>());
+        final StudioInspectionFailure failure =
+            result as StudioInspectionFailure;
+        expect(failure.source, failingSource);
+        expect(failure.error.errorClass, TexMathErrorClass.doubleScript);
+        expect(failure.error.position, 4);
+        expect(failure.error.span, const SourceSpan(3, 4));
+
+        final StudioInspectionFailure sameFailure = StudioInspectionFailure(
+          error: failure.error,
+          source: failingSource,
+        );
+        final StudioInspectionFailure otherSourceFailure =
+            StudioInspectionFailure(error: failure.error, source: 'y^2\'');
+        expect(failure, sameFailure);
+        expect(failure.hashCode, sameFailure.hashCode);
+        expect(failure, isNot(otherSourceFailure));
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(body: StudioMetricsInspector(inspection: failure)),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.text('Error Class: doubleScript'), findsOneWidget);
+        expect(find.text('Position: 4 (span 3..4)'), findsOneWidget);
+        expect(find.textContaining('(at position 4)'), findsOneWidget);
+        final String expectedSnippet = failure.error.formatWithSource(
+          failingSource,
+        );
+        expect(expectedSnippet, contains("x^2'\n   ^"));
+        final Finder snippetFinder = find.text(expectedSnippet);
+        expect(snippetFinder, findsOneWidget);
+        final SelectableText snippetWidget = tester.widget<SelectableText>(
+          find.ancestor(
+            of: snippetFinder,
+            matching: find.byType(SelectableText),
+          ),
+        );
+        expect(snippetWidget.style?.fontFamily, 'monospace');
+
+        // Without source, formattedMessage and Position still appear without caret snippet.
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: StudioMetricsInspector(
+                inspection: StudioInspectionFailure(error: failure.error),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        expect(find.text('Position: 4 (span 3..4)'), findsOneWidget);
+        expect(find.text(failure.error.formattedMessage), findsOneWidget);
+        expect(find.textContaining("x^2'\n   ^"), findsNothing);
+
+        // Without span, Position and "(at position ...)" are omitted.
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: StudioMetricsInspector(
+                inspection: StudioInspectionFailure(
+                  error: const TexMathFontError('Empty font'),
+                  source: 'x',
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        expect(find.text('Error Class: invalidFont'), findsOneWidget);
+        expect(find.text('Empty font'), findsOneWidget);
+        expect(find.textContaining('Position:'), findsNothing);
+        expect(find.textContaining('(at position'), findsNothing);
+      },
+    );
+
+    testWidgets(
+      "TexMathStudioApp on x^2' displays Position: 4, (at position 4), and caret snippet",
+      (WidgetTester tester) async {
+        tester.view.physicalSize = const Size(1280, 800);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        await tester.pumpWidget(
+          TexMathStudioApp(
+            corpusCatalog: StudioCorpusCatalog.embeddedFallback(),
+            initialFont: loadedFont,
+            initialSource: "x^2'",
+            webPaneControllerFactory: (StudioEngineKind kind, _) {
+              return _FakeWebPaneController(engineKind: kind);
+            },
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.byType(TexMathErrorWidget), findsOneWidget);
+
+        final Finder inspector = find.byType(StudioMetricsInspector);
+        expect(inspector, findsOneWidget);
+        expect(
+          find.descendant(
+            of: inspector,
+            matching: find.text('Error Class: doubleScript'),
+          ),
+          findsOneWidget,
+        );
+        expect(
+          find.descendant(
+            of: inspector,
+            matching: find.text('Position: 4 (span 3..4)'),
+          ),
+          findsOneWidget,
+        );
+        expect(
+          find.descendant(
+            of: inspector,
+            matching: find.textContaining('(at position 4)'),
+          ),
+          findsOneWidget,
+        );
+        expect(
+          find.descendant(
+            of: inspector,
+            matching: find.textContaining("x^2'\n   ^"),
+          ),
+          findsOneWidget,
+        );
       },
     );
   });

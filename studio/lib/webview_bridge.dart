@@ -485,17 +485,17 @@ final class StudioWebHarnessBuilder {
     box-sizing: border-box;
     min-height: 100%;
     display: flex;
-    align-items: center;
-    justify-content: center;
     padding: 16px;
     overflow: auto;
   }
   #math-out {
     display: inline-block;
+    margin: auto;
     color: var(--fg);
   }
   #error-box {
     display: none;
+    margin: auto;
     padding: 10px 12px;
     border-radius: 6px;
     border: 1px solid rgba(220, 38, 38, 0.45);
@@ -793,6 +793,19 @@ window.studioCapturePng = function(targetW, targetH) {
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <link rel="stylesheet" href="$baseUrl/katex/katex.min.css">
 <style>
+  @font-face {
+    font-display: block;
+    font-family: 'StudioKaTeXMathItalic';
+    font-style: italic;
+    font-weight: 400;
+    src: url('$baseUrl/katex/fonts/KaTeX_Math-Italic.woff2') format('woff2');
+  }
+  .katex .mathnormal {
+    font-family: 'StudioKaTeXMathItalic', KaTeX_Math;
+    font-style: italic;
+    font-weight: 400;
+    font-synthesis: none;
+  }
   :root { --fg: #111827; --bg: #ffffff; --err-fg: #dc2626; --err-bg: #fef2f2; }
   html, body {
     margin: 0; padding: 0; width: 100%; height: 100%;
@@ -803,17 +816,17 @@ window.studioCapturePng = function(targetW, targetH) {
     box-sizing: border-box;
     min-height: 100%;
     display: flex;
-    align-items: center;
-    justify-content: center;
     padding: 16px;
     overflow: auto;
   }
   #math-out {
     display: inline-block;
+    margin: auto;
     color: var(--fg);
   }
   #error-box {
     display: none;
+    margin: auto;
     padding: 10px 12px;
     border-radius: 6px;
     border: 1px solid rgba(220, 38, 38, 0.45);
