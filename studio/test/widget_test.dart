@@ -5,6 +5,7 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:tex_math_flutter/tex_math_flutter.dart';
 import 'package:tex_math_studio/corpus_loader.dart';
@@ -135,6 +136,7 @@ Future<String> _sendRawHttpRequest(
   int port, {
   required String path,
   required String host,
+  String method = 'GET',
 }) async {
   final Socket socket = await Socket.connect(
     InternetAddress.loopbackIPv4,
@@ -142,7 +144,7 @@ Future<String> _sendRawHttpRequest(
   );
   try {
     socket.write(
-      'GET $path HTTP/1.1\r\n'
+      '$method $path HTTP/1.1\r\n'
       'Host: $host\r\n'
       'Connection: close\r\n\r\n',
     );
@@ -520,6 +522,141 @@ void main() {
       }
     });
 
+    test('StudioLocalAssetServer serves offline MathJax font-extension stubs and enforces auth, real-file precedence, 404, and traversal guards', () async {
+      final Directory tempDir = Directory.systemTemp.createTempSync(
+        'studio_font_stubs_',
+      );
+      try {
+        final StudioOracleAssets assets = _createSyntheticOracleAssets(tempDir);
+        final StudioLocalAssetServer server = StudioLocalAssetServer(assets);
+        try {
+          await server.start();
+          final Uri mjHarness = server.harnessUriFor(StudioEngineKind.mathJax)!;
+          final int port = mjHarness.port;
+          final String validHost = '127.0.0.1:$port';
+          const List<String> stubPaths = <String>[
+            '/fonts/mathjax-mhchem-font-extension/svg.js',
+            '/fonts/mathjax-bbm-font-extension/svg.js',
+            '/fonts/mathjax-bboldx-font-extension/svg.js',
+            '/fonts/mathjax-dsfont-font-extension/svg.js',
+          ];
+
+          // Absent on disk -> 200 OK offline JS stub with security headers.
+          for (final String stubPath in stubPaths) {
+            final String resp = await _sendRawHttpRequest(
+              port,
+              path: '/s/${server.sessionToken}$stubPath',
+              host: validHost,
+            );
+            expect(resp, startsWith('HTTP/1.1 200 OK'));
+            final String lower = resp.toLowerCase();
+            expect(
+              lower,
+              contains('content-type: application/javascript; charset=utf-8'),
+            );
+            expect(lower, contains('cache-control: no-store'));
+            expect(lower, contains('x-content-type-options: nosniff'));
+            expect(
+              resp,
+              contains(
+                '/* Offline stub for optional MathJax font extension. */',
+              ),
+            );
+          }
+
+          // HEAD returns 200 OK with headers and empty body.
+          final String headResp = await _sendRawHttpRequest(
+            port,
+            path: '/s/${server.sessionToken}${stubPaths.first}',
+            host: validHost,
+            method: 'HEAD',
+          );
+          expect(headResp, startsWith('HTTP/1.1 200 OK'));
+          expect(
+            headResp,
+            isNot(contains('Offline stub for optional MathJax')),
+          );
+
+          // Auth and Host header still enforced on stub paths.
+          final String noTokenResp = await _sendRawHttpRequest(
+            port,
+            path: stubPaths.first,
+            host: validHost,
+          );
+          expect(noTokenResp, startsWith('HTTP/1.1 403 Forbidden'));
+
+          final String wrongTokenResp = await _sendRawHttpRequest(
+            port,
+            path: '/s/wrongtoken${stubPaths.first}',
+            host: validHost,
+          );
+          expect(wrongTokenResp, startsWith('HTTP/1.1 403 Forbidden'));
+
+          final String badHostResp = await _sendRawHttpRequest(
+            port,
+            path: '/s/${server.sessionToken}${stubPaths.first}',
+            host: 'evil.example:$port',
+          );
+          expect(badHostResp, startsWith('HTTP/1.1 403 Forbidden'));
+
+          // Arbitrary /fonts/... paths still return 404.
+          final String unknownFontResp = await _sendRawHttpRequest(
+            port,
+            path: '/s/${server.sessionToken}/fonts/arbitrary-font/svg.js',
+            host: validHost,
+          );
+          expect(unknownFontResp, startsWith('HTTP/1.1 404 Not Found'));
+
+          final String unknownSubfileResp = await _sendRawHttpRequest(
+            port,
+            path:
+                '/s/${server.sessionToken}/fonts/mathjax-mhchem-font-extension/other.js',
+            host: validHost,
+          );
+          expect(unknownSubfileResp, startsWith('HTTP/1.1 404 Not Found'));
+
+          // Traversal attempts are still rejected.
+          expect(
+            server.resolveAssetFile(
+              '/fonts/mathjax-mhchem-font-extension/..%2fsecret.txt',
+            ),
+            isNull,
+          );
+          final String traversalResp = await _sendRawHttpRequest(
+            port,
+            path:
+                '/s/${server.sessionToken}/fonts/mathjax-mhchem-font-extension/..%2fsecret.txt',
+            host: validHost,
+          );
+          expect(traversalResp, startsWith('HTTP/1.1 404 Not Found'));
+
+          // If a real extension file exists on disk, serve its bytes instead of the stub.
+          final File realMhchemFontExt = File(
+            '${assets.nodeModulesDir.path}/@mathjax/mathjax-mhchem-font-extension/svg.js',
+          )..createSync(recursive: true);
+          realMhchemFontExt.writeAsStringSync('// real mhchem font ext');
+
+          final String realResp = await _sendRawHttpRequest(
+            port,
+            path: '/s/${server.sessionToken}${stubPaths.first}',
+            host: validHost,
+          );
+          expect(realResp, startsWith('HTTP/1.1 200 OK'));
+          expect(realResp, contains('// real mhchem font ext'));
+          expect(
+            realResp,
+            isNot(
+              contains('Offline stub for optional MathJax font extension.'),
+            ),
+          );
+        } finally {
+          await server.close();
+        }
+      } finally {
+        tempDir.deleteSync(recursive: true);
+      }
+    });
+
     test(
       'StudioWebHarnessBuilder allowlists packages and excludes texhtml',
       () {
@@ -542,6 +679,29 @@ void main() {
         expect(html, contains('http://127.0.0.1:9999/s/tok123/fonts'));
         expect(html, contains('window.__allowedPackages'));
         expect(html, isNot(contains('"texhtml"')));
+        expect(html, contains('failed: (err) =>'));
+        expect(html, contains('reportStartupError'));
+        expect(html, contains("type: 'startupError'"));
+        expect(html, contains('unhandledrejection'));
+        expect(
+          html,
+          contains(
+            "onerror=\"reportStartupError('Failed to load local MathJax bundle (tex-svg.js).')\"",
+          ),
+        );
+
+        final String katexHtml = StudioWebHarnessBuilder.buildKatexHtml(
+          origin: 'http://127.0.0.1:9999',
+          sessionToken: 'tok123',
+        );
+        expect(katexHtml, contains('reportStartupError'));
+        expect(katexHtml, contains("type: 'startupError'"));
+        expect(
+          katexHtml,
+          contains(
+            "onerror=\"reportStartupError('Failed to load local KaTeX bundle (katex.min.js).')\"",
+          ),
+        );
       },
     );
 
@@ -733,6 +893,19 @@ void main() {
         expect(ctrl.telemetry.value.isRendering, isFalse);
         expect(ctrl.telemetry.value.statusSummary, 'JS error');
         expect(ctrl.telemetry.value.errorMessage, contains('eval failed'));
+
+        // startupError resets readiness, clears SVG, and surfaces Harness error.
+        ctrl.handleBridgePayload(
+          jsonEncode(<String, Object?>{
+            'type': 'startupError',
+            'errorMessage': 'loader boom',
+          }),
+        );
+        expect(ctrl.telemetry.value.isReady, isFalse);
+        expect(ctrl.telemetry.value.isRendering, isFalse);
+        expect(ctrl.telemetry.value.svgXml, isNull);
+        expect(ctrl.telemetry.value.statusSummary, 'Harness error');
+        expect(ctrl.telemetry.value.errorMessage, 'loader boom');
 
         // Real PNG data URL decoding.
         final ui.PictureRecorder recorder = ui.PictureRecorder();
@@ -1186,5 +1359,279 @@ void main() {
       expect(find.textContaining('corrupt OTF bundle'), findsWidgets);
       expect(find.text('Loading NewCMMath-Regular.otf metrics…'), findsNothing);
     });
+
+    testWidgets(
+      'navigates corpus entries via ArrowDown/ArrowUp/Home/End across headers and clamps at boundaries',
+      (WidgetTester tester) async {
+        tester.view.physicalSize = const Size(1280, 900);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        final StudioCorpusCatalog catalog =
+            StudioCorpusCatalog.embeddedFallback();
+        await tester.pumpWidget(
+          TexMathStudioApp(corpusCatalog: catalog, initialFont: loadedFont),
+        );
+        await tester.pumpAndSettle();
+
+        String sourceText() {
+          final TextField field = tester.widget<TextField>(
+            find.widgetWithText(TextField, 'TeX Source'),
+          );
+          return field.controller!.text;
+        }
+
+        // Tap the first corpus entry ("fraction_basic") to select and focus list.
+        await tester.tap(find.text('fraction_basic'));
+        await tester.pumpAndSettle();
+        expect(sourceText(), catalog.entries[0].tex);
+        expect(find.byType(TexMath), findsOneWidget);
+
+        // Clamping at top: ArrowUp at first entry stays at first entry.
+        await tester.sendKeyEvent(LogicalKeyboardKey.arrowUp);
+        await tester.pumpAndSettle();
+        expect(sourceText(), catalog.entries[0].tex);
+
+        // ArrowDown steps through Tier 1 and crosses the Tier 2 group header.
+        await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+        await tester.pumpAndSettle();
+        expect(sourceText(), catalog.entries[1].tex);
+
+        await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+        await tester.pumpAndSettle();
+        expect(sourceText(), catalog.entries[2].tex);
+
+        await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+        await tester.pumpAndSettle();
+        expect(sourceText(), catalog.entries[3].tex);
+
+        // ArrowUp steps back across the Tier 2 header into Tier 1.
+        await tester.sendKeyEvent(LogicalKeyboardKey.arrowUp);
+        await tester.pumpAndSettle();
+        expect(sourceText(), catalog.entries[2].tex);
+
+        // End jumps to the last entry (Errors -> TexMathErrorWidget).
+        await tester.sendKeyEvent(LogicalKeyboardKey.end);
+        await tester.pumpAndSettle();
+        expect(sourceText(), catalog.entries.last.tex);
+        expect(find.byType(TexMathErrorWidget), findsOneWidget);
+
+        // Clamping at bottom: ArrowDown at last entry stays at last entry.
+        await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+        await tester.pumpAndSettle();
+        expect(sourceText(), catalog.entries.last.tex);
+        expect(find.byType(TexMathErrorWidget), findsOneWidget);
+
+        // Home jumps back to the first entry.
+        await tester.sendKeyEvent(LogicalKeyboardKey.home);
+        await tester.pumpAndSettle();
+        expect(sourceText(), catalog.entries.first.tex);
+        expect(find.byType(TexMath), findsOneWidget);
+        expect(find.byType(TexMathErrorWidget), findsNothing);
+      },
+    );
+
+    testWidgets(
+      'keyboard-focused corpus ListTile navigates to next entry on ArrowDown without tapping',
+      (WidgetTester tester) async {
+        tester.view.physicalSize = const Size(1280, 900);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        final StudioCorpusCatalog catalog =
+            StudioCorpusCatalog.embeddedFallback();
+        await tester.pumpWidget(
+          TexMathStudioApp(corpusCatalog: catalog, initialFont: loadedFont),
+        );
+        await tester.pumpAndSettle();
+
+        // Focus the 2nd tile ("gaussian_integral") via FocusNode without tapping.
+        final FocusNode tileFocus = Focus.of(
+          tester.element(find.text('gaussian_integral')),
+        );
+        tileFocus.requestFocus();
+        await tester.pumpAndSettle();
+        expect(tileFocus.hasPrimaryFocus, isTrue);
+
+        // Focusing alone should not have changed selection from default preset.
+        final TextField sourceField = tester.widget<TextField>(
+          find.widgetWithText(TextField, 'TeX Source'),
+        );
+        expect(sourceField.controller!.text, r'\frac{a + b}{c - d}');
+
+        // Pressing ArrowDown selects the entry after the focused tile ("identity_matrix").
+        await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+        await tester.pumpAndSettle();
+        expect(sourceField.controller!.text, catalog.entries[2].tex);
+      },
+    );
+
+    testWidgets(
+      'ArrowDown inside TeX Source or Filter corpus TextField does not alter corpus selection',
+      (WidgetTester tester) async {
+        tester.view.physicalSize = const Size(1280, 900);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        final StudioCorpusCatalog catalog =
+            StudioCorpusCatalog.embeddedFallback();
+        await tester.pumpWidget(
+          TexMathStudioApp(corpusCatalog: catalog, initialFont: loadedFont),
+        );
+        await tester.pumpAndSettle();
+
+        // Select first corpus entry so a baseline selection exists.
+        await tester.tap(find.text('fraction_basic'));
+        await tester.pumpAndSettle();
+        final TextField sourceField = tester.widget<TextField>(
+          find.widgetWithText(TextField, 'TeX Source'),
+        );
+        expect(sourceField.controller!.text, catalog.entries[0].tex);
+
+        // Focus TeX Source and press ArrowDown -> selection must remain unchanged.
+        await tester.tap(find.widgetWithText(TextField, 'TeX Source'));
+        await tester.pumpAndSettle();
+        await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+        await tester.pumpAndSettle();
+        expect(sourceField.controller!.text, catalog.entries[0].tex);
+
+        // Focus Filter corpus… and press ArrowDown -> selection must remain unchanged.
+        await tester.tap(find.widgetWithText(TextField, 'Filter corpus…'));
+        await tester.pumpAndSettle();
+        await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+        await tester.pumpAndSettle();
+        expect(sourceField.controller!.text, catalog.entries[0].tex);
+      },
+    );
+
+    testWidgets(
+      'auto-scrolls tall multi-group corpus sidebar cleanly via ArrowDown, PageDown, End, and Home',
+      (WidgetTester tester) async {
+        tester.view.physicalSize = const Size(1280, 720);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        final List<StudioCorpusEntry> entries = <StudioCorpusEntry>[
+          for (int i = 0; i < 20; i++)
+            StudioCorpusEntry(
+              id: 'tier1_core/base/case_${i.toString().padLeft(2, '0')}',
+              relativePath: 'corpus/tier1_core/base/case_$i.tex',
+              tier: 'Tier 1',
+              package: 'base',
+              feature: 'basic',
+              display: true,
+              accepted: true,
+              tex: 'x_{$i} + 1',
+            ),
+          for (int i = 20; i < 40; i++)
+            StudioCorpusEntry(
+              id: 'tier2_jupyter/ams/case_${i.toString().padLeft(2, '0')}',
+              relativePath: 'corpus/tier2_jupyter/ams/case_$i.tex',
+              tier: 'Tier 2',
+              package: 'ams',
+              feature: 'matrices',
+              display: true,
+              accepted: true,
+              tex: 'y_{$i} + 2',
+            ),
+          for (int i = 40; i < 50; i++)
+            StudioCorpusEntry(
+              id: 'errors/err_${i.toString().padLeft(2, '0')}',
+              relativePath: 'corpus/errors/err_$i.tex',
+              tier: 'Errors',
+              package: 'base',
+              feature: 'error',
+              display: true,
+              accepted: false,
+              errorClass: 'undefinedControlSequence',
+              tex: '\\unknowncmd$i',
+            ),
+        ];
+
+        final StudioCorpusCatalog tallCatalog = StudioCorpusCatalog(
+          entries: entries,
+          isFromDisk: true,
+        );
+
+        await tester.pumpWidget(
+          TexMathStudioApp(corpusCatalog: tallCatalog, initialFont: loadedFont),
+        );
+        await tester.pumpAndSettle();
+
+        final TextField sourceField = tester.widget<TextField>(
+          find.widgetWithText(TextField, 'TeX Source'),
+        );
+
+        // Last entry is far off-screen initially.
+        expect(find.text('err_49'), findsNothing);
+
+        // Tap first entry, then press ArrowDown 15 times to scroll past viewport.
+        await tester.tap(find.text('case_00'));
+        await tester.pumpAndSettle();
+        for (int i = 0; i < 15; i++) {
+          await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+          await tester.pumpAndSettle();
+        }
+        expect(sourceField.controller!.text, entries[15].tex);
+        expect(find.text('case_15'), findsOneWidget);
+
+        // Verify selected tile sits inside the ListView viewport bounds.
+        final Rect listRect = tester.getRect(find.byType(ListView));
+        final Rect tile15Rect = tester.getRect(
+          find.ancestor(
+            of: find.text('case_15'),
+            matching: find.byType(ListTile),
+          ),
+        );
+        expect(tile15Rect.top, greaterThanOrEqualTo(listRect.top - 0.5));
+        expect(tile15Rect.bottom, lessThanOrEqualTo(listRect.bottom + 0.5));
+
+        // PageDown (+10 -> index 25, crossing into Tier 2).
+        await tester.sendKeyEvent(LogicalKeyboardKey.pageDown);
+        await tester.pumpAndSettle();
+        expect(sourceField.controller!.text, entries[25].tex);
+        expect(find.text('case_25'), findsOneWidget);
+
+        // PageUp (-10 -> back to index 15 in Tier 1).
+        await tester.sendKeyEvent(LogicalKeyboardKey.pageUp);
+        await tester.pumpAndSettle();
+        expect(sourceField.controller!.text, entries[15].tex);
+        expect(find.text('case_15'), findsOneWidget);
+
+        // End jumps to the far off-screen last entry and scrolls it into view.
+        await tester.sendKeyEvent(LogicalKeyboardKey.end);
+        await tester.pumpAndSettle();
+        expect(sourceField.controller!.text, entries.last.tex);
+        expect(find.text('err_49'), findsOneWidget);
+        expect(find.byType(TexMathErrorWidget), findsOneWidget);
+        final Rect tileLastRect = tester.getRect(
+          find.ancestor(
+            of: find.text('err_49'),
+            matching: find.byType(ListTile),
+          ),
+        );
+        expect(tileLastRect.top, greaterThanOrEqualTo(listRect.top - 0.5));
+        expect(tileLastRect.bottom, lessThanOrEqualTo(listRect.bottom + 0.5));
+
+        // Home jumps back to the first entry and scrolls back to the top.
+        await tester.sendKeyEvent(LogicalKeyboardKey.home);
+        await tester.pumpAndSettle();
+        expect(sourceField.controller!.text, entries.first.tex);
+        expect(find.text('case_00'), findsOneWidget);
+        expect(find.byType(TexMath), findsOneWidget);
+        final Rect tileFirstRect = tester.getRect(
+          find.ancestor(
+            of: find.text('case_00'),
+            matching: find.byType(ListTile),
+          ),
+        );
+        expect(tileFirstRect.top, greaterThanOrEqualTo(listRect.top - 0.5));
+        expect(tileFirstRect.bottom, lessThanOrEqualTo(listRect.bottom + 0.5));
+      },
+    );
   });
 }

@@ -522,6 +522,45 @@ function postBridge(payload) {
   }
 }
 
+function reportStartupError(message) {
+  const detail = String(message || 'Unknown startup error');
+  const applyDom = () => {
+    const out = document.getElementById('math-out');
+    const errBox = document.getElementById('error-box');
+    if (out) {
+      out.innerHTML = '';
+      out.style.display = 'none';
+    }
+    if (errBox) {
+      errBox.textContent = detail;
+      errBox.style.display = 'block';
+    }
+  };
+  if (document.getElementById('error-box')) {
+    applyDom();
+  } else {
+    window.addEventListener('DOMContentLoaded', applyDom, { once: true });
+  }
+  postBridge({ type: 'startupError', errorMessage: detail });
+}
+
+window.addEventListener('error', (event) => {
+  if (!window.__mjReady) {
+    const detail = event && event.message ? event.message : 'Unknown script error';
+    reportStartupError('MathJax startup error: ' + detail);
+  }
+});
+
+window.addEventListener('unhandledrejection', (event) => {
+  if (!window.__mjReady) {
+    const reason = event && event.reason;
+    const detail = reason && reason.message
+      ? reason.message
+      : String(reason || 'Unhandled promise rejection');
+    reportStartupError('MathJax startup rejection: ' + detail);
+  }
+});
+
 window.MathJax = {
   loader: {
     paths: {
@@ -529,7 +568,12 @@ window.MathJax = {
       tex: '[mathjax]/input/tex/extensions',
       fonts: $fontsPathJson
     },
-    load: ['ui/safe', ...window.__defaultPackages.filter(p => p !== 'base').map(p => '[tex]/' + p)]
+    load: ['ui/safe', ...window.__defaultPackages.filter(p => p !== 'base').map(p => '[tex]/' + p)],
+    failed: (err) => {
+      const pkg = err && err.package ? err.package : 'unknown';
+      const detail = err && err.message ? err.message : String(err);
+      reportStartupError('MathJax loader failed (' + pkg + '): ' + detail);
+    }
   },
   options: {
     safeOptions: {
@@ -709,7 +753,7 @@ window.studioCapturePng = function(targetW, targetH) {
   });
 };
 </script>
-<script src="$baseUrl/mathjax/tex-svg.js"></script>
+<script src="$baseUrl/mathjax/tex-svg.js" onerror="reportStartupError('Failed to load local MathJax bundle (tex-svg.js).')"></script>
 </head>
 <body>
   <div id="stage">
@@ -767,11 +811,10 @@ window.studioCapturePng = function(targetW, targetH) {
     max-width: 100%;
   }
 </style>
-<script src="$baseUrl/katex/katex.min.js"></script>
-<script src="$baseUrl/katex/contrib/mhchem.min.js"></script>
 <script>
 window.__currentFg = '#111827';
 window.__currentBg = '#ffffff';
+window.__startupErrorReported = false;
 
 function postBridge(payload) {
   if (window.StudioBridge && typeof window.StudioBridge.postMessage === 'function') {
@@ -779,6 +822,32 @@ function postBridge(payload) {
   }
 }
 
+function reportStartupError(message) {
+  window.__startupErrorReported = true;
+  const detail = String(message || 'Unknown startup error');
+  const applyDom = () => {
+    const out = document.getElementById('math-out');
+    const errBox = document.getElementById('error-box');
+    if (out) {
+      out.innerHTML = '';
+      out.style.display = 'none';
+    }
+    if (errBox) {
+      errBox.textContent = detail;
+      errBox.style.display = 'block';
+    }
+  };
+  if (document.getElementById('error-box')) {
+    applyDom();
+  } else {
+    window.addEventListener('DOMContentLoaded', applyDom, { once: true });
+  }
+  postBridge({ type: 'startupError', errorMessage: detail });
+}
+</script>
+<script src="$baseUrl/katex/katex.min.js" onerror="reportStartupError('Failed to load local KaTeX bundle (katex.min.js).')"></script>
+<script src="$baseUrl/katex/contrib/mhchem.min.js"></script>
+<script>
 window.studioRender = function(req) {
   const seq = typeof req.seq === 'number' ? req.seq : null;
   const t0 = performance.now();
@@ -876,7 +945,11 @@ window.studioCapturePng = function(targetW, targetH) {
 };
 
 window.addEventListener('load', () => {
-  postBridge({ type: 'ready' });
+  if (typeof window.katex !== 'undefined') {
+    postBridge({ type: 'ready' });
+  } else if (!window.__startupErrorReported) {
+    reportStartupError('Failed to load local KaTeX bundle (katex.min.js).');
+  }
 });
 </script>
 </head>
@@ -900,6 +973,20 @@ final class StudioLocalAssetServer {
     r'%(?:00|2f|5c)',
     caseSensitive: false,
   );
+
+  static const Set<String> _optionalMathJaxFontExtensionStubs = <String>{
+    '/fonts/mathjax-mhchem-font-extension/svg.js',
+    '/fonts/mathjax-bbm-font-extension/svg.js',
+    '/fonts/mathjax-bboldx-font-extension/svg.js',
+    '/fonts/mathjax-dsfont-font-extension/svg.js',
+  };
+
+  static const Set<String> _optionalMathJaxFontExtensionPackages = <String>{
+    'mathjax-mhchem-font-extension',
+    'mathjax-bbm-font-extension',
+    'mathjax-bboldx-font-extension',
+    'mathjax-dsfont-font-extension',
+  };
 
   /// Resolved MathJax and KaTeX filesystem bundles.
   final StudioOracleAssets assets;
@@ -1122,6 +1209,24 @@ final class StudioLocalAssetServer {
 
     final File? file = resolveAssetFile(assetPath);
     if (file == null || !file.existsSync()) {
+      if (_optionalMathJaxFontExtensionStubs.contains(assetPath)) {
+        request.response
+          ..statusCode = HttpStatus.ok
+          ..headers.contentType = ContentType(
+            'application',
+            'javascript',
+            charset: 'utf-8',
+          )
+          ..headers.set('Cache-Control', 'no-store')
+          ..headers.set('X-Content-Type-Options', 'nosniff');
+        if (method == 'GET') {
+          request.response.write(
+            '/* Offline stub for optional MathJax font extension. */\n',
+          );
+        }
+        await request.response.close();
+        return;
+      }
       request.response
         ..statusCode = HttpStatus.notFound
         ..headers.set('X-Content-Type-Options', 'nosniff');
@@ -1242,6 +1347,15 @@ final class StudioLocalAssetServer {
         assets.mathJaxNewcmDynamicDir!,
         segments.sublist(fontsDynamicPrefix.length),
       );
+    }
+
+    if (segments.length >= 3 &&
+        segments.first == 'fonts' &&
+        _optionalMathJaxFontExtensionPackages.contains(segments[1])) {
+      return _safeChildFile(assets.nodeModulesDir, <String>[
+        '@mathjax',
+        ...segments.sublist(1),
+      ]);
     }
 
     if (segments.first == 'mathjax' && assets.mathJaxDir != null) {
@@ -1715,6 +1829,19 @@ final class WkWebViewStudioPaneController implements StudioWebPaneController {
           if (pending != null && !_disposed) {
             unawaited(render(pending));
           }
+        case 'startupError':
+          if (_disposed) {
+            return;
+          }
+          _telemetry.value = _telemetry.value.copyWith(
+            isReady: false,
+            isRendering: false,
+            clearSvg: true,
+            errorMessage:
+                _asStringOrNull(decoded['errorMessage']) ??
+                'Harness startup error',
+            statusSummary: 'Harness error',
+          );
         case 'rendered':
           if (_disposed || _isStaleRenderSequence(seq)) {
             return;

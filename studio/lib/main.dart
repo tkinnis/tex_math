@@ -4,6 +4,7 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:tex_math_flutter/tex_math_flutter.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
@@ -159,6 +160,9 @@ final class _StudioWorkbenchPageState extends State<StudioWorkbenchPage> {
   ];
 
   final GlobalKey _texMathBoundaryKey = GlobalKey();
+  final ScrollController _corpusScrollController = ScrollController();
+  final FocusNode _corpusListFocusNode = FocusNode(debugLabel: 'CorpusList');
+  GlobalKey _selectedCorpusRowKey = GlobalKey();
   late final TextEditingController _sourceController;
   late final TextEditingController _searchController;
 
@@ -166,6 +170,8 @@ final class _StudioWorkbenchPageState extends State<StudioWorkbenchPage> {
   bool _isLoadingCorpus = false;
   int _filteredCorpusCount = 0;
   List<_SidebarRow> _corpusRows = const <_SidebarRow>[];
+  List<StudioCorpusEntry> _visibleCorpusEntries = const <StudioCorpusEntry>[];
+  String? _focusedCorpusEntryId;
 
   StudioLocalAssetServer? _assetServer;
   late final StudioWebPaneController _mathJaxController;
@@ -308,15 +314,26 @@ final class _StudioWorkbenchPageState extends State<StudioWorkbenchPage> {
       _grouping,
     );
     final List<_SidebarRow> rows = <_SidebarRow>[];
+    final List<StudioCorpusEntry> visibleEntries = <StudioCorpusEntry>[];
     for (final MapEntry<String, List<StudioCorpusEntry>> group
         in grouped.entries) {
       rows.add(_SidebarGroupHeader('${group.key} (${group.value.length})'));
       for (final StudioCorpusEntry entry in group.value) {
         rows.add(_SidebarEntryRow(entry));
+        visibleEntries.add(entry);
       }
     }
     _filteredCorpusCount = filtered.length;
     _corpusRows = rows;
+    _visibleCorpusEntries = List<StudioCorpusEntry>.unmodifiable(
+      visibleEntries,
+    );
+    if (_focusedCorpusEntryId != null &&
+        !visibleEntries.any(
+          (StudioCorpusEntry entry) => entry.id == _focusedCorpusEntryId,
+        )) {
+      _focusedCorpusEntryId = null;
+    }
   }
 
   void _recomputeInspection() {
@@ -633,6 +650,8 @@ final class _StudioWorkbenchPageState extends State<StudioWorkbenchPage> {
 
   @override
   void dispose() {
+    _corpusScrollController.dispose();
+    _corpusListFocusNode.dispose();
     _sourceController.dispose();
     _searchController.dispose();
     unawaited(_mathJaxController.dispose());
@@ -675,6 +694,9 @@ final class _StudioWorkbenchPageState extends State<StudioWorkbenchPage> {
       if (_sourceController.text != nextSource) {
         _sourceController.text = nextSource;
       }
+      if (_selectedEntry?.id != entry?.id) {
+        _selectedCorpusRowKey = GlobalKey();
+      }
       _selectedEntry = entry;
       if (displayMode != null) {
         _displayMode = displayMode;
@@ -683,6 +705,151 @@ final class _StudioWorkbenchPageState extends State<StudioWorkbenchPage> {
       _recomputeInspection();
     });
     unawaited(_dispatchWebRender());
+  }
+
+  void _selectCorpusEntry(
+    StudioCorpusEntry entry, {
+    bool requestListFocus = false,
+    bool scrollIntoView = false,
+    bool movingDown = true,
+  }) {
+    _updateSource(
+      entry.tex,
+      entry: entry,
+      displayMode: entry.display
+          ? TexMathDisplayMode.display
+          : TexMathDisplayMode.inline,
+    );
+    if (requestListFocus) {
+      _focusedCorpusEntryId = null;
+      _corpusListFocusNode.requestFocus();
+    }
+    if (scrollIntoView) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _ensureSelectedCorpusRowVisible(entry, movingDown: movingDown);
+      });
+    }
+  }
+
+  void _ensureSelectedCorpusRowVisible(
+    StudioCorpusEntry entry, {
+    required bool movingDown,
+  }) {
+    if (!mounted || _selectedEntry?.id != entry.id) {
+      return;
+    }
+    final ScrollPositionAlignmentPolicy policy = movingDown
+        ? ScrollPositionAlignmentPolicy.keepVisibleAtEnd
+        : ScrollPositionAlignmentPolicy.keepVisibleAtStart;
+    final BuildContext? rowContext = _selectedCorpusRowKey.currentContext;
+    if (rowContext != null) {
+      unawaited(Scrollable.ensureVisible(rowContext, alignmentPolicy: policy));
+      return;
+    }
+    if (!_corpusScrollController.hasClients || _corpusRows.isEmpty) {
+      return;
+    }
+    final int rowIndex = _corpusRows.indexWhere(
+      (_SidebarRow row) => row is _SidebarEntryRow && row.entry.id == entry.id,
+    );
+    if (rowIndex < 0) {
+      return;
+    }
+    final double maxExtent = _corpusScrollController.position.maxScrollExtent;
+    final double targetOffset;
+    if (_visibleCorpusEntries.isNotEmpty &&
+        entry.id == _visibleCorpusEntries.first.id) {
+      targetOffset = 0.0;
+    } else if (_visibleCorpusEntries.isNotEmpty &&
+        entry.id == _visibleCorpusEntries.last.id) {
+      targetOffset = maxExtent;
+    } else {
+      final double ratio = _corpusRows.length <= 1
+          ? 0.0
+          : rowIndex / (_corpusRows.length - 1);
+      targetOffset = (maxExtent * ratio).clamp(0.0, maxExtent);
+    }
+    _corpusScrollController.jumpTo(targetOffset);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _selectedEntry?.id != entry.id) {
+        return;
+      }
+      final BuildContext? updatedContext = _selectedCorpusRowKey.currentContext;
+      if (updatedContext != null) {
+        unawaited(
+          Scrollable.ensureVisible(updatedContext, alignmentPolicy: policy),
+        );
+      }
+    });
+  }
+
+  KeyEventResult _handleCorpusListKeyEvent(FocusNode node, KeyEvent event) {
+    if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
+      return KeyEventResult.ignored;
+    }
+    if (_visibleCorpusEntries.isEmpty) {
+      return KeyEventResult.ignored;
+    }
+
+    final LogicalKeyboardKey key = event.logicalKey;
+    final int? delta;
+    final int? absoluteIndex;
+    final bool movingDown;
+    if (key == LogicalKeyboardKey.arrowDown) {
+      delta = 1;
+      absoluteIndex = null;
+      movingDown = true;
+    } else if (key == LogicalKeyboardKey.arrowUp) {
+      delta = -1;
+      absoluteIndex = null;
+      movingDown = false;
+    } else if (key == LogicalKeyboardKey.pageDown) {
+      delta = 10;
+      absoluteIndex = null;
+      movingDown = true;
+    } else if (key == LogicalKeyboardKey.pageUp) {
+      delta = -10;
+      absoluteIndex = null;
+      movingDown = false;
+    } else if (key == LogicalKeyboardKey.home) {
+      delta = null;
+      absoluteIndex = 0;
+      movingDown = false;
+    } else if (key == LogicalKeyboardKey.end) {
+      delta = null;
+      absoluteIndex = _visibleCorpusEntries.length - 1;
+      movingDown = true;
+    } else {
+      return KeyEventResult.ignored;
+    }
+
+    final int lastIndex = _visibleCorpusEntries.length - 1;
+    final String? anchorId = _focusedCorpusEntryId ?? _selectedEntry?.id;
+    final int anchorIndex = anchorId == null
+        ? -1
+        : _visibleCorpusEntries.indexWhere(
+            (StudioCorpusEntry entry) => entry.id == anchorId,
+          );
+
+    final int nextIndex;
+    if (absoluteIndex != null) {
+      nextIndex = absoluteIndex.clamp(0, lastIndex);
+    } else {
+      final int step = delta!;
+      if (anchorIndex < 0) {
+        nextIndex = step >= 0 ? 0 : lastIndex;
+      } else {
+        nextIndex = (anchorIndex + step).clamp(0, lastIndex);
+      }
+    }
+
+    _selectCorpusEntry(
+      _visibleCorpusEntries[nextIndex],
+      requestListFocus: true,
+      scrollIntoView: true,
+      movingDown: movingDown,
+    );
+    return KeyEventResult.handled;
   }
 
   Future<void> _captureForDiff() async {
@@ -1085,63 +1252,80 @@ final class _StudioWorkbenchPageState extends State<StudioWorkbenchPage> {
           Expanded(
             child: rows.isEmpty
                 ? const Center(child: Text('No matching corpus entries'))
-                : ListView.builder(
-                    itemCount: rows.length,
-                    itemBuilder: (BuildContext context, int index) {
-                      final _SidebarRow row = rows[index];
-                      switch (row) {
-                        case _SidebarGroupHeader(:final String title):
-                          return Padding(
-                            padding: const EdgeInsets.only(
-                              top: 8.0,
-                              bottom: 4.0,
-                              left: 4.0,
-                            ),
-                            child: Text(
-                              title,
-                              style: Theme.of(context).textTheme.labelMedium
-                                  ?.copyWith(fontWeight: FontWeight.w700),
-                            ),
-                          );
-                        case _SidebarEntryRow(:final StudioCorpusEntry entry):
-                          final bool selected = _selectedEntry?.id == entry.id;
-                          return ListTile(
-                            dense: true,
-                            visualDensity: VisualDensity.compact,
-                            selected: selected,
-                            title: Text(
-                              entry.shortName,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            subtitle: Text(
-                              '${entry.package} · '
-                              '${entry.display ? "display" : "inline"} · '
-                              '${entry.expectationStatus ?? entry.acceptanceLabel}',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            trailing: Icon(
-                              entry.accepted
-                                  ? Icons.check_circle_outline
-                                  : Icons.error_outline,
-                              size: 16.0,
-                              color: entry.accepted
-                                  ? Theme.of(context).colorScheme.primary
-                                  : Theme.of(context).colorScheme.error,
-                            ),
-                            onTap: () {
-                              _updateSource(
-                                entry.tex,
-                                entry: entry,
-                                displayMode: entry.display
-                                    ? TexMathDisplayMode.display
-                                    : TexMathDisplayMode.inline,
-                              );
-                            },
-                          );
-                      }
-                    },
+                : Focus(
+                    focusNode: _corpusListFocusNode,
+                    skipTraversal: true,
+                    onKeyEvent: _handleCorpusListKeyEvent,
+                    child: ListView.builder(
+                      controller: _corpusScrollController,
+                      itemCount: rows.length,
+                      itemBuilder: (BuildContext context, int index) {
+                        final _SidebarRow row = rows[index];
+                        switch (row) {
+                          case _SidebarGroupHeader(:final String title):
+                            return Padding(
+                              padding: const EdgeInsets.only(
+                                top: 8.0,
+                                bottom: 4.0,
+                                left: 4.0,
+                              ),
+                              child: Text(
+                                title,
+                                style: Theme.of(context).textTheme.labelMedium
+                                    ?.copyWith(fontWeight: FontWeight.w700),
+                              ),
+                            );
+                          case _SidebarEntryRow(:final StudioCorpusEntry entry):
+                            final bool selected =
+                                _selectedEntry?.id == entry.id;
+                            return ListTile(
+                              key: selected ? _selectedCorpusRowKey : null,
+                              dense: true,
+                              visualDensity: VisualDensity.compact,
+                              selected: selected,
+                              selectedTileColor: Theme.of(context)
+                                  .colorScheme
+                                  .primaryContainer
+                                  .withValues(alpha: 0.45),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(6.0),
+                              ),
+                              onFocusChange: (bool hasFocus) {
+                                if (hasFocus) {
+                                  _focusedCorpusEntryId = entry.id;
+                                } else if (_focusedCorpusEntryId == entry.id) {
+                                  _focusedCorpusEntryId = null;
+                                }
+                              },
+                              title: Text(
+                                entry.shortName,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              subtitle: Text(
+                                '${entry.package} · '
+                                '${entry.display ? "display" : "inline"} · '
+                                '${entry.expectationStatus ?? entry.acceptanceLabel}',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              trailing: Icon(
+                                entry.accepted
+                                    ? Icons.check_circle_outline
+                                    : Icons.error_outline,
+                                size: 16.0,
+                                color: entry.accepted
+                                    ? Theme.of(context).colorScheme.primary
+                                    : Theme.of(context).colorScheme.error,
+                              ),
+                              onTap: () => _selectCorpusEntry(
+                                entry,
+                                requestListFocus: true,
+                              ),
+                            );
+                        }
+                      },
+                    ),
                   ),
           ),
         ],
