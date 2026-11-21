@@ -740,7 +740,7 @@ void main() {
       for (final String html in <String>[mathJaxHtml, katexHtml]) {
         final String stageCss = cssRuleBody(html, '#stage');
         expect(stageCss, contains('display: flex;'));
-        expect(stageCss, contains('padding: 16px;'));
+        expect(stageCss, contains('padding: 4px;'));
         expect(stageCss, contains('overflow: auto;'));
         expect(stageCss, isNot(contains('justify-content: center;')));
         expect(stageCss, isNot(contains('align-items: center;')));
@@ -751,6 +751,13 @@ void main() {
         final String errorBoxCss = cssRuleBody(html, '#error-box');
         expect(errorBoxCss, contains('margin: auto;'));
       }
+
+      expect(mathJaxHtml, contains('syncMathJaxStylesheet'));
+      expect(mathJaxHtml, contains('MathJax.svgStylesheet'));
+      expect(mathJaxHtml, contains('MJX-SVG-styles'));
+
+      final String katexBodyCss = cssRuleBody(katexHtml, 'html, body');
+      expect(katexBodyCss, contains('-webkit-font-smoothing: antialiased;'));
 
       final int cssLinkIndex = katexHtml.indexOf(
         '<link rel="stylesheet" href="http://127.0.0.1:9999/s/tok123/katex/katex.min.css">',

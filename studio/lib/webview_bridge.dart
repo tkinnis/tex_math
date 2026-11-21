@@ -480,12 +480,13 @@ final class StudioWebHarnessBuilder {
     margin: 0; padding: 0; width: 100%; height: 100%;
     background: var(--bg); color: var(--fg);
     font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+    -webkit-font-smoothing: antialiased;
   }
   #stage {
     box-sizing: border-box;
     min-height: 100%;
     display: flex;
-    padding: 16px;
+    padding: 4px;
     overflow: auto;
   }
   #math-out {
@@ -542,6 +543,23 @@ function reportStartupError(message) {
     window.addEventListener('DOMContentLoaded', applyDom, { once: true });
   }
   postBridge({ type: 'startupError', errorMessage: detail });
+}
+
+function syncMathJaxStylesheet() {
+  if (typeof MathJax === 'undefined' || typeof MathJax.svgStylesheet !== 'function') {
+    return;
+  }
+  const sheet = MathJax.svgStylesheet();
+  if (!sheet) {
+    return;
+  }
+  const id = sheet.id || 'MJX-SVG-styles';
+  const existing = document.getElementById(id);
+  if (existing && existing.parentNode) {
+    existing.parentNode.replaceChild(sheet, existing);
+  } else if (document.head) {
+    document.head.appendChild(sheet);
+  }
 }
 
 window.addEventListener('error', (event) => {
@@ -617,6 +635,7 @@ window.MathJax = {
     typeset: false,
     ready: () => {
       MathJax.startup.defaultReady();
+      syncMathJaxStylesheet();
       window.__mjReady = true;
       postBridge({ type: 'ready' });
       if (window.__pendingRender) {
@@ -685,6 +704,7 @@ window.studioRender = async function(req) {
     if (seq !== null && seq !== window.__latestRenderSeq) {
       return;
     }
+    syncMathJaxStylesheet();
     const svg = wrapper.querySelector('svg');
     out.innerHTML = '';
     out.appendChild(wrapper);
@@ -736,6 +756,12 @@ window.studioCapturePng = function(targetW, targetH) {
     const h = Math.max(1, targetH | 0);
     const clone = svg.cloneNode(true);
     clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+    const mjStyle = document.getElementById('MJX-SVG-styles');
+    if (mjStyle && mjStyle.textContent) {
+      const styleEl = document.createElementNS('http://www.w3.org/2000/svg', 'style');
+      styleEl.textContent = mjStyle.textContent;
+      clone.insertBefore(styleEl, clone.firstChild);
+    }
 
     const rect = svg.getBoundingClientRect();
     const drawW = Math.max(1, rect.width || w);
@@ -811,12 +837,13 @@ window.studioCapturePng = function(targetW, targetH) {
     margin: 0; padding: 0; width: 100%; height: 100%;
     background: var(--bg); color: var(--fg);
     font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+    -webkit-font-smoothing: antialiased;
   }
   #stage {
     box-sizing: border-box;
     min-height: 100%;
     display: flex;
-    padding: 16px;
+    padding: 4px;
     overflow: auto;
   }
   #math-out {
