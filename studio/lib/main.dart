@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:tex_math/tex_math.dart';
@@ -73,6 +75,7 @@ final class _TexMathStudioAppState extends State<TexMathStudioApp> {
 
     return MaterialApp(
       title: 'tex_math Studio',
+      debugShowCheckedModeBanner: false,
       themeMode: _isDarkTheme ? ThemeMode.dark : ThemeMode.light,
       theme: ThemeData(colorScheme: lightScheme, useMaterial3: true),
       darkTheme: ThemeData(colorScheme: darkScheme, useMaterial3: true),
@@ -200,6 +203,183 @@ final class _StudioWorkbenchPageState extends State<StudioWorkbenchPage> {
     _katexController = factory(StudioEngineKind.katex, _assetServer);
 
     unawaited(_initializeWebPanes());
+    unawaited(_maybeRunCaptureSpec());
+  }
+
+  Future<void> _maybeRunCaptureSpec() async {
+    if (widget.webPaneControllerFactory != null) {
+      return;
+    }
+    final String? specPath =
+        Platform.environment['TEX_MATH_STUDIO_CAPTURE_SPEC'];
+    if (specPath == null || specPath.isEmpty) {
+      return;
+    }
+    final File specFile = File(specPath);
+    if (!specFile.existsSync()) {
+      return;
+    }
+
+    final Object? decoded = jsonDecode(await specFile.readAsString());
+    if (decoded is! Map<String, Object?>) {
+      return;
+    }
+    final String? handshakeDirPath = decoded['handshakeDir'] as String?;
+    final List<Object?>? rawSteps = decoded['steps'] as List<Object?>?;
+    if (handshakeDirPath == null || rawSteps == null) {
+      return;
+    }
+    final Directory handshakeDir = Directory(handshakeDirPath);
+    if (!handshakeDir.existsSync()) {
+      handshakeDir.createSync(recursive: true);
+    }
+
+    await _waitUntilCondition(
+      () =>
+          _mathFont != null &&
+          _mathJaxController.telemetry.value.isReady &&
+          !_mathJaxController.telemetry.value.isRendering &&
+          _katexController.telemetry.value.isReady &&
+          !_katexController.telemetry.value.isRendering,
+      timeout: const Duration(seconds: 20),
+    );
+
+    for (int index = 0; index < rawSteps.length; index++) {
+      if (!mounted) {
+        return;
+      }
+      final Object? rawStep = rawSteps[index];
+      if (rawStep is! Map<String, Object?>) {
+        continue;
+      }
+      await _executeCaptureStep(
+        index: index,
+        step: rawStep,
+        handshakeDir: handshakeDir,
+      );
+    }
+
+    if (decoded['exitOnComplete'] == true) {
+      await _assetServer?.close();
+      exit(0);
+    }
+  }
+
+  Future<void> _executeCaptureStep({
+    required int index,
+    required Map<String, Object?> step,
+    required Directory handshakeDir,
+  }) async {
+    final String id = (step['id'] as String?) ?? 'step_$index';
+    final String? caseId = step['caseId'] as String?;
+    final StudioCorpusEntry? entry = caseId == null
+        ? null
+        : _findCorpusEntry(caseId);
+    final String nextSource =
+        entry?.tex ?? (step['tex'] as String?) ?? _sourceController.text;
+    final bool? displayOverride = step['display'] as bool?;
+    final TexMathDisplayMode nextDisplay = displayOverride != null
+        ? (displayOverride
+              ? TexMathDisplayMode.display
+              : TexMathDisplayMode.inline)
+        : (entry != null
+              ? (entry.display
+                    ? TexMathDisplayMode.display
+                    : TexMathDisplayMode.inline)
+              : _displayMode);
+    final StudioDiffTarget nextTarget = switch (step['diffTarget'] as String?) {
+      'katex' => StudioDiffTarget.katex,
+      _ => StudioDiffTarget.mathJax,
+    };
+    final StudioComparisonMode targetMode = switch (step['mode'] as String?) {
+      'pixelDiff' => StudioComparisonMode.pixelDiff,
+      'curtainDiff' => StudioComparisonMode.curtainDiff,
+      _ => StudioComparisonMode.sideBySide,
+    };
+
+    setState(() {
+      if (_sourceController.text != nextSource) {
+        _sourceController.text = nextSource;
+      }
+      _selectedEntry = entry;
+      _displayMode = nextDisplay;
+      _diffTarget = nextTarget;
+      _comparisonMode = StudioComparisonMode.sideBySide;
+      _capturedPair = null;
+    });
+
+    await _dispatchWebRender();
+    await _waitUntilCondition(
+      () =>
+          !_mathJaxController.telemetry.value.isRendering &&
+          !_katexController.telemetry.value.isRendering,
+      timeout: const Duration(seconds: 15),
+    );
+    await Future<void>.delayed(const Duration(milliseconds: 550));
+    await WidgetsBinding.instance.endOfFrame;
+
+    if (targetMode != StudioComparisonMode.sideBySide) {
+      await _captureForDiff();
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _comparisonMode = targetMode;
+      });
+      await Future<void>.delayed(const Duration(milliseconds: 550));
+      await WidgetsBinding.instance.endOfFrame;
+    }
+
+    final StudioWebRenderTelemetry mj = _mathJaxController.telemetry.value;
+    final StudioWebRenderTelemetry kx = _katexController.telemetry.value;
+    final File readyFile = File('${handshakeDir.path}/ready_$index.json');
+    await readyFile.writeAsString(
+      jsonEncode(<String, Object?>{
+        'index': index,
+        'id': id,
+        'caseId': caseId,
+        'matchedEntry': entry != null,
+        'mode': targetMode.name,
+        'mathJaxStatus': mj.statusSummary,
+        'mathJaxError': mj.errorMessage,
+        'mathJaxWidthPx': mj.widthPx,
+        'mathJaxHeightPx': mj.heightPx,
+        'katexStatus': kx.statusSummary,
+        'katexError': kx.errorMessage,
+        'katexWidthPx': kx.widthPx,
+        'katexHeightPx': kx.heightPx,
+        'capturedWidth': _capturedPair?.texMathImage.width,
+        'capturedHeight': _capturedPair?.texMathImage.height,
+      }),
+    );
+
+    final File ackFile = File('${handshakeDir.path}/ack_$index');
+    await _waitUntilCondition(
+      ackFile.existsSync,
+      timeout: const Duration(seconds: 30),
+    );
+  }
+
+  StudioCorpusEntry? _findCorpusEntry(String caseId) {
+    for (final StudioCorpusEntry entry in _catalog.entries) {
+      if (entry.id == caseId) {
+        return entry;
+      }
+    }
+    return null;
+  }
+
+  Future<void> _waitUntilCondition(
+    bool Function() predicate, {
+    required Duration timeout,
+  }) async {
+    final Stopwatch stopwatch = Stopwatch()..start();
+    while (!predicate() && stopwatch.elapsed < timeout) {
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      if (!mounted) {
+        return;
+      }
+    }
   }
 
   StudioWebPaneController _defaultPaneControllerFactory(
@@ -382,6 +562,7 @@ final class _StudioWorkbenchPageState extends State<StudioWorkbenchPage> {
           displayMode: _displayMode,
           options: options,
           engine: engine,
+          textStyle: const TextStyle(fontSize: 22.0),
         ),
       ),
     );

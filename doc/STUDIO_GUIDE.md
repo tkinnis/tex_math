@@ -80,12 +80,10 @@ Verify the pure-Dart pixel-diff unit tests, 352-case corpus loader tests, loopba
 
 ### Running Studio as a macOS Desktop Application
 
-`studio/` ships as a workspace Flutter package without committed platform build trees (`macos/`, `linux/`, `windows/`). To launch the interactive `WKWebView` desktop workbench locally on macOS, generate the local runner files and run targeting `macos` inside `studio/`:
+`studio/` includes the macOS desktop runner (`studio/macos/`) so you can launch the interactive `WKWebView` workbench directly from `studio/`:
 
 ```bash
-cd studio
-flutter create --platforms=macos .
-flutter run -d macos
+(cd studio && flutter run -d macos)
 ```
 
 ---

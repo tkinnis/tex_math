@@ -331,7 +331,7 @@ final class StudioWebHarnessBuilder {
   :root { --fg: #111827; --bg: #ffffff; --err-fg: #dc2626; --err-bg: #fef2f2; }
   html, body {
     margin: 0; padding: 0; width: 100%; height: 100%;
-    background: transparent; color: var(--fg);
+    background: var(--bg); color: var(--fg);
     font-family: -apple-system, BlinkMacSystemFont, sans-serif;
   }
   #stage {
@@ -548,7 +548,7 @@ window.studioCapturePng = function(targetW, targetH) {
   :root { --fg: #111827; --bg: #ffffff; --err-fg: #dc2626; --err-bg: #fef2f2; }
   html, body {
     margin: 0; padding: 0; width: 100%; height: 100%;
-    background: transparent; color: var(--fg);
+    background: var(--bg); color: var(--fg);
     font-family: -apple-system, BlinkMacSystemFont, sans-serif;
   }
   #stage {
@@ -1015,48 +1015,63 @@ final class WkWebViewStudioPaneController implements StudioWebPaneController {
       return;
     }
 
-    final String origin = await assetServer!.start();
-    if (_disposed) {
-      return;
+    try {
+      final String origin = await assetServer!.start();
+      if (_disposed) {
+        return;
+      }
+
+      final PlatformWebViewControllerCreationParams params =
+          WebViewPlatform.instance is WebKitWebViewPlatform
+          ? WebKitWebViewControllerCreationParams(
+              allowsInlineMediaPlayback: true,
+            )
+          : const PlatformWebViewControllerCreationParams();
+
+      final WebViewController controller =
+          WebViewController.fromPlatformCreationParams(params);
+      await controller.setJavaScriptMode(JavaScriptMode.unrestricted);
+      if (!Platform.isMacOS) {
+        await controller.setBackgroundColor(Colors.transparent);
+      }
+      await controller.addJavaScriptChannel(
+        'StudioBridge',
+        onMessageReceived: _handleBridgeMessage,
+      );
+      await controller.setNavigationDelegate(
+        NavigationDelegate(
+          onWebResourceError: (WebResourceError error) {
+            if (_disposed) {
+              return;
+            }
+            _telemetry.value = _telemetry.value.copyWith(
+              isRendering: false,
+              errorMessage: error.description,
+              statusSummary: 'Resource error',
+            );
+          },
+        ),
+      );
+
+      if (controller.platform case final WebKitWebViewController wkController) {
+        await wkController.setInspectable(kDebugMode);
+      }
+
+      _webController = controller;
+      final String route = engineKind == StudioEngineKind.mathJax
+          ? '/mathjax-harness.html'
+          : '/katex-harness.html';
+      await controller.loadRequest(Uri.parse('$origin$route'));
+    } on Object catch (error) {
+      if (_disposed) {
+        return;
+      }
+      _telemetry.value = _telemetry.value.copyWith(
+        isRendering: false,
+        errorMessage: error.toString(),
+        statusSummary: 'Init error',
+      );
     }
-
-    final PlatformWebViewControllerCreationParams params =
-        WebViewPlatform.instance is WebKitWebViewPlatform
-        ? WebKitWebViewControllerCreationParams(allowsInlineMediaPlayback: true)
-        : const PlatformWebViewControllerCreationParams();
-
-    final WebViewController controller =
-        WebViewController.fromPlatformCreationParams(params);
-    await controller.setJavaScriptMode(JavaScriptMode.unrestricted);
-    await controller.setBackgroundColor(Colors.transparent);
-    await controller.addJavaScriptChannel(
-      'StudioBridge',
-      onMessageReceived: _handleBridgeMessage,
-    );
-    await controller.setNavigationDelegate(
-      NavigationDelegate(
-        onWebResourceError: (WebResourceError error) {
-          if (_disposed) {
-            return;
-          }
-          _telemetry.value = _telemetry.value.copyWith(
-            isRendering: false,
-            errorMessage: error.description,
-            statusSummary: 'Resource error',
-          );
-        },
-      ),
-    );
-
-    if (controller.platform case final WebKitWebViewController wkController) {
-      await wkController.setInspectable(kDebugMode);
-    }
-
-    _webController = controller;
-    final String route = engineKind == StudioEngineKind.mathJax
-        ? '/mathjax-harness.html'
-        : '/katex-harness.html';
-    await controller.loadRequest(Uri.parse('$origin$route'));
   }
 
   void _handleBridgeMessage(JavaScriptMessage message) {

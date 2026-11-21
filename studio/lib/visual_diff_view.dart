@@ -346,7 +346,7 @@ final class _StudioComparisonViewState extends State<StudioComparisonView> {
       return;
     }
 
-    final Color bg = Theme.of(context).colorScheme.surface;
+    final Color bg = _paneCanvasBackground(context);
     final ({StudioCapturedImage left, StudioCapturedImage right}) aligned =
         alignCapturedPair(
           pair.texMathImage,
@@ -406,6 +406,12 @@ final class _StudioComparisonViewState extends State<StudioComparisonView> {
     }
   }
 
+  Color _paneCanvasBackground(BuildContext context) {
+    return Theme.of(context).brightness == Brightness.dark
+        ? const Color(0xFF0F172A)
+        : Colors.white;
+  }
+
   Widget _buildSideBySide(BuildContext context) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -418,7 +424,7 @@ final class _StudioComparisonViewState extends State<StudioComparisonView> {
               child: Container(
                 width: double.infinity,
                 height: double.infinity,
-                color: Theme.of(context).colorScheme.surface,
+                color: _paneCanvasBackground(context),
                 child: widget.texMathPane,
               ),
             ),
