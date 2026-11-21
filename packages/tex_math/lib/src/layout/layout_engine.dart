@@ -727,6 +727,26 @@ class _AppendixGLayoutEngine {
             atomClass: TexMathAtomClass.ord,
             span: node.span,
           );
+        case 'pmb':
+          final MathBox inner = _layoutSequence(
+            node.children,
+            innerState,
+            span: node.span,
+            outerClass: node.atomClass ?? TexMathAtomClass.ord,
+            preserveInnerBoundaryClass: true,
+          );
+          final double shiftEm = 0.0553 * _scale(state);
+          return VBox.positioned(
+            children: <VBoxChild>[
+              VBoxChild(box: inner, xEm: 0.0),
+              VBoxChild(box: inner, xEm: shiftEm),
+            ],
+            widthEm: inner.widthEm + shiftEm,
+            heightEm: inner.heightEm,
+            depthEm: inner.depthEm,
+            atomClass: inner.atomClass,
+            span: node.span,
+          );
         case 'mathchoice':
           if (node.children.length == 4) {
             final int idx;
@@ -820,13 +840,35 @@ class _AppendixGLayoutEngine {
         case 'style':
         case 'data':
           final String? attrVal = node.attributes[role];
-          final MathBox body = _layoutSequence(
+          MathBox body = _layoutSequence(
             node.children,
             innerState,
             span: node.span,
             outerClass: node.atomClass ?? TexMathAtomClass.ord,
             preserveInnerBoundaryClass: true,
           );
+          if (role == 'style' && attrVal != null && attrVal.isNotEmpty) {
+            final ({int? fgArgb, int? bgArgb}) styleColors =
+                _parseCssStyleColors(attrVal);
+            if (styleColors.fgArgb != null) {
+              body = body.withMetadata(
+                colorRole: TexMathColorRole.custom,
+                customColor: styleColors.fgArgb,
+                inheritColor: false,
+              );
+            }
+            if (styleColors.bgArgb != null) {
+              body = _wrapBoxWithFrame(
+                inner: body,
+                padEm: 0.0,
+                backgroundArgb: styleColors.bgArgb,
+                borderStrokeEm: 0.0,
+                borderRole: TexMathColorRole.foreground,
+                borderArgb: null,
+                span: node.span,
+              );
+            }
+          }
           final String anchorId = role == 'cssId' && attrVal != null
               ? attrVal
               : '$role:${attrVal ?? ''}';
@@ -2425,9 +2467,9 @@ class _AppendixGLayoutEngine {
   }
 
   MathBox _layoutTextNode(TextNode node, _LayoutState state) {
-    final TexMathFontVariant? textVariant = textStyleFontVariant(
-      node.styleCommand,
-    );
+    final TexMathFontVariant? textVariant = node.styleCommand == null
+        ? state.fontVariant
+        : textStyleFontVariant(node.styleCommand);
     final _LayoutState textState = state.copyWith(
       fontVariant: textVariant,
       clearFontVariant: textVariant == null,
@@ -3462,6 +3504,35 @@ final RegExp _encloseColorPattern = RegExp(
   r'(?:mathcolor|color)\s*[:=]\s*"?([^";\s]+)"?',
   caseSensitive: false,
 );
+final RegExp _cssImportantSuffixPattern = RegExp(
+  r'\s*!important\s*$',
+  caseSensitive: false,
+);
+
+({int? fgArgb, int? bgArgb}) _parseCssStyleColors(String rawStyle) {
+  int? fgArgb;
+  int? bgArgb;
+  for (final String decl in rawStyle.split(';')) {
+    final int colon = decl.indexOf(':');
+    if (colon <= 0) {
+      continue;
+    }
+    final String key = decl.substring(0, colon).trim().toLowerCase();
+    final String val = decl
+        .substring(colon + 1)
+        .replaceFirst(_cssImportantSuffixPattern, '')
+        .trim();
+    if (val.isEmpty) {
+      continue;
+    }
+    if (key == 'color') {
+      fgArgb = resolveColorSpecArgb(val) ?? fgArgb;
+    } else if (key == 'background-color' || key == 'background') {
+      bgArgb = resolveColorSpecArgb(val) ?? bgArgb;
+    }
+  }
+  return (fgArgb: fgArgb, bgArgb: bgArgb);
+}
 
 bool _startsWithAsciiDigit(String s) {
   if (s.isEmpty) {

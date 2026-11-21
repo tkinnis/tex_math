@@ -598,6 +598,190 @@ void main() {
       );
     });
   });
+
+  group('Text-mode \\textit, \\emph, and nested style toggling', () {
+    test('renders textmacros_styles and textmacros_dashes_emph with Unicode math alphanumerics', () {
+      final DisplayList stylesDl = engine
+          .render(
+            r'\text{normal \textbf{bold} \textit{italic} \texttt{mono} \textsf{sans}}',
+          )
+          .displayList;
+      final List<int> styleCps = stylesDl.items
+          .whereType<GlyphItem>()
+          .where((GlyphItem g) => g.codePoint != 0x00A0 && g.codePoint != 0x20)
+          .map((GlyphItem g) => g.codePoint)
+          .toList();
+      for (final GlyphItem g in stylesDl.items.whereType<GlyphItem>()) {
+        expect(
+          g.glyphId,
+          isNonZero,
+          reason: 'Missing glyph for U+${g.codePoint.toRadixString(16)}',
+        );
+      }
+      expect(styleCps, <int>[
+        // normal
+        0x6E, 0x6F, 0x72, 0x6D, 0x61, 0x6C,
+        // bold
+        0x1D41B, 0x1D428, 0x1D425, 0x1D41D,
+        // italic
+        0x1D456, 0x1D461, 0x1D44E, 0x1D459, 0x1D456, 0x1D450,
+        // mono
+        0x1D696, 0x1D698, 0x1D697, 0x1D698,
+        // sans
+        0x1D5CC, 0x1D5BA, 0x1D5C7, 0x1D5CC,
+      ]);
+
+      final DisplayList emphDl = engine
+          .render(
+            r"\text{a---b, c--d, ``quoted'' \emph{emph}}",
+            options: const TexMathOptions(
+              displayMode: TexMathDisplayMode.inline,
+            ),
+          )
+          .displayList;
+      final List<int> emphCps = emphDl.items
+          .whereType<GlyphItem>()
+          .where((GlyphItem g) => g.codePoint != 0x00A0 && g.codePoint != 0x20)
+          .map((GlyphItem g) => g.codePoint)
+          .toList();
+      for (final GlyphItem g in emphDl.items.whereType<GlyphItem>()) {
+        expect(
+          g.glyphId,
+          isNonZero,
+          reason: 'Missing glyph for U+${g.codePoint.toRadixString(16)}',
+        );
+      }
+      expect(emphCps, <int>[
+        0x61,
+        0x2014,
+        0x62,
+        0x2C,
+        0x63,
+        0x2013,
+        0x64,
+        0x2C,
+        0x201C,
+        0x71,
+        0x75,
+        0x6F,
+        0x74,
+        0x65,
+        0x64,
+        0x201D,
+        0x1D452,
+        0x1D45A,
+        0x1D45D,
+        0x210E,
+      ]);
+    });
+
+    test('toggles nested \\emph and \\textit / \\emph while preserving non-letters and error parity', () {
+      final RenderResult nestedEmph = engine.render(
+        r'\text{\emph{outer \emph{inner} outer}}',
+      );
+      final List<int> nestedCps = nestedEmph.displayList.items
+          .whereType<GlyphItem>()
+          .where((GlyphItem g) => g.codePoint != 0x00A0 && g.codePoint != 0x20)
+          .map((GlyphItem g) => g.codePoint)
+          .toList();
+      expect(nestedCps, <int>[
+        // outer (italic)
+        0x1D45C, 0x1D462, 0x1D461, 0x1D452, 0x1D45F,
+        // inner (upright)
+        0x69, 0x6E, 0x6E, 0x65, 0x72,
+        // outer (italic)
+        0x1D45C, 0x1D462, 0x1D461, 0x1D452, 0x1D45F,
+      ]);
+      final String nestedMathMl = nestedEmph.toMathMl();
+      expect(
+        nestedMathMl,
+        contains('<mtext mathvariant="italic">outer </mtext>'),
+      );
+      expect(nestedMathMl, contains('<mtext>inner</mtext>'));
+      expect(
+        nestedMathMl,
+        contains('<mtext mathvariant="italic"> outer</mtext>'),
+      );
+
+      for (final String tex in const <String>[
+        r'\text{\textit{outer \emph{inner}}}',
+        r'\textit{outer \emph{inner}}',
+      ]) {
+        final List<int> cps = engine
+            .render(tex)
+            .displayList
+            .items
+            .whereType<GlyphItem>()
+            .where(
+              (GlyphItem g) => g.codePoint != 0x00A0 && g.codePoint != 0x20,
+            )
+            .map((GlyphItem g) => g.codePoint)
+            .toList();
+        expect(cps, <int>[
+          0x1D45C,
+          0x1D462,
+          0x1D461,
+          0x1D452,
+          0x1D45F,
+          0x69,
+          0x6E,
+          0x6E,
+          0x65,
+          0x72,
+        ], reason: tex);
+      }
+
+      // Digits, punctuation, and ligatures inside \textit remain unchanged.
+      final List<int> nonAlpha = engine
+          .render(r'\text{\textit{a12--}}')
+          .displayList
+          .items
+          .whereType<GlyphItem>()
+          .map((GlyphItem g) => g.codePoint)
+          .toList();
+      expect(nonAlpha, <int>[0x1D44E, 0x31, 0x32, 0x2013]);
+
+      // Direct TextNode inherits enclosing variant only when styleCommand == null.
+      const MathRootNode inheritTree = MathRootNode(
+        span: SourceSpan.zero,
+        children: <MathNode>[
+          MathGroupNode(
+            span: SourceSpan.zero,
+            fontVariant: TexMathFontVariant.bold,
+            children: <MathNode>[
+              TextNode(span: SourceSpan.zero, text: 'a'),
+              TextNode(
+                span: SourceSpan.zero,
+                text: 'b',
+                styleCommand: 'textrm',
+              ),
+            ],
+          ),
+        ],
+      );
+      final List<int> inheritCps = engine
+          .layout(inheritTree)
+          .items
+          .whereType<GlyphItem>()
+          .map((GlyphItem g) => g.codePoint)
+          .toList();
+      expect(inheritCps, <int>[0x1D41A, 0x62]);
+
+      // MathJax 4.1.3 error parity: \textsl, top-level \emph, and nested \text/\mbox are rejected.
+      for (final String badTex in const <String>[
+        r'\textsl{x}',
+        r'\emph{x}',
+        r'\text{\text{x}}',
+        r'\text{\mbox{x}}',
+      ]) {
+        expect(
+          () => engine.render(badTex),
+          throwsA(isA<TexMathSyntaxError>()),
+          reason: 'Expected syntax error for $badTex',
+        );
+      }
+    });
+  });
 }
 
 File _locateBundledFont() {

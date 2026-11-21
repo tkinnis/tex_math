@@ -101,10 +101,24 @@ final class _TexParser implements TexParserHost {
   int _nestingDepth = 0;
   int _autoTagCounter = 0;
   TexMathFontVariant? _fontVariant;
+  bool _inBoldSymbol = false;
   String? _currentLabelId;
 
   @override
   TexMathFontVariant? get currentFontVariant => _fontVariant;
+
+  TexMathFontVariant? _resolveSymbolVariant(
+    TexMathFontVariant? baseVariant,
+    String value,
+  ) {
+    if (!_inBoldSymbol) {
+      return baseVariant;
+    }
+    return boldSymbolVariantFor(
+      baseVariant,
+      value.isEmpty ? null : value.runes.first,
+    );
+  }
 
   @override
   void enterNesting(SourceSpan span) {
@@ -478,7 +492,10 @@ final class _TexParser implements TexParserHost {
         final TexMathFontVariant? legacyFont = _legacyFontSwitchForCommand(cs);
         if (legacyFont != null) {
           final TexMathFontVariant? prevVariant = _fontVariant;
-          _fontVariant = legacyFont;
+          final TexMathFontVariant effectiveLegacy = _inBoldSymbol
+              ? boldSymbolVariantFor(legacyFont, null)
+              : legacyFont;
+          _fontVariant = effectiveLegacy;
           enterNesting(token.span);
           try {
             final _SeqResult rest = _parseSequence(
@@ -490,7 +507,7 @@ final class _TexParser implements TexParserHost {
               MathGroupNode(
                 span: _mergeSpanList(token.span, rest.nodes),
                 isExplicitGroup: false,
-                fontVariant: legacyFont,
+                fontVariant: effectiveLegacy,
                 children: _unmodifiableNodes(rest.nodes),
               ),
             );
@@ -697,7 +714,10 @@ final class _TexParser implements TexParserHost {
           span: token.span,
           value: token.text,
           atomClass: TexMathAtomClass.ord,
-          fontVariant: _fontVariant ?? TexMathFontVariant.italic,
+          fontVariant: _resolveSymbolVariant(
+            _fontVariant ?? TexMathFontVariant.italic,
+            token.text,
+          ),
         );
 
       case TexTokenKind.other:
@@ -712,6 +732,7 @@ final class _TexParser implements TexParserHost {
     enterNesting(openToken.span);
     macroTable.pushBraceScope();
     final TexMathFontVariant? savedFont = _fontVariant;
+    final bool savedBoldSymbol = _inBoldSymbol;
     try {
       final _SeqResult inner = _parseSequence(stopMode: _StopMode.closeBrace);
       final SourceSpan span = _mergeSpanList(openToken.span, inner.nodes);
@@ -722,6 +743,7 @@ final class _TexParser implements TexParserHost {
       );
     } finally {
       _fontVariant = savedFont;
+      _inBoldSymbol = savedBoldSymbol;
       macroTable.popBraceScope();
       exitNesting();
     }
@@ -742,7 +764,7 @@ final class _TexParser implements TexParserHost {
           span: token.span,
           value: grouped,
           atomClass: TexMathAtomClass.ord,
-          fontVariant: _fontVariant,
+          fontVariant: _resolveSymbolVariant(_fontVariant, grouped),
         );
       }
     }
@@ -761,7 +783,7 @@ final class _TexParser implements TexParserHost {
       span: token.span,
       value: ch,
       atomClass: atomClass,
-      fontVariant: variant,
+      fontVariant: _resolveSymbolVariant(variant, ch),
     );
   }
 
@@ -826,17 +848,87 @@ final class _TexParser implements TexParserHost {
         .trim();
     final int endOffset = closeIdx + closeTag.length;
     cursor.discardRawUntilOffset(endOffset);
-    final String plainText = rawHtml.replaceAll(_htmlTagPattern, '');
     final SourceSpan htmlSpan = SourceSpan(start, endOffset);
     return MathGroupNode(
       span: htmlSpan,
       isExplicitGroup: false,
       role: 'texhtml',
       attributes: <String, String>{'html': rawHtml},
-      children: <MathNode>[
-        TextNode(span: htmlSpan, text: plainText, styleCommand: 'text'),
-      ],
+      children: _parseTexHtmlRuns(rawHtml, htmlSpan),
     );
+  }
+
+  List<MathNode> _parseTexHtmlRuns(String rawHtml, SourceSpan htmlSpan) {
+    final List<({String tag, String style})> styleStack =
+        <({String tag, String style})>[];
+    final List<MathNode> runs = <MathNode>[];
+    final StringBuffer buffer = StringBuffer();
+
+    String currentStyle() =>
+        styleStack.isEmpty ? 'text' : styleStack.last.style;
+
+    void flushBuffer() {
+      if (buffer.isNotEmpty) {
+        runs.add(
+          TextNode(
+            span: htmlSpan,
+            text: buffer.toString(),
+            styleCommand: currentStyle(),
+          ),
+        );
+        buffer.clear();
+      }
+    }
+
+    int cursorPos = 0;
+    for (final RegExpMatch match in _htmlTagPattern.allMatches(rawHtml)) {
+      if (match.start > cursorPos) {
+        buffer.write(rawHtml.substring(cursorPos, match.start));
+      }
+      cursorPos = match.end;
+      final String? parsedTag = _parseHtmlTagName(match.group(0)!);
+      if (parsedTag == null) {
+        continue;
+      }
+      if (parsedTag.startsWith('/')) {
+        final String closeName = parsedTag.substring(1);
+        for (int i = styleStack.length - 1; i >= 0; i--) {
+          if (styleStack[i].tag == closeName) {
+            final String prevStyle = currentStyle();
+            final String nextStyle = styleStack.length == 1
+                ? 'text'
+                : (i == styleStack.length - 1
+                      ? styleStack[i - 1].style
+                      : prevStyle);
+            if (nextStyle != prevStyle) {
+              flushBuffer();
+            }
+            styleStack.removeAt(i);
+            break;
+          }
+        }
+        continue;
+      }
+      final String? mappedStyle = _texHtmlTagStyle(parsedTag);
+      if (mappedStyle == null) {
+        continue;
+      }
+      if (mappedStyle != currentStyle()) {
+        flushBuffer();
+      }
+      styleStack.add((tag: parsedTag, style: mappedStyle));
+    }
+    if (cursorPos < rawHtml.length) {
+      buffer.write(rawHtml.substring(cursorPos));
+    }
+    flushBuffer();
+
+    if (runs.isEmpty) {
+      return <MathNode>[
+        TextNode(span: htmlSpan, text: '', styleCommand: 'text'),
+      ];
+    }
+    return _unmodifiableNodes(runs);
   }
 
   MathNode? _parseControlSequence(TexToken token) {
@@ -1578,17 +1670,19 @@ final class _TexParser implements TexParserHost {
         return parseSubTokens(tokens, span: span, fontVariant: variant);
 
       case 'boldsymbol':
-      case 'pmb':
         if (!activePackages.has('boldsymbol') &&
-            cs == 'boldsymbol' &&
             !activePackages.tryAutoloadCommand(cs)) {
           break;
         }
         final List<TexToken> tokens = readArgumentTokens(cs);
-        return parseSubTokens(
-          tokens,
-          span: span,
-          fontVariant: TexMathFontVariant.boldItalic,
+        return parseSubTokens(tokens, span: span, inBoldSymbol: true);
+
+      case 'pmb':
+        final MathNode arg = _parseRequiredArgNode('pmb');
+        return MathGroupNode(
+          span: span.merge(arg.span),
+          role: 'pmb',
+          children: _unmodifiableNodes(<MathNode>[arg]),
         );
 
       case 'mathbbm':
@@ -2211,11 +2305,15 @@ final class _TexParser implements TexParserHost {
         }
         final String codeStr = readArgumentText(cs).trim();
         final int cp = _parseCodePoint(codeStr, span);
+        final String val = String.fromCharCode(cp);
         return SymbolNode(
           span: span,
-          value: String.fromCharCode(cp),
+          value: val,
           command: cs,
-          fontVariant: _fontVariant ?? TexMathFontVariant.normal,
+          fontVariant: _resolveSymbolVariant(
+            _fontVariant ?? TexMathFontVariant.normal,
+            val,
+          ),
         );
       case 'char':
         if (!activePackages.has('unicode') &&
@@ -2223,11 +2321,15 @@ final class _TexParser implements TexParserHost {
           break;
         }
         final int cp = _readTexCharCodePoint(span);
+        final String val = String.fromCharCode(cp);
         return SymbolNode(
           span: span,
-          value: String.fromCharCode(cp),
+          value: val,
           command: 'char',
-          fontVariant: _fontVariant ?? TexMathFontVariant.normal,
+          fontVariant: _resolveSymbolVariant(
+            _fontVariant ?? TexMathFontVariant.normal,
+            val,
+          ),
         );
 
       // Verb
@@ -2385,7 +2487,10 @@ final class _TexParser implements TexParserHost {
         value: spec.unicode,
         command: cs,
         atomClass: spec.atomClass,
-        fontVariant: _fontVariant ?? spec.fontVariant,
+        fontVariant: _resolveSymbolVariant(
+          _fontVariant ?? spec.fontVariant,
+          spec.unicode,
+        ),
         isStretchy: spec.isStretchy,
       );
     }
@@ -3535,8 +3640,14 @@ final class _TexParser implements TexParserHost {
     TexMathDisplayMode? displayMode,
     TexMathFontVariant? fontVariant,
     bool isExplicitGroup = false,
+    bool inBoldSymbol = false,
   }) {
     enterNesting(span);
+    final bool effectiveBoldSymbol = inBoldSymbol || _inBoldSymbol;
+    final TexMathFontVariant? effectiveFontVariant =
+        fontVariant != null && effectiveBoldSymbol
+        ? boldSymbolVariantFor(fontVariant, null)
+        : fontVariant;
     final TexTokenCursor subCursor = TexTokenCursor(
       source: source,
       initialTokens: tokens,
@@ -3556,18 +3667,21 @@ final class _TexParser implements TexParserHost {
             labels: _labels,
           )
           .._nestingDepth = _nestingDepth
-          .._fontVariant = fontVariant ?? _fontVariant;
+          .._fontVariant = effectiveFontVariant ?? _fontVariant
+          .._inBoldSymbol = effectiveBoldSymbol;
     macroTable.pushBraceScope();
     try {
       final _SeqResult res = subParser._parseSequence(stopMode: _StopMode.eof);
-      if (res.nodes.length == 1 && fontVariant == null && !isExplicitGroup) {
+      if (res.nodes.length == 1 &&
+          effectiveFontVariant == null &&
+          !isExplicitGroup) {
         return res.nodes.first;
       }
       return MathGroupNode(
         span: _mergeSpanList(span, res.nodes),
         children: _unmodifiableNodes(res.nodes),
         isExplicitGroup: isExplicitGroup,
-        fontVariant: fontVariant,
+        fontVariant: effectiveFontVariant,
       );
     } finally {
       macroTable.popBraceScope();
@@ -4476,7 +4590,9 @@ final class _TextModeParser {
                 (cs == 'textbb' || cs == 'textbfbb'))) {
           flushText();
           final List<TexToken> innerTokens = _readTextArgTokens();
-          final String nextStyle = cs == 'emph' ? 'textit' : cs;
+          final String nextStyle = cs == 'emph'
+              ? (activeStyle == 'textit' ? 'textrm' : 'textit')
+              : cs;
           final TextNode nested;
           host.enterNesting(tok.span);
           try {
@@ -4877,6 +4993,44 @@ String _composeAccent(String ch, String combining) {
 }
 
 final RegExp _htmlTagPattern = RegExp(r'<[^>]*>');
+final RegExp _htmlTagNamePattern = RegExp(r'^([a-zA-Z][a-zA-Z0-9]*)');
+
+String? _parseHtmlTagName(String tag) {
+  if (tag.length < 3) {
+    return null;
+  }
+  final String inner = tag.substring(1, tag.length - 1).trim();
+  if (inner.isEmpty || inner.startsWith('!') || inner.startsWith('?')) {
+    return null;
+  }
+  final bool isClosing = inner.startsWith('/');
+  final String body = (isClosing ? inner.substring(1) : inner).trimLeft();
+  if (!isClosing && body.endsWith('/')) {
+    return null;
+  }
+  final RegExpMatch? m = _htmlTagNamePattern.firstMatch(body);
+  if (m == null) {
+    return null;
+  }
+  return '${isClosing ? '/' : ''}${m.group(1)!.toLowerCase()}';
+}
+
+String? _texHtmlTagStyle(String tagName) {
+  switch (tagName) {
+    case 'em':
+    case 'i':
+      return 'textit';
+    case 'strong':
+    case 'b':
+      return 'textbf';
+    case 'code':
+    case 'tt':
+      return 'texttt';
+    default:
+      return null;
+  }
+}
+
 final RegExp _newExtArrowCsPattern = RegExp(r'^\\([a-zA-Z]+|.)$');
 final RegExp _newExtArrowSpacePattern = RegExp(r'^\d+,\d+$');
 final RegExp _dimenSuffixPattern = RegExp(

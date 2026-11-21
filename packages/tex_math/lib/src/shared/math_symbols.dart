@@ -429,6 +429,10 @@ TexMathFontVariant? textStyleFontVariant(String? cmd) {
     case 'textit':
     case 'emph':
       return TexMathFontVariant.italic;
+    case 'textbb':
+      return TexMathFontVariant.doubleStruck;
+    case 'textbfbb':
+      return TexMathFontVariant.doubleStruckBold;
     default:
       return null;
   }
@@ -577,6 +581,63 @@ int firstCodePointOr(String value, int fallback) {
     }
   }
   return u0;
+}
+
+/// Returns the default TeX math font variant for [cp], or `null` when upright.
+TexMathFontVariant? defaultMathVariantForCodePoint(int cp) {
+  if ((cp >= 0x41 && cp <= 0x5A) || (cp >= 0x61 && cp <= 0x7A)) {
+    return TexMathFontVariant.italic;
+  }
+  if ((cp >= 0x03B1 && cp <= 0x03C9) ||
+      cp == 0x03D1 ||
+      cp == 0x03D5 ||
+      cp == 0x03D6 ||
+      cp == 0x03F0 ||
+      cp == 0x03F1 ||
+      cp == 0x03F5 ||
+      cp == 0x2202) {
+    return TexMathFontVariant.italic;
+  }
+  return null;
+}
+
+/// Maps [baseVariant] (or the default math variant for [codePoint]) to its bold
+/// counterpart inside `\boldsymbol{...}`.
+TexMathFontVariant boldSymbolVariantFor(
+  TexMathFontVariant? baseVariant,
+  int? codePoint,
+) {
+  final TexMathFontVariant effective =
+      baseVariant ??
+      (codePoint != null ? defaultMathVariantForCodePoint(codePoint) : null) ??
+      TexMathFontVariant.normal;
+  switch (effective) {
+    case TexMathFontVariant.normal:
+      return TexMathFontVariant.bold;
+    case TexMathFontVariant.italic:
+      return TexMathFontVariant.boldItalic;
+    case TexMathFontVariant.script:
+      return TexMathFontVariant.boldScript;
+    case TexMathFontVariant.fraktur:
+      return TexMathFontVariant.boldFraktur;
+    case TexMathFontVariant.sansSerif:
+      return TexMathFontVariant.boldSansSerif;
+    case TexMathFontVariant.sansSerifItalic:
+      return TexMathFontVariant.sansSerifBoldItalic;
+    case TexMathFontVariant.doubleStruck:
+      return TexMathFontVariant.doubleStruckBold;
+    case TexMathFontVariant.bold:
+    case TexMathFontVariant.boldItalic:
+    case TexMathFontVariant.boldScript:
+    case TexMathFontVariant.boldFraktur:
+    case TexMathFontVariant.boldSansSerif:
+    case TexMathFontVariant.sansSerifBoldItalic:
+    case TexMathFontVariant.monospace:
+    case TexMathFontVariant.doubleStruckBold:
+    case TexMathFontVariant.doubleStruckSans:
+    case TexMathFontVariant.doubleStruckMonospace:
+      return effective;
+  }
 }
 
 /// Maps a base Unicode code point and [TexMathFontVariant] to the matching

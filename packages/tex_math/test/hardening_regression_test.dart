@@ -5,7 +5,11 @@ import 'package:test/test.dart';
 import 'package:tex_math/src/font/binary_reader.dart';
 import 'package:tex_math/src/font/variation.dart';
 import 'package:tex_math/src/layout/box.dart';
+import 'package:tex_math/src/layout/glyph_resolve.dart'
+    show defaultMathVariantForCodePoint;
 import 'package:tex_math/src/parser/symbol_map.dart';
+import 'package:tex_math/src/shared/math_symbols.dart'
+    show boldSymbolVariantFor;
 import 'package:tex_math/tex_math.dart';
 
 Uint8List _readBundledMathFontBytes() {
@@ -521,6 +525,93 @@ void main() {
         () => parseTex(r'\unicode{0}'),
         throwsA(isA<TexMathSyntaxError>()),
       );
+    });
+
+    test('AUDIT: boldsymbol scoping, boldSymbolVariantFor, texhtml tag stack, and \\style safety', () {
+      // Re-exported defaultMathVariantForCodePoint and boldSymbolVariantFor contract.
+      expect(defaultMathVariantForCodePoint(0x45), TexMathFontVariant.italic);
+      expect(defaultMathVariantForCodePoint(0x03A3), isNull);
+      expect(
+        boldSymbolVariantFor(TexMathFontVariant.normal, 0x2207),
+        TexMathFontVariant.bold,
+      );
+      expect(
+        boldSymbolVariantFor(TexMathFontVariant.italic, 0x45),
+        TexMathFontVariant.boldItalic,
+      );
+      expect(
+        boldSymbolVariantFor(TexMathFontVariant.script, 0x41),
+        TexMathFontVariant.boldScript,
+      );
+      expect(
+        boldSymbolVariantFor(TexMathFontVariant.fraktur, 0x41),
+        TexMathFontVariant.boldFraktur,
+      );
+      expect(
+        boldSymbolVariantFor(TexMathFontVariant.sansSerif, 0x41),
+        TexMathFontVariant.boldSansSerif,
+      );
+      expect(
+        boldSymbolVariantFor(TexMathFontVariant.sansSerifItalic, 0x41),
+        TexMathFontVariant.sansSerifBoldItalic,
+      );
+      expect(
+        boldSymbolVariantFor(TexMathFontVariant.doubleStruck, 0x52),
+        TexMathFontVariant.doubleStruckBold,
+      );
+
+      final TexMathEngine engine = TexMathEngine(font: bundledFont);
+
+      // \boldsymbol scope does not leak past its brace argument.
+      final List<int> scopedCps = engine
+          .render(r'{\boldsymbol{x}} y')
+          .displayList
+          .items
+          .whereType<GlyphItem>()
+          .map((GlyphItem g) => g.codePoint)
+          .toList();
+      expect(scopedCps, <int>[0x1D499, 0x1D466]);
+
+      // Malformed/unknown/empty <tex-html> tags never drop text or emit empty runs.
+      const TexMathOptions htmlOpts = TexMathOptions(
+        packages: <String>['base', 'html', 'texhtml'],
+      );
+      final MathGroupNode emptyHtml =
+          (parseTex(
+                '<tex-html><em></em></tex-html>',
+                options: htmlOpts,
+              ) as MathRootNode).children.single
+              as MathGroupNode;
+      expect(emptyHtml.children, hasLength(1));
+      final TextNode emptyText = emptyHtml.children.single as TextNode;
+      expect(emptyText.text, isEmpty);
+      expect(emptyText.styleCommand, 'text');
+
+      final List<int> unknownWrapped = engine
+          .render(
+            '<tex-html><em>a<span>b</span>c</em></tex-html>',
+            options: htmlOpts,
+          )
+          .displayList
+          .items
+          .whereType<GlyphItem>()
+          .map((GlyphItem g) => g.codePoint)
+          .toList();
+      expect(unknownWrapped, <int>[0x1D44E, 0x1D44F, 0x1D450]);
+
+      // Invalid/unsafe CSS values in \style are ignored cleanly.
+      final DisplayList badStyleDl = engine
+          .render(
+            r'\style{color: notacolor; background-color: url(evil)}{x}',
+            options: htmlOpts,
+          )
+          .displayList;
+      expect(badStyleDl.items.whereType<RuleItem>(), isEmpty);
+      final GlyphItem badStyleGlyph = badStyleDl.items
+          .whereType<GlyphItem>()
+          .single;
+      expect(badStyleGlyph.colorRole, TexMathColorRole.foreground);
+      expect(badStyleGlyph.customColor, isNull);
     });
   });
 }

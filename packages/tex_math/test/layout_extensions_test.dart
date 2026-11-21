@@ -459,6 +459,291 @@ void main() {
     });
   });
 
+  group('Core audit parity fixes (bboldx, texhtml, boldsymbol, pmb, style)', () {
+    test('renders \\textbb, \\textbfbb, and Unicode bboldx delimiters with non-zero glyphs', () {
+      final DisplayList textBbDl = engine
+          .render(
+            r'\text{\textbb{A} \textbfbb{B}}',
+            options: const TexMathOptions(
+              displayMode: TexMathDisplayMode.inline,
+              packages: <String>['base', 'textmacros', 'bboldx'],
+            ),
+          )
+          .displayList;
+      final List<GlyphItem> textBbGlyphs = textBbDl.items
+          .whereType<GlyphItem>()
+          .toList();
+      for (final GlyphItem g in textBbGlyphs) {
+        expect(g.glyphId, isNonZero);
+      }
+      final List<int> textBbLetters = textBbGlyphs
+          .where((GlyphItem g) => g.codePoint != 0x00A0 && g.codePoint != 0x20)
+          .map((GlyphItem g) => g.codePoint)
+          .toList();
+      expect(textBbLetters, <int>[0x1D538, 0x1D539]);
+
+      final DisplayList delimsDl = engine
+          .render(
+            r'\bbLparen x \bbRparen + \mathbfbb{R} + \bfbbSigma',
+            options: const TexMathOptions(
+              displayMode: TexMathDisplayMode.display,
+              packages: <String>['base', 'bboldx'],
+            ),
+          )
+          .displayList;
+      final List<GlyphItem> delimGlyphs = delimsDl.items
+          .whereType<GlyphItem>()
+          .toList();
+      for (final GlyphItem g in delimGlyphs) {
+        expect(
+          g.glyphId,
+          isNonZero,
+          reason: 'U+${g.codePoint.toRadixString(16)}',
+        );
+      }
+      expect(delimGlyphs.map((GlyphItem g) => g.codePoint).toList(), <int>[
+        0x2985,
+        0x1D465,
+        0x2986,
+        0x2B,
+        0x211D,
+        0x2B,
+        0x03A3,
+      ]);
+
+      final DisplayList allDelimsDl = engine
+          .render(
+            r'\bbLbrack x \bbRbrack \bbLbrace y \bbRbrace \bbLangle z \bbRangle',
+            options: const TexMathOptions(packages: <String>['base', 'bboldx']),
+          )
+          .displayList;
+      final List<GlyphItem> allDelimGlyphs = allDelimsDl.items
+          .whereType<GlyphItem>()
+          .toList();
+      for (final GlyphItem g in allDelimGlyphs) {
+        expect(g.glyphId, isNonZero);
+      }
+      expect(allDelimGlyphs.map((GlyphItem g) => g.codePoint).toList(), <int>[
+        0x27E6,
+        0x1D465,
+        0x27E7,
+        0x2983,
+        0x1D466,
+        0x2984,
+        0x27EA,
+        0x1D467,
+        0x27EB,
+      ]);
+    });
+
+    test(
+      'renders <tex-html> inline emphasis, bold, code, and stripped tags',
+      () {
+        const TexMathOptions texHtmlOpts = TexMathOptions(
+          displayMode: TexMathDisplayMode.inline,
+          packages: <String>['base', 'texhtml'],
+        );
+        final RenderResult emRes = engine.render(
+          '<tex-html><em>label</em></tex-html> = 1',
+          options: texHtmlOpts,
+        );
+        final List<GlyphItem> emGlyphs = emRes.displayList.items
+            .whereType<GlyphItem>()
+            .toList();
+        for (final GlyphItem g in emGlyphs) {
+          expect(g.glyphId, isNonZero);
+        }
+        expect(emGlyphs.map((GlyphItem g) => g.codePoint).toList(), <int>[
+          0x1D459,
+          0x1D44E,
+          0x1D44F,
+          0x1D452,
+          0x1D459,
+          0x3D,
+          0x31,
+        ]);
+
+        final RenderResult multiRes = engine.render(
+          '<tex-html><strong>hi</strong> <em>em</em></tex-html>',
+          options: texHtmlOpts,
+        );
+        final List<GlyphItem> multiGlyphs = multiRes.displayList.items
+            .whereType<GlyphItem>()
+            .toList();
+        for (final GlyphItem g in multiGlyphs) {
+          expect(g.glyphId, isNonZero);
+        }
+        expect(multiGlyphs.map((GlyphItem g) => g.codePoint).toList(), <int>[
+          0x1D421,
+          0x1D422,
+          0x00A0,
+          0x1D452,
+          0x1D45A,
+        ]);
+
+        final MathGroupNode spanNode =
+            (parseTex(
+                  '<tex-html><span>note</span></tex-html>',
+                  options: texHtmlOpts,
+                ) as MathRootNode).children.single
+                as MathGroupNode;
+        expect(spanNode.role, 'texhtml');
+        expect(spanNode.attributes['html'], '<span>note</span>');
+        expect(spanNode.children, hasLength(1));
+        final TextNode spanText = spanNode.children.single as TextNode;
+        expect(spanText.text, 'note');
+        expect(spanText.styleCommand, 'text');
+
+        final List<int> codeCps = engine
+            .render(
+              '<tex-html><code>ab</code></tex-html>',
+              options: texHtmlOpts,
+            )
+            .displayList
+            .items
+            .whereType<GlyphItem>()
+            .map((GlyphItem g) => g.codePoint)
+            .toList();
+        expect(codeCps, <int>[0x1D68A, 0x1D68B]);
+      },
+    );
+
+    test('maps \\boldsymbol variants faithfully to bold vs boldItalic', () {
+      final DisplayList opsDl = engine
+          .render(
+            r'\boldsymbol{\nabla} \times \boldsymbol{E} = -\frac{\partial \boldsymbol{B}}{\partial t}',
+          )
+          .displayList;
+      final List<GlyphItem> opsGlyphs = opsDl.items
+          .whereType<GlyphItem>()
+          .toList();
+      for (final GlyphItem g in opsGlyphs) {
+        expect(g.glyphId, isNonZero);
+      }
+      expect(opsGlyphs[0].codePoint, 0x1D6C1);
+      expect(opsGlyphs[2].codePoint, 0x1D46C);
+      expect(opsGlyphs[6].codePoint, 0x1D469);
+
+      final DisplayList mixedDl = engine
+          .render(
+            r'\boldsymbol{\Sigma} + \boldsymbol{2} + \boldsymbol{\alpha} + \boldsymbol{\mathcal{A}} + \boldsymbol{\mathrm{x}} + \boldsymbol{\mathbb{R}} + \boldsymbol{\unicode{x41}}',
+          )
+          .displayList;
+      final List<GlyphItem> mixedGlyphs = mixedDl.items
+          .whereType<GlyphItem>()
+          .toList();
+      for (final GlyphItem g in mixedGlyphs) {
+        expect(g.glyphId, isNonZero);
+      }
+      expect(mixedGlyphs.map((GlyphItem g) => g.codePoint).toList(), <int>[
+        0x1D6BA,
+        0x2B,
+        0x1D7D0,
+        0x2B,
+        0x1D736,
+        0x2B,
+        0x1D4D0,
+        0x2B,
+        0x1D431,
+        0x2B,
+        0x211D,
+        0x2B,
+        0x1D400,
+      ]);
+    });
+
+    test('renders \\pmb as dual overprinted glyphs shifted by ~0.0553em', () {
+      final DisplayList pmbDl = engine
+          .render(r'\pmb{x} + \pmb{\Sigma} + \pmb{\infty}')
+          .displayList;
+      final List<GlyphItem> glyphs = pmbDl.items
+          .whereType<GlyphItem>()
+          .toList();
+      expect(glyphs, hasLength(8));
+      for (final GlyphItem g in glyphs) {
+        expect(g.glyphId, isNonZero);
+      }
+      expect(glyphs[0].codePoint, 0x1D465);
+      expect(glyphs[1].codePoint, 0x1D465);
+      expect(glyphs[1].xEm - glyphs[0].xEm, closeTo(0.0553, 1e-6));
+      expect(glyphs[2].codePoint, 0x2B);
+      expect(glyphs[3].codePoint, 0x03A3);
+      expect(glyphs[4].codePoint, 0x03A3);
+      expect(glyphs[4].xEm - glyphs[3].xEm, closeTo(0.0553, 1e-6));
+      expect(glyphs[5].codePoint, 0x2B);
+      expect(glyphs[6].codePoint, 0x221E);
+      expect(glyphs[7].codePoint, 0x221E);
+      expect(glyphs[7].xEm - glyphs[6].xEm, closeTo(0.0553, 1e-6));
+
+      final List<GlyphItem> subPmb = engine
+          .render(r'a_{\pmb{x}}')
+          .displayList
+          .items
+          .whereType<GlyphItem>()
+          .toList();
+      expect(subPmb, hasLength(3));
+      expect(
+        subPmb[2].xEm - subPmb[1].xEm,
+        closeTo(0.0553 * subPmb[1].scaleX, 1e-4),
+      );
+    });
+
+    test('applies CSS color and background-color in \\style while keeping AnchorItem and geometry', () {
+      final DisplayList plainDl = engine.render('a + b').displayList;
+      final DisplayList styledDl = engine
+          .render(r'\style{color: teal}{a + b}', options: _allOpts())
+          .displayList;
+
+      expect(styledDl.metrics.widthEm, closeTo(plainDl.metrics.widthEm, 1e-9));
+      expect(
+        styledDl.metrics.heightEm,
+        closeTo(plainDl.metrics.heightEm, 1e-9),
+      );
+      expect(styledDl.metrics.depthEm, closeTo(plainDl.metrics.depthEm, 1e-9));
+
+      final List<AnchorItem> anchors = styledDl.items
+          .whereType<AnchorItem>()
+          .toList();
+      expect(anchors, hasLength(1));
+      expect(anchors.single.id, 'style:color: teal');
+
+      final List<GlyphItem> styledGlyphs = styledDl.items
+          .whereType<GlyphItem>()
+          .toList();
+      expect(styledGlyphs, hasLength(3));
+      for (final GlyphItem g in styledGlyphs) {
+        expect(g.colorRole, TexMathColorRole.custom);
+        expect(g.customColor, 0xFF008080);
+      }
+
+      final DisplayList bgDl = engine
+          .render(
+            r'\style{background-color: #FFFF00; color: #FF0000 !important}{x}',
+            options: _allOpts(),
+          )
+          .displayList;
+      final RuleItem bgRule = bgDl.items.whereType<RuleItem>().single;
+      expect(bgRule.strokeWidthEm, isNull);
+      expect(bgRule.colorRole, TexMathColorRole.custom);
+      expect(bgRule.customColor, 0xFFFFFF00);
+      final GlyphItem bgGlyph = bgDl.items.whereType<GlyphItem>().single;
+      expect(bgGlyph.colorRole, TexMathColorRole.custom);
+      expect(bgGlyph.customColor, 0xFFFF0000);
+
+      final DisplayList bgOnlyDl = engine
+          .render(r'\style{background-color: #FFFF00}{x}', options: _allOpts())
+          .displayList;
+      expect(
+        bgOnlyDl.items.whereType<RuleItem>().single.customColor,
+        0xFFFFFF00,
+      );
+      expect(
+        bgOnlyDl.items.whereType<AnchorItem>().single.id,
+        'style:background-color: #FFFF00',
+      );
+    });
+  });
+
   group('Color models, colortbl bounds, framed boxes, and corpus geometry', () {
     test(
       'renders [RGB], [rgb], [HTML], and [gray] into expected ARGB and SVG',

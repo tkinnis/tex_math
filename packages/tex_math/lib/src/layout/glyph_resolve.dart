@@ -3,7 +3,10 @@ import '../font.dart';
 import '../shared/math_symbols.dart';
 
 export '../shared/math_symbols.dart'
-    show firstCodePointOr, singleCodePointOrNull;
+    show
+        defaultMathVariantForCodePoint,
+        firstCodePointOr,
+        singleCodePointOrNull;
 
 /// Resolves both the effective code point and glyph ID for [baseCodePoint]
 /// without duplicate `cmap` binary searches when variant mapping succeeds.
@@ -14,9 +17,7 @@ export '../shared/math_symbols.dart'
   bool isTextMode = false,
 }) {
   if (isTextMode) {
-    if (variant == null ||
-        variant == TexMathFontVariant.normal ||
-        variant == TexMathFontVariant.italic) {
+    if (variant == null || variant == TexMathFontVariant.normal) {
       return (baseCodePoint, font.glyphIdForCodePoint(baseCodePoint));
     }
     final int mapped = mathUnicodeCodePoint(baseCodePoint, variant);
@@ -71,22 +72,4 @@ export '../shared/math_symbols.dart'
     }
   }
   return (baseCodePoint, font.glyphIdForCodePoint(baseCodePoint));
-}
-
-/// Returns the default TeX math font variant for [cp], or `null` when upright.
-TexMathFontVariant? defaultMathVariantForCodePoint(int cp) {
-  if ((cp >= 0x41 && cp <= 0x5A) || (cp >= 0x61 && cp <= 0x7A)) {
-    return TexMathFontVariant.italic;
-  }
-  if ((cp >= 0x03B1 && cp <= 0x03C9) ||
-      cp == 0x03D1 ||
-      cp == 0x03D5 ||
-      cp == 0x03D6 ||
-      cp == 0x03F0 ||
-      cp == 0x03F1 ||
-      cp == 0x03F5 ||
-      cp == 0x2202) {
-    return TexMathFontVariant.italic;
-  }
-  return null;
 }
