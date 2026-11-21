@@ -97,7 +97,7 @@ dart run tool/benchmark_suite.dart --update-docs --update-baseline
 dart run tool/generate_doc_images.dart
 ```
 
-If [`doc/COVERAGE.md`](COVERAGE.md) totals changed, update the corresponding summary figures in [`README.md`](../README.md) so they match verbatim.
+If [`doc/COVERAGE.md`](COVERAGE.md) totals or [`doc/BENCHMARKS.md`](BENCHMARKS.md) metrics changed, update the summary tables in [`README.md`](../README.md), [`packages/tex_math/README.md`](../packages/tex_math/README.md), and [`packages/tex_math_flutter/README.md`](../packages/tex_math_flutter/README.md) so they match verbatim.
 
 ### Step 5: Verify All Workspace Gates
 
@@ -113,5 +113,6 @@ dart analyze --fatal-infos
 dart run tool/check_versions.dart
 dart run tool/verify_against_mathjax.dart
 dart run tool/sync_reference.dart --verify
+dart run tool/generate_doc_images.dart --check
 dart run tool/benchmark_suite.dart --check-regressions
 ```

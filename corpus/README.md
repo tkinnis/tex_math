@@ -35,7 +35,7 @@ When `% packages:` is omitted, `tool/oracle/render.mjs` enables the 29 JupyterLa
 
 ## Error Classes
 
-Refused cases in `corpus/errors/` assert deterministic rejection with a canonical `TexMathErrorClass` identifier mapped from MathJax `TexError` exceptions.
+Refused cases in `corpus/errors/` assert deterministic rejection across the 14 TeX error classes mapped from MathJax `TexError` exceptions (the remaining 2 of the 16 `TexMathErrorClass` values, `invalidFont` and `unsupportedFeature`, represent engine/font errors).
 
 | Error Class | Meaning | Representative MathJax `TexError` IDs |
 | --- | --- | --- |
@@ -56,6 +56,6 @@ Refused cases in `corpus/errors/` assert deterministic rejection with a canonica
 
 ## Oracle Verification and Ad-Hoc SymPy Stress Testing
 
-To inspect raw oracle output for a JSON batch on standard input, pipe items into `node tool/oracle/render.mjs` (passing `--include-svg` when serialized SVG strings are needed). Full repository verification runs via `dart run tool/verify_against_mathjax.dart`, which validates `.tex` metadata against live `tool/oracle/render.mjs`, `corpus/expectations.json`, and `TexMathEngine`.
+To inspect raw oracle output for a JSON batch on standard input, pipe items into `node tool/oracle/render.mjs` (passing `--include-svg` when serialized SVG strings are needed, and `--allow-texhtml` only when testing `texhtml`, as `render.mjs` disables `texhtml` and constrains dynamic imports to `[tex]/...` and `@mathjax/` font chunks by default). Full repository verification runs via `dart run tool/verify_against_mathjax.dart`, which validates `.tex` metadata against live `tool/oracle/render.mjs`, `corpus/expectations.json`, and `TexMathEngine`.
 
 Ad-hoc symbolic stress expressions can be generated locally with `python3 tool/generate_sympy_corpus.py` when `sympy` is installed in the local Python environment. That generator writes temporary `.tex` files strictly into the gitignored `build/sympy_corpus/` directory and pipes them through `node tool/oracle/render.mjs`; generated third-party SymPy output is never placed inside `corpus/` or committed to version control.

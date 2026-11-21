@@ -7,57 +7,52 @@
 ## 1. Scope & Design Goals
 
 * **Zero Runtime WebView or JavaScript**: All TeX tokenization, macro expansion, syntax analysis, OpenType font decoding, layout calculation, and SVG/MathML/spoken-text generation run synchronously in pure Dart inside `packages/tex_math/lib/`.
-* **Strict Pure-Dart Core Boundary**: `packages/tex_math` depends exclusively on `package:meta` and avoids importing `package:flutter`, `dart:ui`, `dart:io`, `dart:html`, or `dart:js*`. Both `MathFont.fromBytes` and `TexMathEngine` run deterministically over caller-provided strings and byte buffers with zero filesystem I/O, network calls, or mutable global state.
-* **No Hand-Built Per-Font Metric Tables**: TeX Appendix G layout constants, glyph advance widths, italics corrections, accent attachments, math kerns, size variants, and extensible assemblies come directly from the parsed OpenType `MATH` table (`NewCMMath-Regular.otf` `8.1.1` by default).
-* **Strict Error Parity & Safety**: Malformed TeX and exceeded safety limits raise structured `TexMathError` exceptions aligned to MathJax's `TexError` taxonomy (`TexMathErrorClass`) rather than silently painting broken expressions.
+* **Strict Pure-Dart Core Boundary**: `packages/tex_math` depends strictly on `package:meta` and never imports `package:flutter`, `dart:ui`, `dart:io`, `dart:html`, or `dart:js*`. Both `MathFont.fromBytes` and `TexMathEngine` run deterministically over caller-provided strings and byte buffers with zero filesystem I/O, network calls, or mutable global state.
+* **OpenType `MATH`-Driven Layout**: Appendix G constants, glyph advance widths, italics corrections, accent attachments, math kerns, size variants, and extensible assemblies come from the parsed OpenType `MATH` table (`NewCMMath-Regular.otf` `8.1.1` by default) rather than hardcoded per-font metric tables.
+* **Strict Error Parity & Safety**: Malformed TeX and exceeded safety limits raise structured `TexMathError` exceptions mapped to `TexMathErrorClass`, bounded by `TexMathBudgets` and hardened font decoders.
 * **Continuous Differential Verification**: Corpus parity and native AOT timings are verified against `tool/oracle/render.mjs` and reported in [`doc/COVERAGE.md`](COVERAGE.md) and [`doc/BENCHMARKS.md`](BENCHMARKS.md).
 
 ---
 
-## 2. Five-Stage Pipeline
+## 2. Five-Stage Pipeline & Module Boundaries
 
-`TexMathEngine` (`packages/tex_math/lib/src/engine.dart`) structures TeX processing into five isolated stages, each with a single clear owner and contract:
+`TexMathEngine` (`packages/tex_math/lib/src/engine.dart`) organizes TeX processing into five unidirectional stages backed by leaf shared tables (`packages/tex_math/lib/src/shared/`), leaf `break_point.dart`, and non-circular font decoders (`packages/tex_math/lib/src/font/`):
 
 ```mermaid
 flowchart LR
-  S0["TeX Source (UTF-16)"] --> S1["1. Tokenizer (Catcodes & SourceSpan)"]
-  S1 --> S2["2. Macro Expander (Budgets & Packages)"]
-  S2 --> S3["3. Parser (MathNode AST & SourceSpan)"]
-  S3 --> S4["4. Appendix G Layout (Box Tree & OpenType MATH)"]
-  S4 --> S5["5. DisplayList & DisplayBreakHints"]
+  S0["TeX Source (UTF-16)"] --> S1["1. Tokenizer (tokenizeTex & SourceSpan)"]
+  S1 --> S23["2 & 3. Interleaved Macro Expansion & Parser (_TexParser)"]
+  S23 -->|"mathNodeToMathMl / mathNodeToSpokenText"| O3["Accessibility (MathML & Spoken Text)"]
+  S23 --> S4["4. Appendix G Layout (Box Tree & OpenType MATH)"]
+  S4 --> S5["5. DisplayList (fontSignature & DisplayBreakHints)"]
   S5 --> O1["Standalone SVG (toSvg)"]
-  S5 --> O2["Flutter Canvas (TexMathPathCache & Painter)"]
-  S3 --> O3["Accessibility (toMathMl & toSpokenText)"]
+  S5 --> O2["Flutter Canvas (TexMathPathCache)"]
+  S23 --> RR["RenderResult (engine.dart)"]
+  S5 --> RR
 ```
 
 ### Stage 1: Tokenizer
 
-Converts raw UTF-16 TeX source (`tokenizeTex`) into catcode-annotated `TexToken` values (escape `\`, begin/end group `{`/`}`, math shift `$`, alignment tab `&`, macro parameter `#`, superscript `^`, subscript `_`, active `~`, comment `%`, letter, and other). Control sequences (`\command` and single-symbol escapes) are scanned via direct `codeUnitAt` indexing without regex backtracking, and every token retains an exact half-open UTF-16 `SourceSpan` pointing back into the original input.
+`tokenizeTex` (`packages/tex_math/lib/src/parser/tokenizer.dart`) scans UTF-16 TeX source via direct `codeUnitAt` indexing without regex backtracking into catcode-annotated `TexToken` values (`escape`, `beginGroup`, `endGroup`, `mathShift`, `alignmentTab`, `parameter`, `superscript`, `subscript`, `active`, `space`, `letter`, `other`, `comment`). Every token retains an exact half-open UTF-16 `SourceSpan`.
 
-### Stage 2: Macro Expander & Package Registry
+### Stages 2 & 3: Interleaved Macro Expansion, Package Registry & Parser
 
-Expands user-defined macros (`\newcommand`, `\renewcommand`, `\providecommand`, `\def`, `\let`, `\newenvironment`, `\renewenvironment`) along with preconfigured `TexMathOptions.macros`. Parameter templates (`#1`–`#9`, optional bracketed defaults, and delimited `\def` patterns) expand eagerly within `TexMathBudgets.maxMacroDepth` and `TexMathBudgets.maxMacroExpansions`, throwing `TexMathMacroError` or `TexMathBudgetError` on invalid definitions or unbounded recursion. `TexActivePackages` tracks enabled packages across all 42 MathJax `4.1.3` extensions in `TexPackageRegistry` and resolves synchronous `\require{pkg}` calls against `TexMathOptions.requireAllowlist` without global state.
+Macro expansion (Stage 2) and AST construction (Stage 3) execute interleaved on demand inside `_TexParser` (`packages/tex_math/lib/src/parser/parser.dart`):
 
-### Stage 3: Parser to Typed Sealed Syntax Tree
-
-Consumes expanded tokens to construct an immutable Dart 3 `sealed class MathNode` syntax tree (`packages/tex_math/lib/src/ast.dart`), preserving `SourceSpan` on every node and enforcing `TexMathBudgets.maxNestingDepth`. Specialized sub-parsers handle `mhchem` chemical formulas (`\ce`, `\pu`), `physics` derivatives and Dirac notation, `amscd` commutative diagrams, `bussproofs` sequent deduction trees, and table/array specifications (`\hline`, column separators, `\cellcolor`, `\rowcolor`, `\tag`). When `TexMathOptions.strictErrors` is `false` or `noerrors` is active, non-budget syntax/macro errors emit `ErrorNode` instead of throwing.
+* **On-Demand Macro Expansion (`TexTokenCursor` & `TexMacroTable`)**: Expands `\newcommand`, `\renewcommand`, `\providecommand`, `\def`/`\gdef`/`\edef`/`\xdef`, `\let`, `\newenvironment`/`\renewenvironment`, and `TexMathOptions.macros` (with `#1`–`#9`, optional defaults, and delimited `\def` patterns) within shared `TexTokenBudgetState` cumulative limits (`maxMacroDepth`, `maxMacroExpansions`, and `maxTokens`) and zero-allocation delimiter lookahead (`matchesDelimiterAhead`).
+* **Synchronous `\require` & 42-Package Registry**: `TexActivePackages` tracks active packages across all 42 MathJax `4.1.3` packages compiled into `TexPackageRegistry` (`package_registry.dart`) and resolves synchronous `\require{pkg}` and `\setOptions` calls against `TexMathOptions.requireAllowlist`.
+* **Immutable 16-Variant Sealed AST**: Builds `@immutable` `sealed class MathNode` trees (`ast.dart`) retaining `SourceSpan` on every node and guarding all recursive parser paths against `maxNestingDepth`. Sub-parsers handle `mhchem` (`\ce`, `\pu`), `physics` (constructing `MatrixNode` directly for `\mqty`, `\imat`, `\xmat`, `\zmat`, `\dmat`), `units` (direct `FractionNode` for `\unitfrac`/`\nicefrac`), `amscd`, `bussproofs`, and table specifications (`environments.dart`, pre-parsing `MatrixNode.columnSeparators` `@{...}`/`!{...}` into `Map<int, MathNode>` during Stage 3 so Stage 4 never calls back into Stage 3). Non-fatal error modes (`strictErrors: false` or `noerrors`) emit `ErrorNode`.
 
 ### Stage 4: TeX Appendix G Layout Engine to Box Tree
 
-Transforms the `MathNode` tree into positioned `HBox`, `VBox`, `GlyphBox`, `RuleBox`, `KernBox`, and `AnchorBox` trees (`packages/tex_math/lib/src/layout/layout_engine.dart`) using TeX's math typesetting rules and `TexMathStyle` transitions (`display`, `text`, `script`, `scriptScript`, and cramped variants):
+`layoutMathTree` (`packages/tex_math/lib/src/layout/layout_engine.dart`) transforms `MathNode` trees into positioned `HBox`, `VBox`, `GlyphBox`, `RuleBox`, `KernBox`, and `AnchorBox` nodes using leaf `src/shared/` tables (`colors.dart`, `layout_constants.dart`, `math_symbols.dart`) with zero `src/parser/` imports:
 
-* **Atom Classification, Spacing & Break Hints**: Assigns TeX atom classes (`Ord`, `Op`, `Bin`, `Rel`, `Open`, `Close`, `Punct`, `Inner`), applies Appendix G Rules 5–6 binary-to-ordinary promotions, inserts inter-atom spacing (`thinmuskip`, `medmuskip`, `thickmuskip`), and records top-level `BreakPoint` / `DisplayBreakHint` metadata (`afterBinary`, `afterRelation`, `penalty`, `explicit`).
-* **Construct Layout**: Positions fractions (numerator/denominator shifts, rule thickness, `\binom`, bevelled `\nicefrac`), radicals (surd assembly, vinculum thickness, vertical clearance, degree index), superscripts/subscripts, `\prescript`, `\limits`/`\nolimits`, over/under accents (`MathTopAccentAttachment`), `\cancel`/`\enclose` annotations, matrices/alignments/proof trees (`layoutMatrixNode`), and vertical/horizontal stretchy delimiters (`stretchy.dart`) strictly from OpenType `MATH` constants and variant tables.
+* **Styles, Atom Spacing & Break Hints**: Applies `TexMathStyle` transitions (`display`, `text`, `script`, `scriptScript`, and cramped forms), Appendix G Rules 5–6 atom promotions, `thinmuskip`/`medmuskip`/`thickmuskip` spacing, and top-level `BreakPoint` / `DisplayBreakHint` metadata (`afterBinary`, `afterRelation`, `penalty`, `explicit`).
+* **OpenType `MATH` Construct Layout**: Threads validated non-null `MathTableData` into `matrix_layout.dart`, `stretchy.dart`, and `style_spacing.dart` alongside centralized `LayoutDefaults` ratios, resolving `ex` from `MathFont.xHeight / unitsPerEm` (`LayoutDefaults.fallbackXHeightEm = 0.431` fallback) and solving extensible `GlyphAssembly` repeats in `O(1)` arithmetic.
 
-### Stage 5: Flat Display List & Standalone SVG Path Exporter
+### Stage 5: Flat Display List, Exporters & `RenderResult`
 
-Flattens the positioned box tree into a coordinate-normalized `DisplayList` (`packages/tex_math/lib/src/display_list.dart`) containing `DisplayMetrics` (`widthEm`, `heightEm`, `depthEm`, `baselineEm`, `unitsPerEm`), ordered `DisplayBreakHint` entries, and flat `DisplayItem` primitives:
-
-* **`GlyphItem`**: References glyphs by OpenType `glyphId` (plus `codePoint`), em coordinates `(xEm, yEm)`, `(scaleX, scaleY)`, `advanceEm`, optional resolved `GlyphOutline`, `SourceSpan`, and `TexMathColorRole`.
-* **`RuleItem`**: Positioned rectangular stroke or frame (`strokeWidthEm`) for fraction bars, radical vincula, `\overline`/`\underline`, `\cancel` strokes, `\boxed`/`\fcolorbox` borders, and array lines.
-* **`AnchorItem`**: Non-inked structural anchor carrying `id`, `(xEm, yEm)`, and optional `label` for equation tags, `\href`/`\cssId` wrappers, action tooltips, and metric inspection.
-
-`DisplayList.toSvg()` emits a self-contained XML SVG document directly from `RuleItem`, `AnchorItem`, and `GlyphItem` records (emitting vector `<path>` contours for all ink glyphs and `<rect>` strokes/fills for rules while enforcing `TexMathBudgets.maxOutputItems` and `TexMathBudgets.maxSvgLength`).
+`DisplayList` (`packages/tex_math/lib/src/display_list.dart`) flattens the positioned box tree into `DisplayMetrics`, `DisplayBreakHint` entries, optional `fontSignature` (`MathFont.signature`), and `DisplayItem` primitives (`GlyphItem` by `glyphId` + `codePoint`, `RuleItem`, `AnchorItem`). `RenderResult` (`packages/tex_math/lib/src/engine.dart`) binds `displayList`, `syntaxTree`, and `source` together, exposing `toSvg()`, `toMathMl()`, and `toSpokenText()`. `DisplayList.toSvg()` streams vector `<path>` contours and `<rect>` primitives while checking `maxOutputItems` and `maxSvgLength` incrementally.
 
 ![Sample DisplayList rendered via DisplayList.toSvg()](images/display_list_sample.svg)
 
@@ -67,16 +62,13 @@ Flattens the positioned box tree into a coordinate-normalized `DisplayList` (`pa
 
 ## 3. OpenType Font Reader
 
-`MathFont` (`packages/tex_math/lib/src/font.dart`) decodes SFNT font containers exclusively from an in-memory `Uint8List` via `MathFont.fromBytes(Uint8List bytes, {int maxBytes = MathFont.defaultMaxFontBytes, Map<String, double> variationAxes = const <String, double>{}})`, validating non-empty input, byte-size budget (`16 MiB` default), and SFNT magic headers (`OTTO`, `0x00010000`, `true`, `typ1`).
+`MathFont` (`packages/tex_math/lib/src/font.dart`) decodes SFNT containers exclusively from an in-memory `Uint8List` via `MathFont.fromBytes`, enforcing `maxBytes` (`16 MiB` default) and validating `OTTO`/`0x00010000`/`true`/`typ1` headers. Font sub-decoders (`glyf.dart`, `cff_decoder.dart`, `type2_charstring.dart`, `outline_utils.dart`) depend strictly on leaf `metrics.dart`, `outline.dart`, `binary_reader.dart`, `cff_common.dart`, and `variation.dart` with zero circular imports back to `font.dart`:
 
-The pure-Dart table reader parses the SFNT table directory and decodes:
-
-* **`head`, `maxp`, `hhea`, `hmtx`, `OS/2`, `name`**: Extracts `unitsPerEm`, glyph count, horizontal advance widths, side bearings, font bounding box, and typographic ascender/descender metrics.
-* **`cmap` & `GSUB`**: Resolves Unicode scalar code points (including non-BMP mathematical alphanumeric planes via Format 4 and Format 12 subtables) to internal glyph IDs, and decodes `GSUB` `ssty` lookups (`LookupType 1` and `LookupType 3`) for optional optical script variants (`TexMathOptions.useOpticalScriptVariants`).
-* **`MATH` & Variable Font Tables (`fvar`, `avar`, `HVAR`, `GDEF`)**: Decodes mathematical constants, per-glyph positioning metadata, size variants, extensible glyph assemblies, `fvar`/`avar` normalized variation axes, `HVAR` advance/LSB deltas, and `GDEF` v1.3+ `ItemVariationStore` deltas on `MathValueRecord`s.
-* **`glyf` / `loca` (TrueType)** and **`CFF` / `CFF2` (Type 2 Charstrings)**: Lazily decodes and caches vector contours into immutable `GlyphOutline` records (`PathCommand`: `MoveTo`, `LineTo`, `QuadTo`, `CubicTo`, `ClosePath`), evaluates `CFF2` `blend` variation deltas, computes tight analytical Bezier-extrema `GlyphMetrics` (`metricsForGlyph`), and captures Type 2 horizontal/vertical `StemHint`s for optional pixel-grid alignment (`outlineForGlyph(glyphId, ppem: ..., enableHinting: true)`).
-
-All layout and display primitives address glyphs by `glyphId` rather than Unicode code point alone so unencoded stylistic alternates, display-size operators, and `GlyphAssembly` connector segments (`codePoint = 0`) resolve unambiguously without filesystem access.
+* **`head`, `maxp`, `hhea`, `hmtx`, `OS/2`, `name`**: Extracts `unitsPerEm`, glyph count, horizontal advance widths, side bearings, font bounding box, `xHeight` (`OS/2.sxHeight`), `capHeight`, and typographic ascender/descender metrics.
+* **`cmap` & `GSUB`**: Maps BMP and non-BMP Unicode scalars via Format 4/12 subtables and decodes `GSUB` `ssty` lookups (`LookupType 1` / `LookupType 3`) for `TexMathOptions.useOpticalScriptVariants`.
+* **`MATH` & Variable Font Tables (`fvar`, `avar`, `HVAR`, `GDEF`)**: Decodes `MathConstants`, `MathGlyphInfo`, `MathVariants`, `fvar`/`avar` normalized variation axes, `HVAR` advance/LSB deltas, and `GDEF` v1.3+ `ItemVariationStore` deltas on `MathValueRecord`s.
+* **`glyf`/`loca` & `CFF`/`CFF2`**: Lazily decodes vector contours into `@immutable` `GlyphOutline` records (`GlyphOutline.cached` with memoized `hashCode`), evaluates `CFF2` `blend` deltas, computes analytical Bezier-extrema `GlyphMetrics`, and caches Type 2 `StemHint`-snapped outlines per `(glyphId, ppem)` on the `MathFont` data holder.
+* **Payload Identity (`MathFont.signature`)**: Computes a fast deterministic SFNT payload-and-variation digest (`signature`) and memoizes `hashCode`, preventing `MathFont.==` collisions across distinct fonts with matching header scalars and enabling cross-isolate path cache keying via `DisplayList.fontSignature`.
 
 ```mermaid
 flowchart TD
@@ -86,75 +78,68 @@ flowchart TD
   Header --> Var["fvar / avar / HVAR / GDEF Variations"]
   Header --> MathTbl["MATH (MathConstants / MathGlyphInfo / MathVariants)"]
   Header --> Outlines["glyf / loca & CFF / CFF2 Outlines + StemHints"]
-  Cmap --> Font["MathFont (Zero File I/O)"]
+  Cmap --> Font["MathFont (signature & Zero File I/O)"]
   Hmtx --> Font
   Var --> Font
   MathTbl --> Font
   Outlines --> Font
   Font --> Layout["Appendix G Layout Engine"]
-  Layout --> DL["DisplayList (GlyphItem, RuleItem, AnchorItem, BreakHints)"]
+  Layout --> DL["DisplayList (fontSignature, Items & BreakHints)"]
   DL --> Svg["DisplayList.toSvg (Standalone XML)"]
-  DL --> PathCache["Flutter TexMathPathCache (MathFont & glyphId)"]
+  DL --> PathCache["Flutter TexMathPathCache (fontSignature & glyphId)"]
 ```
 
 ---
 
 ## 4. OpenType `MATH` Table Usage
 
-The layout engine consumes all three OpenType `MATH` subtables directly:
+`MathTableData` parses and exposes all three OpenType `MATH` subtables:
 
-* **`MathConstants`**: Supplies all 56 design constants normalized against `unitsPerEm`, including `scriptPercentScaleDown`, `scriptScriptPercentScaleDown`, `axisHeight`, `accentBaseHeight`, `flattenedAccentBaseHeight`, numerator/denominator shifts and minimum gaps (`fractionNumeratorShiftUp`, `fractionDenominatorShiftDown`, `fractionRuleThickness`), radical parameters (`radicalVerticalGap`, `radicalDisplayStyleVerticalGap`, `radicalRuleThickness`, `radicalExtraAscender`, `radicalKernBeforeDegree`, `radicalKernAfterDegree`), subscript/superscript shifts (`subscriptShiftDown`, `superscriptShiftUp`, `superscriptShiftUpCramped`), and operator limit gaps.
-* **`MathGlyphInfo`**:
-  * `MathItalicsCorrectionInfo` adjusts horizontal spacing after sloped glyphs and positions superscripts relative to base right bearings.
-  * `MathTopAccentAttachment` supplies exact horizontal attachment coordinates for placing accents (`\hat`, `\tilde`, `\vec`, `\bar`) over italic or asymmetric glyphs.
-  * `ExtendedShapeCoverage` identifies tall glyphs requiring cut-in kerning or full-height baseline treatment.
-  * `MathKernInfo` provides four-corner staircase kern heights (`MathKernCorner`) and cut-in values for tight subscript/superscript kerning against sloped glyphs (such as `f_i` or `V^2`).
-* **`MathVariants`**: Supplies both vertical and horizontal `MathGlyphConstruction` records (`minConnectorOverlap` plus per-glyph `MathGlyphVariant` discrete size steps and `GlyphAssembly` part lists of `glyphId`, `startConnectorLength`, `endConnectorLength`, `fullAdvance`, and `isExtender` flags) for stretchy delimiters, large operators, radicals, `\overbrace`/`\underbrace`, extensible arrows, and wide accents.
+* **`MathConstants`**: Layout consumes normalized constants (`unitsPerEm`) including `scriptPercentScaleDown`, `scriptScriptPercentScaleDown`, `axisHeight`, `accentBaseHeight` and `flattenedAccentBaseHeight` (TeX Appendix G Rule 12 accent positioning in `_layoutAccentNode`, aligning x-height-designed accents directly over bases up to `accentBaseHeight` with `flattenedAccentBaseHeight` fallback and shifting only by excess base height), fraction shifts/gaps/rule thickness, radical gaps/rule/extra ascender/degree kerns, script shifts, and operator limit gaps (`mathLeading` is also parsed and exposed on `MathConstants`).
+* **`MathGlyphInfo`**: Layout consumes `MathItalicsCorrectionInfo`, `MathTopAccentAttachment`, and four-corner `MathKernInfo` staircase cut-in kerns (`topRight`, `bottomRight`, `topLeft`, and `bottomLeft` corners via `_evaluatePairKern`); `ExtendedShapeCoverage` (`isExtendedShape`) is parsed and exposed on `MathGlyphInfo`.
+* **`MathVariants`**: Supplies `minConnectorOverlap` plus vertical/horizontal `MathGlyphConstruction` records (`MathGlyphVariant` discrete steps and `GlyphAssembly` part recipes) for delimiters, large operators, radicals, horizontal braces, extensible arrows, and wide accents.
 
 ### OpenType `MATH` Conformance vs. MathJax 4 JS-FontData Divergences
 
-As recorded in [`doc/COVERAGE.md`](COVERAGE.md), `tex_math` renders all `315` accepted corpus cases cleanly (`0` unsupported, `37/37` error-class parity) while strict `0.02em` numeric comparison against MathJax `4.1.3` (`@mathjax/mathjax-newcm-font`) reports `241` differences. Inspecting both engines side by side establishes that these differences stem from structural differences between the OpenType `MATH` specification (`NewCMMath-Regular.otf` `8.1.1`) and MathJax's JavaScript `FontData` tables derived from legacy TeX `.tfm` metrics:
+As recorded in [`doc/COVERAGE.md`](COVERAGE.md), `tex_math` renders all `315` accepted corpus cases cleanly (`0` unsupported, `37/37` error-class parity) while strict `0.02em` numeric comparison against MathJax `4.1.3` (`@mathjax/mathjax-newcm-font`) reports `241` differences caused by structural differences between OpenType `MATH` (`NewCMMath-Regular.otf` `8.1.1`) and MathJax's `.tfm`-derived JS `FontData` tables:
 
-* **`MathConstants.superscriptShiftUp` / `subscriptShiftDown` vs. Legacy `.tfm` `sup1` / `sub1` (and Rule Thickness)**: OpenType `MATH` defines one uncramped `superscriptShiftUp` (`363 / 1000 = 0.363em`), one `superscriptShiftUpCramped` (`289 / 1000 = 0.289em`), one `subscriptShiftDown` (`247 / 1000 = 0.247em`), and `fractionRuleThickness = 40` (`0.040em`). By contrast, `@mathjax/mathjax-newcm-font` retains TeX `.tfm` `fontdimen` slots distinguishing display-only `sup1 = 0.413` from `sup2 = 0.363` and standalone `sub1 = 0.15` from `sub2 = 0.247`, alongside `rule_thickness = 0.06` (`0.060em`) and `delimitershortfall = 0.3` (vs Appendix G `0.5em`). Consequently, a display superscript like `x^2` places `2` at `y = 0.363em` in OpenType `MATH` vs `0.413em` in MathJax, standalone subscripts sit at `-0.247em` vs `-0.150em`, and fraction rules use `0.040em` vs `0.060em`.
-* **Unencoded OpenType `GlyphAssembly` Parts vs. MathJax Clipped Multi-Glyph SVG Tiles**: `MathVariants` constructs tall delimiters, radicals, and horizontal braces from unencoded `glyphId` assembly parts (`codePoint = 0`) joined with `startConnectorLength`/`endConnectorLength` overlaps and repeated `isExtender` segments. For `\left\{ \begin{matrix} 1 \\ 2 \\ 3 \\ 4 \\ 5 \end{matrix} \right\}`, both engines produce identical outer bounds (`width = 2.304em`, `height = 3.550em`, `depth = 3.050em`), yet `tex_math` emits 23 `GlyphAssembly` pieces (`codePoint = 0`) while MathJax emits 15 encoded/scaled `<use>` SVG tiles combining `U+23A7`–`U+23AD` pieces (`9127`–`9133`) with scaled `{` (`123`) extenders; similarly, `\overbrace` (`U+23DE`) in `NewCMMath-Regular.otf` uses 5 assembly parts vs MathJax's 4-entry `stretch` tuple (`9182`, `175`, `9182`, `9182`).
-* **`NewCMMath-Regular.otf` `hmtx` / `cmap` vs. MathJax's Split Virtual Subfonts**: `tex_math` resolves every character and math alphabet directly from the active font's single `cmap` (Format 4/12), `hmtx`, `MATH`, and `GSUB` (`ssty`) tables. MathJax `4.1.3` decomposes `mathjax-newcm` across 33 virtual variant tables (`normal`, `bold`, `italic`, `-tex-calligraphic`, `-smallop`, `-largeop`, `-size3`–`-size7`, `-lf-tp`, `-rt-bt`, `-ex-md`, `-bbold`, `-upsmall`, `-uplarge`, etc.) carrying per-subfont `.tfm` metrics such as `extra_ic = 0.033em` (placing scripts on `x` at `0.572 + 0.033 = 0.605em` vs `hmtx` `0.572em`) and custom `HDW` bounds.
+* **`MathConstants` vs. Legacy `.tfm` `fontdimen`s**: OpenType `MATH` defines unified `superscriptShiftUp` (`0.363em`), `superscriptShiftUpCramped` (`0.289em`), `subscriptShiftDown` (`0.247em`), and `fractionRuleThickness` (`0.040em`). `@mathjax/mathjax-newcm-font` retains `.tfm` slots distinguishing display `sup1` (`0.413em`) from `sup2` (`0.363em`), standalone `sub1` (`0.150em`) from `sub2` (`0.247em`), `rule_thickness = 0.060em`, and `delimitershortfall = 0.3em` (vs Appendix G `0.5em`).
+* **Unencoded `GlyphAssembly` Parts vs. Clipped SVG Tiles**: OpenType `MathVariants` builds tall delimiters and horizontal braces from unencoded `glyphId` segments (`codePoint = 0`) with overlap/extender recipes, whereas MathJax emits encoded/scaled `<use>` SVG glyph tiles.
+* **Unified `hmtx`/`cmap` vs. 33 Virtual Subfonts**: `tex_math` resolves glyphs from the active font's single `cmap`, `hmtx`, `MATH`, and `GSUB` tables, whereas MathJax splits `mathjax-newcm` across 33 virtual variant tables carrying per-subfont `.tfm` overrides such as `extra_ic`.
 
-**Why Strict OpenType `MATH` Conformance Is Maintained**: Hardcoding MathJax `.tfm` patches (`sup1`/`sub1`, `extra_ic`, `0.06em` rule overrides, or clipped `<use>` tile tables) into the core layout engine would break font independence for any other OpenType math font (such as Latin Modern Math, STIX Two Math, or variable `CFF2` math fonts) and violate OpenType `MATH` Appendix G fidelity. `tex_math` therefore treats OpenType `MATH` as authoritative for geometry while verifying strict structural, glyph-selection, and error-class parity against the MathJax oracle.
+Hardcoding MathJax `.tfm` patches into core layout would break font independence across other OpenType math fonts (such as Latin Modern Math, STIX Two Math, or `CFF2` variable fonts). `tex_math` therefore keeps OpenType `MATH` authoritative for geometry while verifying structural, glyph-selection, and error-class parity against the MathJax oracle.
 
 ---
 
 ## 5. Accessibility & Source Mapping
 
-Accessibility and diagnostic exporters operate directly on the structured `MathNode` tree and `SourceSpan` metadata rather than reconstructing meaning from flat glyph coordinates:
+Accessibility exporters read the `MathNode` tree directly and filter disallowed XML 1.0 control characters and lone surrogates (`format_utils.dart`):
 
-* **Presentation MathML (`toMathMl()`)**: Exhaustively traverses all 16 `MathNode` variants (`FractionNode` to `<mfrac>`, `ScriptNode` to `<msub>`/`<msup>`/`<msubsup>`/`<mmultiscripts>`, `RadicalNode` to `<msqrt>`/`<mroot>`, `MatrixNode` to `<mtable>`, `DelimiterNode` to `<mrow>` + `<mo stretchy="true">`) to emit clean Presentation MathML for screen readers and external interchange.
-* **Spoken Text (`toSpokenText()`)**: Generates plain natural-language math descriptions from `MathNode` structure for platform accessibility trees (`Semantics` labels in Flutter).
-* **Source Span Mapping ("Copy as LaTeX")**: Every `MathNode` and `DisplayItem` carries an optional UTF-16 `SourceSpan`. Callers and Flutter selection adapters expand partial selections to the minimal enclosing `MathNode` slice via `TexMathSelectionUtils.sliceMinimalLatex` (`span.slice(source)`) so copied LaTeX remains syntactically valid.
+* **Presentation MathML (`mathNodeToMathMl` / `toMathMl()`)**: Exhaustively traverses all 16 `MathNode` variants, sanitizes `mathcolor`/`mathbackground` via `sanitizeMathMlColor`, and restricts `\href` links via `isSafeHrefUri` (`http`, `https`, `mailto`, `#`, relative paths).
+* **Spoken Text (`mathNodeToSpokenText` / `toSpokenText()`)**: Streams plain natural-language math descriptions for screen readers (`Semantics` labels in Flutter).
+* **Source Span Mapping ("Copy as LaTeX")**: Every `MathNode` and `DisplayItem` carries an optional UTF-16 `SourceSpan`; `TexMathSelectionUtils.sliceMinimalLatex` expands partial selections to the minimal syntactically valid enclosing `MathNode` slice.
 
 ---
 
 ## 6. Flutter Integration (`packages/tex_math_flutter`)
 
-`packages/tex_math_flutter` adapts pure-Dart `DisplayList` output into Flutter's rendering, accessibility, and theming pipeline:
-
-* **Vector `Path` Construction & `TexMathPathCache`**: `TexMathDisplayPainter` converts `GlyphOutline.commands` into `dart:ui` `Path` instances via `TexMathDisplayPainter.buildPathFromCommands` and caches them inside `TexMathPathCache` (LRU-bounded, keyed by `(MathFont, glyphId)` with `GlyphOutline` fallback).
-* **Zero-Relayout Theme Color Updates**: `DisplayItem` stores a semantic `TexMathColorRole` (`foreground`, `accent`, `error`, `muted`, `custom`). `TexMathTheme` / `TexMathThemeData` resolves paint colors inside `TexMathDisplayPainter.paint`, so light/dark theme transitions trigger only a `CustomPaint` repaint using cached `Path`s without re-running `TexMathEngine.render` or rebuilding outlines.
-* **Once-Per-Lifecycle Bundled Font Loading**: `TexMathFontBundle.loadMathFont()` loads and decodes `packages/tex_math_flutter/assets/fonts/NewCMMath-Regular.otf` (`8.1.1`) once per lifecycle (`TexMathFontBundle.cachedMathFont`), alongside `GUST-FONT-LICENSE.txt` and `MANIFEST-NewCMMath.txt`. `TexMath` resolves the cached font synchronously once loaded or fetches it asynchronously on first mount.
-* **Baseline Alignment, Scaling & Overflow (`TexMathOverflow`)**: `TexMath` wraps output in `Baseline(baselineType: TextBaseline.alphabetic)` driven by `DisplayMetrics.baselineEm * scaledFontSize` (merging `DefaultTextStyle`, `textStyle`, `TexMathThemeData.fontSize`, and `MediaQuery.textScalerOf(context)`). `TexMathBaselineProxy` forwards exact alphabetic baseline metrics across `TexMathOverflow.scroll`, `TexMathOverflow.scaleToFit`, and `TexMathOverflow.clip` containers so inline `TexMathSpan` (`WidgetSpan`) stays aligned with surrounding prose.
-* **Persistent Background Isolate Layouter (`TexMathIsolateLayouter`)**: Spawns a long-lived worker `Isolate` (via `TexMathIsolateLayouter.withBundledFont` / `warmUp`), transfers raw SFNT font bytes once via `TransferableTypedData`, decodes `MathFont.fromBytes` once in the worker, deduplicates in-flight renders, propagates `TexMathError` across isolate boundaries, and caches up to `maxCacheEntries` (`256` default) results by `TexMathLayoutCacheKey(source, options, fontId)`.
-* **Sub-Expression Selection & Semantics**: `RenderTexMath` (`Selectable` + `SelectionRegistrant` inside `src/selection_adapter.dart`) supports partial drag selection over `DisplayItem.span` boxes expanded via `TexMathSelectionUtils.expandSpanToMinimalNode`, wraps standalone widgets in `SelectionArea` automatically when `selectable` is `true` and no ancestor `SelectionContainer` exists, and exposes `Semantics(label: ..., readOnly: true)` from `RenderResult.toSpokenText()`.
-* **Default Error Widget**: When `TexMathEngine` throws a `TexMathError`, `TexMath` invokes `errorBuilder` if supplied or renders `TexMathErrorWidget`, displaying the original TeX `source` in monospace alongside the structured error message tinted with `TexMathThemeData.error` and `errorBackground`.
+* **Vector `Path` & `TextPainter` Caching (`TexMathPathCache`)**: Converts `GlyphOutline.commands` into `Path` geometry keyed by `(font?.signature ?? displayList.fontSignature, glyphId, ppemBucket?)` (preserving `(signature, glyphId)` cache hits even for isolate-laid-out `DisplayList`s where no `MathFont` object sits on the UI thread, and falling back to `GlyphOutline` only when no signature is attached). Also caches bounded fallback `TextPainter`s (`maxTextPainterEntries`) and disposes evicted painters.
+* **Zero-Relayout Theme Updates**: `TexMathDisplayPainter` resolves `TexMathColorRole` colors from `TexMathThemeData` during `paint()`, so light/dark theme transitions repaint without re-running layout or rebuilding `Path`s.
+* **Off-Thread Font Decoding (`TexMathFontBundle`)**: `TexMathFontBundle.loadMathFont()` reads `NewCMMath-Regular.otf` (`8.1.1`) once per lifecycle and decodes `MathFont.fromBytes` off the UI thread via `Isolate.run` (`runInRealAsyncZone` prevents `FakeAsync` timer stalls in tests).
+* **Sizing Precedence, Baseline & Overflow (`TexMath`, `TexMathSpan`)**: Resolves font size via `widget.textStyle?.fontSize ?? TexMathTheme.maybeOf(context)?.fontSize ?? DefaultTextStyle.of(context).style.fontSize ?? theme.fontSize` (validated by `resolveSafeTexMathFontSize` and scaled by `MediaQuery.textScalerOf(context)`), applies `widget.textStyle?.color`, and avoids double-parsing on cold bundled font loads by passing the pre-parsed `MathNode` directly to `engine.layout()`. `TexMathBaselineProxy` handles both `TextBaseline.alphabetic` and `TextBaseline.ideographic` and proportionally scales both dry and actual baselines under `TexMathOverflow.scaleToFit` (`FittedBox`).
+* **Persistent Background Isolate Layouter (`TexMathIsolateLayouter`)**: Spawns a long-lived worker `Isolate` (`withBundledFont` / `warmUp`), transfers bundled bytes once via `TransferableTypedData`, caches explicit per-request `MathFont` instances in the worker by `signature`, deduplicates concurrent in-flight renders (including custom fonts), caches up to `maxCacheEntries` (`256`) results under `TexMathLayoutCacheKey(source, options, fontId, fontSignature)`, recovers from unexpected worker crashes via `onExit`/`onError` listeners, and enforces `shutdownTimeout` `Isolate.kill` cleanup on `dispose()`.
+* **Lazy Selection & Error Semantics (`RenderTexMath`, `TexMathErrorWidget`)**: `RenderTexMath` (`Selectable` + `SelectionRegistrant`) builds `_atoms` lazily only when registered for selection (avoiding eager `Path.getBounds()` on non-selectable equations) and aligns hit-testing/`boundingBoxes` to visual bounds when `TexMathOverflow.visible` is active. `TexMathErrorWidget` marks outer `Semantics(excludeSemantics: true)` and wraps content in `SelectionContainer.disabled` when `!selectable` inside an ancestor `SelectionArea`.
 
 ```mermaid
 flowchart LR
   Widget["TexMath / TexMathSpan"] --> Layouter["TexMathIsolateLayouter (256-Entry LRU Cache)"]
-  Layouter -->|"Cache Miss"| Isolate["Persistent Worker Isolate (One-Time Font Decode)"]
-  Isolate --> DL["DisplayList & DisplayMetrics"]
+  Layouter -->|"Cache Miss"| Isolate["Persistent Worker Isolate (Font Cache by signature)"]
+  Isolate --> DL["DisplayList (fontSignature & DisplayMetrics)"]
   Layouter -->|"Cache Hit"| DL
   DL --> Painter["TexMathDisplayPainter (TexMathPathCache)"]
   Theme["TexMathThemeData (Color Roles)"] -->|"Zero-Relayout Repaint"| Painter
   DL --> Sizing["TexMathOverflow & TexMathBaselineProxy"]
-  Painter --> Access["RenderTexMath SelectionArea & Semantics"]
+  Painter --> Access["RenderTexMath Selection & Semantics"]
   Sizing --> Access
 ```
 
@@ -162,39 +147,24 @@ flowchart LR
 
 ## 7. Safety Budgets & Error Parity
 
-Untrusted or malformed TeX input is bounded before and during execution by `TexMathBudgets` (`packages/tex_math/lib/src/options.dart`) and reported via `sealed class TexMathError` (`packages/tex_math/lib/src/error.dart`):
+`TexMathBudgets` (`packages/tex_math/lib/src/options.dart`) and hardened font/export guards bound untrusted inputs, throwing one of five `sealed class TexMathError` subclasses (`TexMathSyntaxError`, `TexMathMacroError`, `TexMathBudgetError`, `TexMathFontError`, `TexMathUnsupportedError`) tagged with `TexMathErrorClass`:
 
 | Budget Field | Default Limit | Protected Resource |
 | :--- | :--- | :--- |
-| `maxInputLength` | `50000` UTF-16 code units | Raw TeX input length before tokenization/parsing. |
-| `maxMacroDepth` | `64` levels | Nested macro call stack depth during expansion. |
-| `maxMacroExpansions` | `10000` expansions | Total macro expansions per expression to halt exponential blowup. |
-| `maxNestingDepth` | `64` levels | Brace group and `MathNode` recursion depth. |
+| `maxInputLength` | `50000` UTF-16 code units | Raw and synthetic TeX string length before tokenization. |
+| `maxMacroDepth` | `64` levels | Inherited nested macro call stack depth across cursors. |
+| `maxMacroExpansions` | `10000` expansions | Shared cumulative macro expansions per parse. |
+| `maxTokens` | `100000` tokens | Shared cumulative tokens tokenized and materialized during expansion. |
+| `maxNestingDepth` | `64` levels | Group, parser recursion, `mhchem`, and AST depth across all entry points. |
 | `maxOutputItems` | `50000` items | Maximum `DisplayItem` count emitted in a `DisplayList`. |
-| `maxSvgLength` | `4000000` characters | Maximum serialized XML length returned by `DisplayList.toSvg()`. |
+| `maxSvgLength` | `4000000` characters | Maximum serialized XML length (checked incrementally) in `toSvg()`. |
 | `MathFont.defaultMaxFontBytes` | `16 MiB` | Maximum font payload accepted by `MathFont.fromBytes`. |
-
-When `TexMathOptions.strictErrors` is `true` (default) and `noerrors` is inactive, malformed syntax, invalid macro definitions, unknown environments, font corruption, unsupported features, and exceeded budgets throw one of five sealed `TexMathError` subclasses (`TexMathSyntaxError`, `TexMathMacroError`, `TexMathBudgetError`, `TexMathFontError`, `TexMathUnsupportedError`), each tagged with a `TexMathErrorClass` enum matching MathJax's TeX error taxonomy (`undefinedControlSequence`, `missingBrace`, `extraBrace`, `misplacedAlignmentTab`, `misplacedNewline`, `missingDelimiter`, `extraDelimiter`, `mismatchedEnvironment`, `doubleScript`, `missingArgument`, `invalidMacroDefinition`, `unknownEnvironment`, `budgetExceeded`, `invalidFont`, `unsupportedFeature`, `syntaxError`).
 
 ---
 
 ## 8. Architectural Decisions & Rationales
 
-* **Dart 3 `sealed class` Hierarchies (`MathNode`, `DisplayItem`, `PathCommand`, `TexMathError`)**: Sealed classes enforce compile-time exhaustiveness across layout passes, MathML/spoken-text emitters, SVG export, and Flutter `Canvas` painters without fragile runtime type checks or mutable visitor state.
-* **Pure-Dart OpenType + `CFF`/`CFF2` Parser vs. Native FFI**: Parsing SFNT tables and charstrings in pure Dart avoids C/Rust native build toolchains, works identically across Flutter mobile/desktop/web and Dart CLI/server targets, and passes cleanly across `Isolate` boundaries via raw `Uint8List` bytes.
-* **Glyph-ID `DisplayList` + Vector `Path` Painting vs. Flutter `TextPainter`**: `TextPainter` depends on host OS text shaping, cannot address unencoded OpenType `MATH` glyph IDs or `GlyphAssembly` extensions, applies platform-dependent font fallback, and cannot guarantee deterministic cross-platform geometry. Painting cached vector `Path`s from OpenType outlines yields identical cross-platform geometry and zero-relayout theme recoloring.
-* **Lockstep Packages in a Dart `pub` Workspace**: Splitting `tex_math` (pure Dart, `meta` only) and `tex_math_flutter` (Flutter widgets, assets, painters) inside a single `pub` workspace enforces strict SDK boundaries at the package level while keeping API evolution and releases synchronized via `tool/check_versions.dart`.
-
----
-
-## 9. Core Design Contracts
-
-The following architectural contracts govern the OpenType font reader, TeX layout engine, Flutter integration, and comparison studio:
-
-1. **Full `CFF2` Variable-Font Instancing & Stem Hinting Support**: OpenType `CFF`/`CFF2` decoding includes `fvar`/`avar` axis normalization, `HVAR` advance/LSB deltas, `GDEF`/`CFF2` `ItemVariationStore` delta evaluation (`blend` operators), and optional horizontal/vertical Type 2 `StemHint` grid alignment (`outlineForGlyph(enableHinting: true, ppem: ...)`) in pure Dart without native FFI.
-2. **`TexMathSpan` Baseline Alignment Precision**: Inline math aligns using `DisplayMetrics.baselineEm * scaledFontSize` inside `Baseline` + `TexMathBaselineProxy` wrapped in `WidgetSpan(alignment: PlaceholderAlignment.baseline, baseline: TextBaseline.alphabetic)`, combining surrounding `DefaultTextStyle`, widget `textStyle`, `TexMathThemeData.fontSize`, and `MediaQuery.textScalerOf(context)`.
-3. **Font-Driven OpenType `MATH` Metrics with Font-Independent TeX-to-Unicode Mapping**: All layout constants, advance widths, italics corrections, accent attachments, math kerns, size variants, and `GlyphAssembly` constructions derive exclusively from the active font's `cmap`, `GSUB` (`ssty`), and `MATH` tables, while TeX-to-Unicode semantic mapping (including `\mathbb`/`\mathcal`/`\mathfrak`/`\mathbf`/`\mathit`/`\mathrm`/`\mathsf`/`\mathtt` math alphabets) stays independent of any single font file.
-4. **Line-Breaking Hints & Narrow-Container Overflow**: `DisplayList` retains a single positioned box for primary layout while recording top-level `DisplayBreakHint` entries (`afterBinary`, `afterRelation`, `penalty`, `explicit`), paired with configurable `TexMathOverflow` policies (`scroll`, `scaleToFit`, `clip`, `visible`) on `TexMath`.
-5. **Synchronous `\require` Against a Compile-Time Package Registry**: All 42 MathJax `4.1.3` TeX packages live in the immutable compile-time `TexPackageRegistry`, enabling default or custom extensions via `TexMathOptions.packages` and resolving synchronous `\require{pkg}` against `TexMathOptions.requireAllowlist` within a single render call with zero I/O or global mutable state.
-6. **Sub-Expression Selection & Multi-Format Accessibility in `SelectionArea`**: `RenderTexMath` (`Selectable`) maps hit-tested `DisplayItem.span` ranges through `TexMathSelectionUtils.expandSpanToMinimalNode` to copy minimal syntactically valid LaTeX slices (`span.slice(source)`), while `RenderResult.toMathMl()` and `RenderResult.toSpokenText()` supply accessible Markup and `Semantics` labels.
-7. **macOS `WKWebView` Comparison Architecture in `studio/`**: `studio/` renders MathJax `4.1.3` and KaTeX `0.19.1` inside macOS `WKWebView` (`webview_flutter` and `webview_flutter_wkwebview`) served from `StudioLocalAssetServer` against gitignored `tool/oracle/node_modules/` assets, supporting 3-way Side-by-Side, RGBA `Pixel Diff`, and draggable `Curtain Diff` modes without adding WebView or JS dependencies to `packages/tex_math` or `packages/tex_math_flutter`.
+* **Dart 3 `sealed class` Hierarchies (`MathNode`, `DisplayItem`, `PathCommand`, `TexMathError`)**: Enforce compile-time exhaustiveness across layout, MathML/spoken-text exporters, SVG serialization, and Flutter `Canvas` painters without runtime type casts or mutable visitors.
+* **Pure-Dart OpenType + `CFF`/`CFF2` Parser vs. Native FFI**: Avoids C/Rust toolchains, runs identically across Flutter mobile/desktop/web and Dart CLI/server targets, and keeps core byte decoding isolate-safe.
+* **Glyph-ID `DisplayList` + Vector `Path` Painting vs. `TextPainter`**: OS text shapers cannot address unencoded `MATH` glyph IDs or `GlyphAssembly` parts and vary across platforms; cached vector `Path`s ensure deterministic cross-platform geometry and zero-relayout recoloring.
+* **Lockstep Packages in a Dart `pub` Workspace**: Splitting `tex_math` (`meta` only) and `tex_math_flutter` enforces SDK boundaries at compile time while keeping versions synchronized via `tool/check_versions.dart`.

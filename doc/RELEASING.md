@@ -6,7 +6,7 @@
 
 ## 1. Lockstep Versioning Contract
 
-`tool/check_versions.dart` enforces synchronization across five files on every CI run and before any release tag:
+`tool/check_versions.dart` enforces synchronization across five files (six checks) on every CI run and before any release tag:
 
 * `packages/tex_math/pubspec.yaml`: `version: X.Y.Z`
 * `packages/tex_math_flutter/pubspec.yaml`: `version: X.Y.Z`
@@ -24,7 +24,7 @@ The lockstep invariant ensures that every `tex_math_flutter` release pins the ex
 ### Step 1: Bump Lockstep Version Metadata
 
 1. Update `version:` in both `packages/tex_math/pubspec.yaml` and `packages/tex_math_flutter/pubspec.yaml` to the target `X.Y.Z` version.
-2. Update `tex_math: ^X.Y.Z` under `dependencies:` in `packages/tex_math_flutter/pubspec.yaml` (and in root `pubspec.yaml` `dev_dependencies:` if present).
+2. Update `tex_math: ^X.Y.Z` under `dependencies:` in `packages/tex_math_flutter/pubspec.yaml` and `dev_dependencies:` in root `pubspec.yaml`.
 3. Prepend a `## X.Y.Z` release section to both [`packages/tex_math/CHANGELOG.md`](../packages/tex_math/CHANGELOG.md) and [`packages/tex_math_flutter/CHANGELOG.md`](../packages/tex_math_flutter/CHANGELOG.md) summarizing user-visible changes.
 4. Update the `tex_math` and `tex_math_flutter` version rows in [`REFERENCE.md`](../REFERENCE.md) to `X.Y.Z`.
 5. Run `flutter pub get` at the repository root to refresh workspace resolution.
@@ -45,6 +45,7 @@ dart run tool/check_versions.dart
 dart run tool/check_versions.dart --tag "vX.Y.Z"
 dart run tool/verify_against_mathjax.dart
 dart run tool/sync_reference.dart --verify
+dart run tool/generate_doc_images.dart --check
 dart run tool/benchmark_suite.dart --check-regressions
 ```
 

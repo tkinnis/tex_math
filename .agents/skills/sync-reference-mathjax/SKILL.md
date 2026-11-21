@@ -49,7 +49,7 @@ When adopting a new MathJax release:
    dart run tool/benchmark_suite.dart --update-docs --update-baseline
    dart run tool/generate_doc_images.dart
    ```
-3. Update `README.md` if coverage counts reported in `doc/COVERAGE.md` changed.
+3. Update `README.md`, `packages/tex_math/README.md`, and `packages/tex_math_flutter/README.md` if coverage or benchmark figures in `doc/COVERAGE.md` or `doc/BENCHMARKS.md` changed.
 
 ---
 
@@ -67,6 +67,7 @@ dart analyze --fatal-infos
 dart run tool/check_versions.dart
 dart run tool/verify_against_mathjax.dart
 dart run tool/sync_reference.dart --verify
+dart run tool/generate_doc_images.dart --check
 dart run tool/benchmark_suite.dart --check-regressions
 ```
 

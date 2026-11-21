@@ -11,9 +11,9 @@ This document defines the architectural invariants, monorepo boundaries, referen
 | Path | Role | SDK / Publishing |
 | :--- | :--- | :--- |
 | `packages/tex_math/` | Pure-Dart TeX tokenizer, macro expander, AST parser, Appendix G layout engine, OpenType `MATH` reader, display list, SVG/MathML/spoken-text exporters. | Pure Dart (`^3.13.0`), `meta` only, published to pub.dev. |
-| `packages/tex_math_flutter/` | Flutter `TexMath` / `TexMathSpan` widgets, theme color roles, glyph `Path` cache, `SelectionArea` / `Semantics` hooks, background isolate layouter, bundled `NewCMMath-Regular.otf`. | Flutter (`>=3.27.0`), depends on `tex_math`, published to pub.dev. |
+| `packages/tex_math_flutter/` | Flutter `TexMath` / `TexMathSpan` widgets, theme color roles, glyph `Path` cache, `SelectionArea` / `Semantics` hooks, background isolate layouter, bundled `NewCMMath-Regular.otf`. | Flutter (`>=3.47.0`), depends on `tex_math`, published to pub.dev. |
 | `packages/tex_math_flutter/example/` | Standalone Flutter example app exercising `TexMath` and `TexMathSpan`. | `publish_to: none`. |
-| `studio/` | Desktop comparison workbench comparing `tex_math`, MathJax, and KaTeX side by side. | `publish_to: none`. |
+| `studio/` | macOS desktop comparison workbench (`studio/macos/`) comparing `tex_math`, MathJax, and KaTeX side by side. | `publish_to: none`. |
 | `tool/` | Differential MathJax oracle (`tool/oracle/`), version lockstep checks, coverage/benchmark generators, reference sync checker, and doc image generator. | Dart CLI + Node.js dev tooling. |
 | `corpus/` | Categorized `.tex` verification corpus across Tiers 1–3, stretchy delimiters, notebook equations, and error cases, plus `expectations.json`. | Verification fixtures. |
 | `doc/` | Engineering documentation and Docsify portal (`ARCHITECTURE.md`, `API_MANUAL.md`, `COVERAGE.md`, `BENCHMARKS.md`, `STUDIO_GUIDE.md`, `REFERENCE_SYNC.md`, `RELEASING.md`). | GitHub Pages site source. |
@@ -36,10 +36,10 @@ This document defines the architectural invariants, monorepo boundaries, referen
 ### C. Five-Stage Pipeline & Safety Contracts
 
 1. **Stage 1 — Tokenizer**: Converts input TeX into catcode-annotated tokens preserving `SourceSpan`.
-2. **Stage 2 — Macro Expander**: Expands `\newcommand`, `\renewcommand`, `\def`, `\let`, `\newenvironment`, and `\renewenvironment` within `TexMathBudgets` (`maxMacroDepth`, `maxMacroExpansions`).
-3. **Stage 3 — Parser**: Produces a Dart 3 `sealed class MathNode` syntax tree retaining `SourceSpan` on every node.
-4. **Stage 4 — Layout Engine**: Applies TeX math styles (`D`, `T`, `S`, `SS` plus cramped forms), atom spacing, and OpenType `MATH` rules to build a positioned box tree.
-5. **Stage 5 — Display List & Exporters**: Emits flat `DisplayList` items and metrics (`DisplayMetrics`) in ems/font units, standalone SVG XML (`toSvg()`), Presentation MathML (`toMathMl()`), and plain spoken text (`toSpokenText()`).
+2. **Stage 2 — Macro Expander**: Expands `\newcommand`, `\renewcommand`, `\providecommand`, `\def`, `\let`, `\newenvironment`, and `\renewenvironment` on demand inside `_TexParser` within shared `TexMathBudgets` (`maxMacroDepth`, `maxMacroExpansions`, `maxTokens`).
+3. **Stage 3 — Parser**: Produces an immutable Dart 3 `sealed class MathNode` syntax tree retaining `SourceSpan` on every node (including pre-parsed `MatrixNode.columnSeparators`) within `maxNestingDepth`.
+4. **Stage 4 — Layout Engine**: Applies TeX math styles (`D`, `T`, `S`, `SS` plus cramped forms), atom spacing (via leaf `src/shared/` tables, never importing `parser/`), and OpenType `MATH` rules to build a positioned box tree.
+5. **Stage 5 — Display List & Exporters**: Emits flat `DisplayList` items (`fontSignature`, `DisplayMetrics`, `DisplayBreakHint`s) and `RenderResult` (`engine.dart`), standalone SVG XML (`toSvg()`), Presentation MathML (`toMathMl()`), and plain spoken text (`toSpokenText()`).
 
 * **Strict Error Parity**: Malformed TeX or exceeded safety limits must throw typed `sealed class TexMathError` subclasses (`TexMathSyntaxError`, `TexMathMacroError`, `TexMathBudgetError`, `TexMathFontError`, `TexMathUnsupportedError`) mapped to `TexMathErrorClass` rather than silently rendering invalid output.
 * **Dart 3 Standards**: Enable `strict-casts`, `strict-inference`, `strict-raw-types`, `always_declare_return_types`, `directives_ordering`, and `prefer_single_quotes`. Write dartdoc comments on every public API symbol and avoid `print()` calls in `lib/`.
@@ -76,6 +76,7 @@ Before completing any task or committing changes, verify all workspace gates pas
    (cd tool/oracle && npm ci)
    dart run tool/verify_against_mathjax.dart
    dart run tool/sync_reference.dart --verify
+   dart run tool/generate_doc_images.dart --check
    dart run tool/benchmark_suite.dart --check-regressions
    ```
 5. **Publish Readiness**:

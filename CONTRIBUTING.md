@@ -25,7 +25,7 @@ Before opening an issue or submitting a pull request, review our architectural i
 
 ### Prerequisites
 
-- **Flutter & Dart SDK**: Flutter `>=3.27.0` with Dart `^3.13.0` (`pub` workspace support).
+- **Flutter & Dart SDK**: Flutter `>=3.47.0` with Dart `^3.13.0` (`pub` workspace support).
 - **Node.js** *(for oracle verification)*: Needed to run `tool/oracle/render.mjs` and `tool/verify_against_mathjax.dart`.
 
 ### Installing Dependencies
@@ -70,6 +70,7 @@ dart analyze --fatal-infos
 dart run tool/check_versions.dart
 dart run tool/verify_against_mathjax.dart
 dart run tool/sync_reference.dart --verify
+dart run tool/generate_doc_images.dart --check
 dart run tool/benchmark_suite.dart --check-regressions
 ```
 
