@@ -1,0 +1,63 @@
+name: Bug Report
+description: Report a crash, unexpected exception, invalid SVG or MathML output, or API bug in tex_math or tex_math_flutter.
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for reporting an issue in **`tex_math`**. Please fill in the fields below so we can reproduce and fix the problem.
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Describe the Bug
+      description: A clear and concise description of what went wrong.
+    validations:
+      required: true
+
+  - type: textarea
+    id: tex_source
+    attributes:
+      label: Minimal Reproducible TeX Source
+      description: Paste the smallest TeX math expression that triggers the bug.
+      render: tex
+      placeholder: |
+        \frac{a + b}{c - d}
+    validations:
+      required: true
+
+  - type: textarea
+    id: dart_code
+    attributes:
+      label: Dart / Flutter Invocation & Options
+      description: Show how you called `TexMathEngine`, `renderTex`, or `TexMath` with `TexMathOptions`.
+      render: dart
+      placeholder: |
+        final result = renderTex(
+          r'\frac{a + b}{c - d}',
+          options: const TexMathOptions(displayMode: TexMathDisplayMode.display),
+        );
+    validations:
+      required: false
+
+  - type: dropdown
+    id: package_target
+    attributes:
+      label: Package / Component
+      options:
+        - packages/tex_math (pure-Dart core engine)
+        - packages/tex_math_flutter (Flutter widget & font bundle)
+        - studio/ (comparison workbench)
+        - Multiple / Not sure
+    validations:
+      required: true
+
+  - type: input
+    id: environment
+    attributes:
+      label: Dart / Flutter SDK Version & Platform
+      description: "e.g., Dart 3.13.5 / Flutter 3.47.6 on macOS / iOS / Android / Web / Linux"
+      placeholder: "Dart 3.13.5 / Flutter 3.47.6 / macOS"
+    validations:
+      required: true

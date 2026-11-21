@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>tex_math Documentation</title>
+  <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+  <meta name="description" content="Pure-Dart TeX math-mode typesetting engine and Flutter renderer aligned with MathJax.">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0">
+  <link id="tm-favicon" rel="icon" type="image/svg+xml" href="doc/images/tex_math_favicon.svg">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/docsify@4/lib/themes/vue.css">
+  <style>
+    :root {
+      --tm-bg: #ffffff;
+      --tm-surface: #f8fafc;
+      --tm-border: #e2e8f0;
+      --tm-text: #0f172a;
+      --tm-muted: #475569;
+      --tm-accent: #0284c7;
+      --tm-accent-strong: #0369a1;
+      --tm-code-bg: #f1f5f9;
+      --tm-blockquote-bg: #f0f9ff;
+      --tm-table-stripe: #f8fafc;
+    }
+
+    html[data-theme="dark"] {
+      --tm-bg: #0f172a;
+      --tm-surface: #111c33;
+      --tm-border: #1e293b;
+      --tm-text: #e2e8f0;
+      --tm-muted: #94a3b8;
+      --tm-accent: #38bdf8;
+      --tm-accent-strong: #7dd3fc;
+      --tm-code-bg: #1e293b;
+      --tm-blockquote-bg: #0c1f35;
+      --tm-table-stripe: #131f38;
+    }
+
+    body {
+      background-color: var(--tm-bg);
+      color: var(--tm-text);
+      transition: background-color 150ms ease, color 150ms ease;
+    }
+
+    .sidebar {
+      background-color: var(--tm-surface);
+      border-right: 1px solid var(--tm-border);
+      color: var(--tm-text);
+    }
+
+    .sidebar .app-name-link img {
+      max-width: 196px;
+      height: auto;
+      display: block;
+      margin: 0 auto;
+    }
+
+    .sidebar ul li a {
+      color: var(--tm-muted);
+    }
+
+    .sidebar ul li.active > a,
+    .sidebar ul li a:hover {
+      color: var(--tm-accent);
+    }
+
+    .sidebar .search {
+      border-bottom: 1px solid var(--tm-border);
+    }
+
+    .sidebar .search input {
+      background-color: var(--tm-bg);
+      color: var(--tm-text);
+      border: 1px solid var(--tm-border);
+      border-radius: 6px;
+    }
+
+    .sidebar-toggle {
+      background-color: transparent;
+    }
+
+    .sidebar-toggle span {
+      background-color: var(--tm-accent);
+    }
+
+    .markdown-section {
+      color: var(--tm-text);
+      max-width: 900px;
+    }
+
+    .markdown-section h1,
+    .markdown-section h2,
+    .markdown-section h3,
+    .markdown-section h4,
+    .markdown-section strong {
+      color: var(--tm-text);
+    }
+
+    .markdown-section a {
+      color: var(--tm-accent);
+    }
+
+    .markdown-section a:hover {
+      color: var(--tm-accent-strong);
+    }
+
+    .markdown-section code,
+    .markdown-section pre {
+      background-color: var(--tm-code-bg);
+      color: var(--tm-text);
+    }
+
+    .markdown-section pre > code {
+      background-color: transparent;
+      color: var(--tm-text);
+    }
+
+    .markdown-section blockquote {
+      background-color: var(--tm-blockquote-bg);
+      border-left: 4px solid var(--tm-accent);
+      color: var(--tm-text);
+      padding: 0.75rem 1rem;
+      border-radius: 0 6px 6px 0;
+    }
+
+    .markdown-section table th,
+    .markdown-section table td {
+      border-color: var(--tm-border);
+    }
+
+    .markdown-section table tr:nth-child(2n) {
+      background-color: var(--tm-table-stripe);
+    }
+
+    .markdown-section hr {
+      border-bottom: 1px solid var(--tm-border);
+    }
+
+    html[data-theme="dark"] .markdown-section img[src$=".svg"] {
+      background-color: #f8fafc;
+      border-radius: 8px;
+      padding: 8px;
+    }
+
+    .markdown-section .mermaid {
+      background-color: transparent;
+      padding: 0.75rem 0;
+      text-align: center;
+      overflow-x: auto;
+    }
+
+    html[data-theme="dark"] .token.comment,
+    html[data-theme="dark"] .token.prolog,
+    html[data-theme="dark"] .token.doctype,
+    html[data-theme="dark"] .token.cdata {
+      color: #64748b;
+    }
+
+    html[data-theme="dark"] .token.keyword,
+    html[data-theme="dark"] .token.operator {
+      color: #7dd3fc;
+    }
+
+    html[data-theme="dark"] .token.string,
+    html[data-theme="dark"] .token.attr-value {
+      color: #86efac;
+    }
+
+    html[data-theme="dark"] .token.function,
+    html[data-theme="dark"] .token.class-name {
+      color: #c4b5fd;
+    }
+
+    html[data-theme="dark"] .token.number,
+    html[data-theme="dark"] .token.boolean {
+      color: #fcd34d;
+    }
+
+    #tm-theme-toggle {
+      position: fixed;
+      top: 14px;
+      right: 18px;
+      z-index: 30;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      border-radius: 999px;
+      border: 1px solid var(--tm-border);
+      background-color: var(--tm-surface);
+      color: var(--tm-text);
+      font-family: inherit;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      box-shadow: 0 1px 3px rgba(15, 23, 42, 0.12);
+    }
+
+    #tm-theme-toggle:hover {
+      border-color: var(--tm-accent);
+      color: var(--tm-accent);
+    }
+  </style>
+  <script>
+    (function () {
+      var inDocDir = /\/doc\/(?:index\.html)?$/.test(window.location.pathname);
+      if (inDocDir) {
+        var favicon = document.getElementById('tm-favicon');
+        if (favicon) {
+          favicon.setAttribute('href', 'images/tex_math_favicon.svg');
+        }
+      }
+      var stored = null;
+      try {
+        stored = window.localStorage.getItem('tex_math_theme');
+      } catch (_) {}
+      var prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+      var initialTheme = stored || (prefersDark ? 'dark' : 'light');
+      document.documentElement.setAttribute('data-theme', initialTheme);
+    })();
+  </script>
+</head>
+<body>
+  <button id="tm-theme-toggle" type="button" aria-label="Toggle color theme">Theme</button>
+  <div id="app">Loading tex_math documentation...</div>
+  <script>
+    window.__texMathRenderMermaid = function () {
+      if (!window.mermaid) return;
+      var theme = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'default';
+      window.mermaid.initialize({ startOnLoad: false, theme: theme });
+      var nodes = Array.prototype.slice.call(document.querySelectorAll('.markdown-section .mermaid'));
+      if (nodes.length === 0) return;
+      nodes.forEach(function (node) {
+        var src = node.getAttribute('data-mermaid-source');
+        if (src !== null) {
+          node.removeAttribute('data-processed');
+          node.textContent = src;
+        }
+      });
+      window.mermaid.run({ nodes: nodes });
+    };
+  </script>
+  <script>
+    (function () {
+      var inDocDir = /\/doc\/(?:index\.html)?$/.test(window.location.pathname);
+      window.$docsify = {
+        name: 'tex_math',
+        logo: inDocDir ? 'images/tex_math_logo.svg' : 'doc/images/tex_math_logo.svg',
+        basePath: inDocDir ? '../' : '',
+        homepage: 'README.md',
+        loadSidebar: inDocDir ? 'doc/_sidebar.md' : '_sidebar.md',
+        relativePath: true,
+        subMaxLevel: 3,
+        auto2top: true,
+        markdown: {
+          renderer: {
+            code: function (code, lang) {
+              if (lang === 'mermaid') {
+                var escaped = code
+                  .replace(/&/g, '&amp;')
+                  .replace(/</g, '&lt;')
+                  .replace(/>/g, '&gt;');
+                var attr = escaped.replace(/"/g, '&quot;');
+                return '<div class="mermaid" data-mermaid-source="' + attr + '">' + escaped + '</div>';
+              }
+              return this.origin.code.apply(this, arguments);
+            }
+          }
+        },
+        plugins: [
+          function (hook) {
+            hook.doneEach(function () {
+              if (window.__texMathRenderMermaid) {
+                window.__texMathRenderMermaid();
+              }
+            });
+          }
+        ],
+        search: {
+          paths: 'auto',
+          placeholder: 'Search documentation',
+          noData: 'No matching documentation found.',
+          depth: 4
+        },
+        copyCode: {
+          buttonText: 'Copy',
+          errorText: 'Error',
+          successText: 'Copied'
+        },
+        pagination: {
+          previousText: 'Previous',
+          nextText: 'Next',
+          crossChapter: true
+        }
+      };
+    })();
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/docsify@4/lib/docsify.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/docsify@4/lib/plugins/search.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/docsify-copy-code@2/dist/docsify-copy-code.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/docsify-pagination@2/dist/docsify-pagination.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/prismjs@1/components/prism-bash.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/prismjs@1/components/prism-dart.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/prismjs@1/components/prism-json.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/prismjs@1/components/prism-latex.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/prismjs@1/components/prism-yaml.min.js"></script>
+  <script>
+    (function () {
+      var toggle = document.getElementById('tm-theme-toggle');
+      if (!toggle) return;
+      function updateLabel(theme) {
+        toggle.textContent = theme === 'dark' ? 'Light mode' : 'Dark mode';
+        toggle.setAttribute('aria-pressed', theme === 'dark' ? 'true' : 'false');
+      }
+      var current = document.documentElement.getAttribute('data-theme') || 'light';
+      updateLabel(current);
+      toggle.addEventListener('click', function () {
+        var next = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+        document.documentElement.setAttribute('data-theme', next);
+        updateLabel(next);
+        try {
+          window.localStorage.setItem('tex_math_theme', next);
+        } catch (_) {}
+        if (window.__texMathRenderMermaid) {
+          window.__texMathRenderMermaid();
+        }
+      });
+    })();
+  </script>
+</body>
+</html>

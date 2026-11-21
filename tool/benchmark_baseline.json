@@ -1,0 +1,82 @@
+{
+  "schemaVersion": 1,
+  "phase": "Phase 1",
+  "toleranceMultiplier": 5.0,
+  "corpusCaseCount": 352,
+  "hardware": {
+    "cpuBrand": "Apple M4",
+    "arch": "arm64",
+    "os": "macos",
+    "osVersion": "Version 15.6 (Build 24G84)",
+    "cores": 10,
+    "memory": "32 GiB",
+    "dartVersion": "3.13.5"
+  },
+  "benchmarks": [
+    {
+      "id": "display_list_to_svg_small",
+      "description": "Serialize a 12-item DisplayList to standalone SVG XML",
+      "unit": "us",
+      "batchIterations": 400,
+      "samples": 20,
+      "warmupSamples": 4,
+      "meanUs": 40.28,
+      "medianUs": 40.09,
+      "p95Us": 42.61,
+      "minUs": 38.9,
+      "maxUs": 42.61
+    },
+    {
+      "id": "display_list_to_svg_large",
+      "description": "Serialize a 250-item DisplayList to standalone SVG XML",
+      "unit": "us",
+      "batchIterations": 60,
+      "samples": 20,
+      "warmupSamples": 4,
+      "meanUs": 1034.38,
+      "medianUs": 1015.43,
+      "p95Us": 1129.98,
+      "minUs": 987.53,
+      "maxUs": 1129.98
+    },
+    {
+      "id": "budget_input_check_valid",
+      "description": "Validate input budgets and dispatch Phase 1 TexMathEngine.render stub",
+      "unit": "us",
+      "batchIterations": 1500,
+      "samples": 20,
+      "warmupSamples": 4,
+      "meanUs": 1.45,
+      "medianUs": 1.41,
+      "p95Us": 1.98,
+      "minUs": 1.36,
+      "maxUs": 1.98
+    },
+    {
+      "id": "budget_input_check_exceeded",
+      "description": "Reject oversized 50,001-char input via TexMathBudgetError guard",
+      "unit": "us",
+      "batchIterations": 1500,
+      "samples": 20,
+      "warmupSamples": 4,
+      "meanUs": 1.76,
+      "medianUs": 1.63,
+      "p95Us": 2.91,
+      "minUs": 1.5,
+      "maxUs": 2.91
+    },
+    {
+      "id": "corpus_full_dispatch",
+      "description": "Dispatch all 352 corpus cases through Phase 1 TexMathEngine.render",
+      "unit": "us",
+      "batchIterations": 25,
+      "samples": 20,
+      "warmupSamples": 3,
+      "meanUs": 489.17,
+      "medianUs": 481.82,
+      "p95Us": 542.8,
+      "minUs": 443.4,
+      "maxUs": 542.8
+    }
+  ]
+}

@@ -1,0 +1,55 @@
+name: Deploy Documentation to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Stage & Deploy Docsify Portal
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Stage documentation site
+        run: |
+          mkdir -p _site/doc _site/packages/tex_math _site/packages/tex_math_flutter _site/studio
+          cp README.md REFERENCE.md CONTRIBUTING.md CODE_OF_CONDUCT.md SECURITY.md LICENSE AGENTS.md _site/
+          cp -R doc/* _site/doc/
+          cp packages/tex_math/README.md packages/tex_math/CHANGELOG.md _site/packages/tex_math/
+          cp packages/tex_math_flutter/README.md packages/tex_math_flutter/CHANGELOG.md _site/packages/tex_math_flutter/
+          cp studio/README.md _site/studio/
+          cp doc/index.html _site/index.html
+          cp doc/_sidebar.md _site/_sidebar.md
+          if [ -f doc/images/tex_math_favicon.svg ]; then
+            cp doc/images/tex_math_favicon.svg _site/favicon.svg
+          fi
+          if [ -f doc/images/tex_math_favicon.png ]; then
+            cp doc/images/tex_math_favicon.png _site/favicon.png
+          fi
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

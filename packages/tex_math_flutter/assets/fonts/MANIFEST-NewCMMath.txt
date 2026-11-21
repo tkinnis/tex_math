@@ -1,0 +1,25 @@
+Font Manifest: New Computer Modern Math (NewCMMath-Regular)
+============================================================
+
+Package: New Computer Modern (CTAN distribution 8.1.1; OTF font version 4.0)
+Author / Copyright: (C) 2019-2026 Antonis Tsolomitis
+License: GUST Font License 1.0 (LPPL 1.3c or later)
+License file: GUST-FONT-LICENSE.txt
+
+Upstream sources:
+- Font file: https://mirrors.ctan.org/fonts/newcomputermodern/otf/NewCMMath-Regular.otf
+- License text: https://www.gust.org.pl/projects/e-foundry/licenses/GUST-FONT-LICENSE.txt
+
+Bundled files in packages/tex_math_flutter/assets/fonts/:
+1. NewCMMath-Regular.otf
+   Size: 1306268 bytes
+   Header magic: OTTO (OpenType CFF + MATH table)
+   Family / PostScript name: NewComputerModernMath / NewCMMath-Regular
+   SHA-256: d66ac1cc91c55c24d3636ae2df1238076debdff51841f9893fc5419cc2df3df7
+
+2. GUST-FONT-LICENSE.txt
+   Size: 1417 bytes
+   SHA-256: 5eb61bb836bb1845ef668717cb15b382e997748ce2629e4388cc5e4c3fa4e433
+
+3. MANIFEST-NewCMMath.txt
+   Manifest describing unmodified redistribution under the GUST Font License.

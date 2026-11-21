@@ -1,0 +1,16 @@
+# Dart / Flutter build and cache artifacts
+.dart_tool/
+build/
+pubspec.lock
+coverage/
+doc/api/
+example/.dart_tool/
+example/build/
+example/pubspec.lock
+
+# Tests and editor metadata
+test/
+.DS_Store
+*.iml
+.idea/
+.vscode/

@@ -1,0 +1,7 @@
+% id: tier1_core/newcommand/nested_macro_expansion
+% tier: 1
+% package: newcommand
+% feature: macros
+% display: inline
+% accepted: true
+\newcommand{\sq}[1]{(#1)^2}\newcommand{\sumsq}[2]{\sq{#1}+\sq{#2}}\sumsq{a}{b}

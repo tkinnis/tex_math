@@ -1,0 +1,36 @@
+name: tex_math_flutter
+description: Flutter widget, theming, bundled New Computer Modern Math font asset, and background isolate layout integration for tex_math.
+version: 0.1.0-dev
+homepage: https://github.com/tkinnis/tex_math
+repository: https://github.com/tkinnis/tex_math
+issue_tracker: https://github.com/tkinnis/tex_math/issues
+documentation: https://github.com/tkinnis/tex_math/blob/main/doc/API_MANUAL.md
+
+topics:
+  - tex
+  - latex
+  - math
+  - flutter
+  - typography
+
+resolution: workspace
+
+environment:
+  sdk: ^3.13.0
+  flutter: ">=3.27.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  tex_math: ^0.1.0-dev
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  lints: ^6.1.0
+
+flutter:
+  assets:
+    - assets/fonts/NewCMMath-Regular.otf
+    - assets/fonts/GUST-FONT-LICENSE.txt
+    - assets/fonts/MANIFEST-NewCMMath.txt

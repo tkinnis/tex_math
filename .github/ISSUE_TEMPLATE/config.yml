@@ -1,0 +1,14 @@
+blank_issues_enabled: false
+contact_links:
+  - name: MathJax Repository
+    url: https://github.com/mathjax/MathJax
+    about: Inspect upstream MathJax 4 releases and TeX input behavior.
+  - name: MathJax Source Repository
+    url: https://github.com/mathjax/MathJax-src
+    about: Inspect MathJax TeX package implementations under ts/input/tex/.
+  - name: JupyterLab MathJax Extension
+    url: https://github.com/jupyterlab/jupyterlab/tree/main/packages/mathjax-extension
+    about: Inspect the default TeX package configuration used in JupyterLab notebooks.
+  - name: Security Vulnerability Report
+    url: https://github.com/tkinnis/tex_math/security/advisories/new
+    about: Privately report a security vulnerability in tex_math.

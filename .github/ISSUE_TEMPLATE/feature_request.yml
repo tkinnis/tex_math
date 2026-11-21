@@ -1,0 +1,34 @@
+name: Feature Request
+description: Suggest a TeX package extension, MathJax parity enhancement, or Flutter integration capability.
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Use Case / Problem Statement
+      description: What are you building with `tex_math`, and what capability is missing?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed Solution or API
+      description: Describe the TeX syntax, behavior, or Dart/Flutter API you would like to see.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: scope
+    attributes:
+      label: Feature Scope
+      options:
+        - Tier 1 (Core TeX, AMS, Macros, Textmacros, Tag/ConfigMacros)
+        - Tier 2 (JupyterLab Standard Extensions)
+        - Tier 3 (Remaining MathJax 4 Extensions)
+        - Flutter Integration (Widget, Selection, Semantics, Font Loading)
+        - Studio / Tooling / Documentation
+        - Other
+    validations:
+      required: true

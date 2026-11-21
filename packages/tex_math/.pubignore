@@ -1,0 +1,13 @@
+# Dart / Pub build and cache artifacts
+.dart_tool/
+build/
+pubspec.lock
+coverage/
+doc/api/
+
+# Tests and editor metadata
+test/
+.DS_Store
+*.iml
+.idea/
+.vscode/

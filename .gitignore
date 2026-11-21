@@ -1,0 +1,31 @@
+# Dart / Pub / Flutter
+.dart_tool/
+.packages
+.flutter-plugins
+.flutter-plugins-dependencies
+build/
+pubspec.lock
+coverage/
+doc/api/
+**/Flutter/ephemeral/
+**/Flutter/GeneratedPluginRegistrant.*
+**/Flutter/flutter_export_environment.sh
+**/Pods/
+**/.generated/
+
+# Node / Oracle / Python
+node_modules/
+tool/oracle/node_modules/
+__pycache__/
+*.py[cod]
+
+# Upstream temporary checkouts
+.upstream/
+
+# macOS / Editor
+.DS_Store
+*.iml
+.idea/
+.vscode/
+xcuserdata/
+DerivedData/

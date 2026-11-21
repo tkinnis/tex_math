@@ -1,0 +1,109 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Analyze, Test, Oracle & Benchmarks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter & Dart SDK
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install Dart & Flutter workspace dependencies
+        run: flutter pub get
+
+      - name: Install MathJax oracle dependencies
+        working-directory: tool/oracle
+        run: npm ci
+
+      - name: Verify code formatting
+        run: dart format --output=none --set-exit-if-changed packages tool studio
+
+      - name: Run static analysis
+        run: dart analyze --fatal-infos
+
+      - name: Run pure-Dart core tests, CLI example & dartdoc check
+        working-directory: packages/tex_math
+        run: |
+          dart test
+          dart run example/main.dart
+          dart doc --dry-run
+
+      - name: Run Flutter package tests
+        working-directory: packages/tex_math_flutter
+        run: flutter test
+
+      - name: Run Flutter example app tests
+        working-directory: packages/tex_math_flutter/example
+        run: flutter test
+
+      - name: Run Studio app tests
+        working-directory: studio
+        run: flutter test
+
+      - name: Verify lockstep versions
+        run: dart run tool/check_versions.dart
+
+      - name: Verify release git tag matches lockstep version
+        if: github.ref_type == 'tag'
+        run: dart run tool/check_versions.dart --tag "${GITHUB_REF_NAME}"
+
+      - name: Verify corpus against MathJax 4.1.3 oracle
+        run: dart run tool/verify_against_mathjax.dart
+
+      - name: Verify REFERENCE.md pins and oracle lockfile hash
+        run: dart run tool/sync_reference.dart --verify
+
+      - name: Run native AOT benchmark regression gate
+        run: dart run tool/benchmark_suite.dart --check-regressions
+
+      - name: Validate pub.dev publish readiness for tex_math
+        working-directory: packages/tex_math
+        run: dart pub publish --dry-run
+
+      - name: Validate pub.dev publish readiness for tex_math_flutter
+        working-directory: packages/tex_math_flutter
+        run: flutter pub publish --dry-run
+
+  automerge:
+    name: Auto-Merge Dependabot (Minor & Patch)
+    needs: [verify]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' && github.actor == 'dependabot[bot]'
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Fetch Dependabot metadata
+        id: metadata
+        uses: dependabot/fetch-metadata@v2
+        with:
+          github-token: "${{ secrets.GITHUB_TOKEN }}"
+
+      - name: Squash-merge minor and patch updates after CI passes
+        if: >-
+          steps.metadata.outputs.update-type == 'version-update:semver-patch' ||
+          steps.metadata.outputs.update-type == 'version-update:semver-minor'
+        run: gh pr merge --squash --delete-branch "$PR_URL"
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

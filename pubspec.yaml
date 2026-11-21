@@ -1,0 +1,16 @@
+name: tex_math_workspace
+publish_to: none
+
+environment:
+  sdk: ^3.13.0
+
+workspace:
+  - packages/tex_math
+  - packages/tex_math_flutter
+  - packages/tex_math_flutter/example
+  - studio
+
+dev_dependencies:
+  lints: ^6.1.0
+  test: ^1.31.1
+  tex_math: ^0.1.0-dev

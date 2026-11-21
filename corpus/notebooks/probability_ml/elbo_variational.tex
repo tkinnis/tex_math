@@ -1,0 +1,7 @@
+% id: notebooks/probability_ml/elbo_variational
+% tier: notebooks
+% package: ams
+% feature: probability_ml
+% display: display
+% accepted: true
+\mathcal{L}(\theta, \phi; \mathbf{x}) = \mathbb{E}_{q_\phi(\mathbf{z}\mid\mathbf{x})}[\log p_\theta(\mathbf{x}\mid\mathbf{z})] - D_{\mathrm{KL}}(q_\phi(\mathbf{z}\mid\mathbf{x}) \parallel p(\mathbf{z}))
