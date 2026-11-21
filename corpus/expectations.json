@@ -533,7 +533,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 11.266,
         "height": 1.4006,
@@ -713,7 +713,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 13.3848,
         "height": 1.5808,
@@ -885,7 +885,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 8.7796,
         "height": 1.8415,
@@ -1152,7 +1152,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 12.7248,
         "height": 1.361,
@@ -1297,7 +1297,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 21.7177,
         "height": 1.5999,
@@ -1672,7 +1672,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 19.8301,
         "height": 1.356,
@@ -1915,7 +1915,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 19.7116,
         "height": 1.7343,
@@ -2186,7 +2186,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 22.9453,
         "height": 1.4852,
@@ -2457,7 +2457,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 12.4045,
         "height": 1.5439,
@@ -2713,7 +2713,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 17.0351,
         "height": 1.5267,
@@ -2900,7 +2900,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 22.7342,
         "height": 1.45,
@@ -3157,7 +3157,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 17.6657,
         "height": 1.502,
@@ -3421,7 +3421,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 11.0632,
         "height": 1.7407,
@@ -3650,7 +3650,7 @@
       "display": false,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 3.3037,
         "height": 0.75,
@@ -3711,7 +3711,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 10.9716,
         "height": 1.5625,
@@ -3863,7 +3863,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 14.2841,
         "height": 1.381,
@@ -4063,7 +4063,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 10.7671,
         "height": 1.392,
@@ -4201,7 +4201,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 16.3856,
         "height": 1.392,
@@ -4416,7 +4416,7 @@
       "display": false,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 1.254,
         "height": 0.8339,
@@ -4449,7 +4449,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 18.3902,
         "height": 1.5099,
@@ -4719,7 +4719,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 14.2128,
         "height": 1.46,
@@ -4983,7 +4983,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 24.4801,
         "height": 0.75,
@@ -5338,7 +5338,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 16.0415,
         "height": 1.456,
@@ -5581,7 +5581,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 25.2347,
         "height": 1.342,
@@ -5922,7 +5922,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 15.4591,
         "height": 1.7485,
@@ -6228,7 +6228,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 8.8012,
         "height": 1.2321,
@@ -6380,7 +6380,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 6.4751,
         "height": 1.0723,
@@ -6553,7 +6553,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 14.6846,
         "height": 1.2356,
@@ -6852,7 +6852,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 8.0873,
         "height": 1.59,
@@ -7023,7 +7023,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "pass",
       "box": {
         "width": 8.7139,
         "height": 1.3,
@@ -7160,7 +7160,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 10.8402,
         "height": 1.5427,
@@ -7325,7 +7325,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 9.9202,
         "height": 2.0935,
@@ -7518,7 +7518,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 4.976,
         "height": 2.15,
@@ -7635,7 +7635,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 2.304,
         "height": 3.55,
@@ -7759,7 +7759,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 3.415,
         "height": 3.55,
@@ -7890,7 +7890,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 2.302,
         "height": 4.25,
@@ -7993,7 +7993,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "pass",
       "box": {
         "width": 7.377,
         "height": 1.501,
@@ -8096,7 +8096,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "pass",
       "box": {
         "width": 10.066,
         "height": 1.745,
@@ -8220,7 +8220,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 8.8096,
         "height": 1.374,
@@ -8316,7 +8316,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 6.247,
         "height": 1.296,
@@ -8424,7 +8424,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 11.3051,
         "height": 1.752,
@@ -8583,7 +8583,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 11.9078,
         "height": 1.6913,
@@ -8868,7 +8868,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 4.9672,
         "height": 1.7298,
@@ -9076,7 +9076,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 16.1704,
         "height": 1.7737,
@@ -9340,7 +9340,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 4.911,
         "height": 3.2453,
@@ -9492,7 +9492,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 4.3601,
         "height": 1.8112,
@@ -9625,7 +9625,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 12.9529,
         "height": 3.4275,
@@ -9850,7 +9850,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 15.8368,
         "height": 1.2838,
@@ -10044,7 +10044,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 10.835,
         "height": 1.079,
@@ -10189,7 +10189,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 9.0412,
         "height": 1.345,
@@ -10306,7 +10306,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "pass",
       "box": {
         "width": 5.0044,
         "height": 1.501,
@@ -10388,7 +10388,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "pass",
       "box": {
         "width": 4.086,
         "height": 1.4,
@@ -10477,7 +10477,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "pass",
       "box": {
         "width": 6.7161,
         "height": 1.4,
@@ -10580,7 +10580,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "pass",
       "box": {
         "width": 5.3239,
         "height": 1.4,
@@ -10718,7 +10718,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "pass",
       "box": {
         "width": 5.7291,
         "height": 1.4,
@@ -10821,7 +10821,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "pass",
       "box": {
         "width": 16.4601,
         "height": 1.015,
@@ -10987,7 +10987,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "pass",
       "box": {
         "width": 9.79,
         "height": 1.4,
@@ -11174,7 +11174,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 6.8702,
         "height": 1.1133,
@@ -11291,7 +11291,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 35.36,
         "height": 0.75,
@@ -11352,7 +11352,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 20.5483,
         "height": 1.361,
@@ -11525,7 +11525,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "pass",
       "box": {
         "width": 8.7198,
         "height": 0.789,
@@ -11614,7 +11614,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "pass",
       "box": {
         "width": 4.5138,
         "height": 0.75,
@@ -11675,7 +11675,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 35.36,
         "height": 2.25,
@@ -11757,7 +11757,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 10.9801,
         "height": 1.0037,
@@ -11916,7 +11916,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "pass",
       "box": {
         "width": 9.7328,
         "height": 1.296,
@@ -12047,7 +12047,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "pass",
       "box": {
         "width": 3.056,
         "height": 1.45,
@@ -12108,7 +12108,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "pass",
       "box": {
         "width": 8.9601,
         "height": 1.35,
@@ -12267,7 +12267,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 8.0853,
         "height": 1.62,
@@ -12396,7 +12396,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 9.3531,
         "height": 0.748,
@@ -12548,7 +12548,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 4.094,
         "height": 1.4,
@@ -12637,7 +12637,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "pass",
       "box": {
         "width": 3.7316,
         "height": 1.4,
@@ -12712,7 +12712,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 10.5158,
         "height": 0.8839,
@@ -12857,7 +12857,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 35.36,
         "height": 1.5,
@@ -12981,7 +12981,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "pass",
       "box": {
         "width": 3.521,
         "height": 1.45,
@@ -13042,7 +13042,7 @@
       "display": false,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 2.0232,
         "height": 0.972,
@@ -13103,7 +13103,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 8.261,
         "height": 1.5339,
@@ -13255,7 +13255,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 5.2189,
         "height": 0.95,
@@ -13393,7 +13393,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 6.5386,
         "height": 1.4,
@@ -13475,7 +13475,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "pass",
       "box": {
         "width": 7.9211,
         "height": 0.705,
@@ -13592,7 +13592,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "pass",
       "box": {
         "width": 7.182,
         "height": 1.502,
@@ -13695,7 +13695,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 7.5508,
         "height": 1.097,
@@ -13812,7 +13812,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 1.9284,
         "height": 0.826,
@@ -13866,7 +13866,7 @@
       "display": false,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 0.5105,
         "height": 1.043,
@@ -13906,7 +13906,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 6.1444,
         "height": 0.903,
@@ -13995,7 +13995,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 9.1027,
         "height": 0.837,
@@ -14133,7 +14133,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 5.0204,
         "height": 1.101,
@@ -14215,7 +14215,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 5.655,
         "height": 1.575,
@@ -14290,7 +14290,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "pass",
       "box": {
         "width": 9.029,
         "height": 1.575,
@@ -14407,7 +14407,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "pass",
       "box": {
         "width": 3.278,
         "height": 1.575,
@@ -14489,7 +14489,7 @@
       "display": false,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "pass",
       "box": {
         "width": 4.472,
         "height": 1.575,
@@ -14550,7 +14550,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 3.498,
         "height": 1.68,
@@ -14604,7 +14604,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "pass",
       "box": {
         "width": 7.2714,
         "height": 2.275,
@@ -14686,7 +14686,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 5.5676,
         "height": 0.6,
@@ -14740,7 +14740,7 @@
       "display": false,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 1.8477,
         "height": 0.75,
@@ -14780,7 +14780,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 14.1798,
         "height": 0.716,
@@ -14876,7 +14876,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 12.7393,
         "height": 0.705,
@@ -14986,7 +14986,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "pass",
       "box": {
         "width": 6.722,
         "height": 0.757,
@@ -15068,7 +15068,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 14.0515,
         "height": 0.936,
@@ -15220,7 +15220,7 @@
       "display": false,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 8.6238,
         "height": 1.0035,
@@ -15365,7 +15365,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 9.8985,
         "height": 1.5788,
@@ -15496,7 +15496,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 12.581,
         "height": 1.5405,
@@ -15690,7 +15690,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 9.8836,
         "height": 1.5625,
@@ -15863,7 +15863,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 6.3283,
         "height": 0.685,
@@ -15931,7 +15931,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 15.81,
         "height": 0.712,
@@ -16153,7 +16153,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "pass",
       "box": {
         "width": 8.069,
         "height": 0.716,
@@ -16249,7 +16249,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 6.686,
         "height": 0.723,
@@ -16345,7 +16345,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 9.7678,
         "height": 0.699,
@@ -16448,7 +16448,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 10.3908,
         "height": 0.698,
@@ -16558,7 +16558,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 2.6204,
         "height": 1.37,
@@ -16626,7 +16626,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 8.1639,
         "height": 1.3,
@@ -16743,7 +16743,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 4.2968,
         "height": 1.5871,
@@ -16886,7 +16886,7 @@
       "display": false,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 1.6675,
         "height": 0.8894,
@@ -16954,7 +16954,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 4.1033,
         "height": 1.342,
@@ -17048,7 +17048,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 4.6829,
         "height": 1.37,
@@ -17137,7 +17137,7 @@
       "display": false,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 2.4674,
         "height": 1.418,
@@ -17198,7 +17198,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 5.5105,
         "height": 1.333,
@@ -17308,7 +17308,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 4.9431,
         "height": 1.1655,
@@ -17411,7 +17411,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 2.5682,
         "height": 1.5625,
@@ -17479,7 +17479,7 @@
       "display": false,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 3.5353,
         "height": 0.8339,
@@ -17547,7 +17547,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 20.5804,
         "height": 0.748,
@@ -17839,7 +17839,7 @@
       "display": false,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 3.221,
         "height": 0.75,
@@ -17914,7 +17914,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 7.9664,
         "height": 0.748,
@@ -18101,7 +18101,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 8.6916,
         "height": 0.748,
@@ -18253,7 +18253,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "pass",
       "box": {
         "width": 7.4696,
         "height": 0.748,
@@ -18377,7 +18377,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 15.4532,
         "height": 0.694,
@@ -18606,7 +18606,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 12.2627,
         "height": 0.748,
@@ -18737,7 +18737,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 17.3989,
         "height": 0.75,
@@ -18973,7 +18973,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 14.8261,
         "height": 0.694,
@@ -19146,7 +19146,7 @@
       "display": false,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 0.878,
         "height": 0.75,
@@ -19179,7 +19179,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 18.5906,
         "height": 0.73,
@@ -19345,7 +19345,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "pass",
       "box": {
         "width": 7.7112,
         "height": 0.73,
@@ -19427,7 +19427,7 @@
       "display": false,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 1.1176,
         "height": 0.75,
@@ -19460,7 +19460,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 16.3794,
         "height": 0.73,
@@ -19598,7 +19598,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 14.9904,
         "height": 0.705,
@@ -19736,7 +19736,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 3.6404,
         "height": 1.6763,
@@ -19817,7 +19817,7 @@
       "display": false,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 2.523,
         "height": 0.955,
@@ -19871,7 +19871,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 6.9099,
         "height": 1.8818,
@@ -19965,7 +19965,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 3.2004,
         "height": 1.0808,
@@ -20026,7 +20026,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 4.1776,
         "height": 1.0527,
@@ -20094,7 +20094,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 3.36,
         "height": 0.8839,
@@ -20162,7 +20162,7 @@
       "display": false,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 2.5194,
         "height": 0.9527,
@@ -20223,7 +20223,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 4.1801,
         "height": 1.1982,
@@ -20305,7 +20305,7 @@
       "display": false,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 1.6737,
         "height": 0.75,
@@ -20345,7 +20345,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 13.7055,
         "height": 0.8839,
@@ -20532,7 +20532,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 4.1319,
         "height": 0.8839,
@@ -20628,7 +20628,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "pass",
       "box": {
         "width": 2.891,
         "height": 0.694,
@@ -20668,7 +20668,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 6.906,
         "height": 0.705,
@@ -20736,7 +20736,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 4.4104,
         "height": 0.8839,
@@ -20783,7 +20783,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "pass",
       "box": {
         "width": 4.7639,
         "height": 0.75,
@@ -20865,7 +20865,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "pass",
       "box": {
         "width": 3.2944,
         "height": 1.118,
@@ -20905,7 +20905,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "pass",
       "box": {
         "width": 5.145,
         "height": 0.75,
@@ -20980,7 +20980,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 4.5673,
         "height": 1.1497,
@@ -21061,7 +21061,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "pass",
       "box": {
         "width": 5.616,
         "height": 1.118,
@@ -21182,7 +21182,7 @@
       "display": false,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 2.3585,
         "height": 0.8649,
@@ -21264,7 +21264,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "pass",
       "box": {
         "width": 0.828,
         "height": 0.683,
@@ -21295,7 +21295,7 @@
       ],
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "pass",
       "box": {
         "width": 3.521,
         "height": 1.45,
@@ -21360,7 +21360,7 @@
       ],
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "pass",
       "box": {
         "width": 2.8764,
         "height": 1.382,
@@ -21433,7 +21433,7 @@
       ],
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 3.0804,
         "height": 0.75,
@@ -21487,7 +21487,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "pass",
       "box": {
         "width": 4.0841,
         "height": 0.748,
@@ -21555,7 +21555,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 3.065,
         "height": 1.342,
@@ -21616,7 +21616,7 @@
       "display": false,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 1.7436,
         "height": 0.8339,
@@ -21663,7 +21663,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 4.1914,
         "height": 1.381,
@@ -21758,7 +21758,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "pass",
       "box": {
         "width": 2.2797,
         "height": 0.75,
@@ -21812,7 +21812,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "pass",
       "box": {
         "width": 2.5166,
         "height": 0.685,
@@ -21852,7 +21852,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 5.626,
         "height": 1.575,
@@ -21927,7 +21927,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "pass",
       "box": {
         "width": 3.472,
         "height": 1.45,
@@ -21988,7 +21988,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 0.8656,
         "height": 0.8839,
@@ -22021,7 +22021,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "pass",
       "box": {
         "width": 1.913,
         "height": 1.15,
@@ -22075,7 +22075,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 8.4636,
         "height": 1.467,
@@ -22234,7 +22234,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 5.2567,
         "height": 0.8839,
@@ -22309,7 +22309,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 14.443,
         "height": 0.75,
@@ -22440,7 +22440,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 9.688,
         "height": 0.957,
@@ -22641,7 +22641,7 @@
       "display": false,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 11.49,
         "height": 0.694,
@@ -22842,7 +22842,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "pass",
       "box": {
         "width": 8.9171,
         "height": 1.118,
@@ -22980,7 +22980,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 12.596,
         "height": 0.694,
@@ -23195,7 +23195,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 3.8471,
         "height": 0.8839,
@@ -23249,7 +23249,7 @@
       "display": false,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "pass",
       "box": {
         "width": 0.786,
         "height": 0.705,
@@ -23275,7 +23275,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "pass",
       "box": {
         "width": 0.64,
         "height": 0.442,
@@ -23301,7 +23301,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "pass",
       "box": {
         "width": 0.572,
         "height": 0.442,
@@ -23327,7 +23327,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 18.269,
         "height": 0.9744,
@@ -23451,7 +23451,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 6.149,
         "height": 2.725,
@@ -23547,7 +23547,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 5.838,
         "height": 2.9429,
@@ -23664,7 +23664,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 6.175,
         "height": 3.3968,
@@ -23802,7 +23802,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "pass",
       "box": {
         "width": 2.2844,
         "height": 0.583,
@@ -23849,7 +23849,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 3.394,
         "height": 1.2154,
@@ -23896,7 +23896,7 @@
       "display": false,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "pass",
       "box": {
         "width": 0.867,
         "height": 0.642,
@@ -23929,7 +23929,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 1.5215,
         "height": 1.3943,
@@ -23969,7 +23969,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 4.594,
         "height": 0.703,
@@ -24023,7 +24023,7 @@
       "display": false,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 0.567,
         "height": 0.75,
@@ -24049,7 +24049,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 6.989,
         "height": 1.392,
@@ -24138,7 +24138,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 4.9046,
         "height": 0.683,
@@ -24213,7 +24213,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "pass",
       "box": {
         "width": 3.8034,
         "height": 0.75,
@@ -24281,7 +24281,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 3.462,
         "height": 1.067,
@@ -24356,7 +24356,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 12.2494,
         "height": 1.75,
@@ -24526,7 +24526,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 6.7821,
         "height": 0.75,
@@ -24636,7 +24636,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 6.6367,
         "height": 0.8839,
@@ -24725,7 +24725,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 3.971,
         "height": 1.2855,
@@ -24779,7 +24779,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 2.519,
         "height": 1.2855,
@@ -24826,7 +24826,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 12.4756,
         "height": 1.2855,
@@ -24915,7 +24915,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 8.0554,
         "height": 1.2855,
@@ -25018,7 +25018,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 2.7144,
         "height": 0.961,
@@ -25058,7 +25058,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 3.8596,
         "height": 1.447,
@@ -25119,7 +25119,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 6.1739,
         "height": 1.9091,
@@ -25215,7 +25215,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 3.265,
         "height": 1.1509,
@@ -25262,7 +25262,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 10.9531,
         "height": 1.35,
@@ -25449,7 +25449,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 12.1341,
         "height": 1.95,
@@ -25734,7 +25734,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 10.2631,
         "height": 1.35,
@@ -25907,7 +25907,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 10.4531,
         "height": 1.392,
@@ -26066,7 +26066,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "pass",
       "box": {
         "width": 3.522,
         "height": 0.75,
@@ -26113,7 +26113,7 @@
       "display": false,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 3.0476,
         "height": 0.75,
@@ -26160,7 +26160,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 5.9411,
         "height": 0.75,
@@ -26235,7 +26235,7 @@
       "display": false,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "pass",
       "box": {
         "width": 0.64,
         "height": 0.442,
@@ -26261,7 +26261,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 3.1576,
         "height": 0.8839,
@@ -26315,7 +26315,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 7.5444,
         "height": 1.0807,
@@ -26424,7 +26424,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "pass",
       "box": {
         "width": 0.467,
         "height": 0.442,
@@ -26450,7 +26450,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "pass",
       "box": {
         "width": 2.1804,
         "height": 0.694,
@@ -26490,7 +26490,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 3.204,
         "height": 1.575,
@@ -26550,7 +26550,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 3.282,
         "height": 1.68,
@@ -26622,7 +26622,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 3.119,
         "height": 1.575,
@@ -26682,7 +26682,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 3.253,
         "height": 1.575,
@@ -26742,7 +26742,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 3.9811,
         "height": 1.4,
@@ -26831,7 +26831,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 4.6911,
         "height": 0.748,
@@ -26906,7 +26906,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 4.825,
         "height": 1.4,
@@ -27002,7 +27002,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 6.3127,
         "height": 1.5322,
@@ -27140,7 +27140,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 4.7229,
         "height": 0.944,
@@ -27201,7 +27201,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 5.0749,
         "height": 0.933,
@@ -27262,7 +27262,7 @@
       "display": false,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 2.6113,
         "height": 0.8759,
@@ -27309,7 +27309,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 5.3039,
         "height": 0.709,
@@ -27370,7 +27370,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 4.6582,
         "height": 1.1714,
@@ -27466,7 +27466,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 5.7805,
         "height": 1.223,
@@ -27541,7 +27541,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 3.6526,
         "height": 1.3815,
@@ -27595,7 +27595,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 6.8759,
         "height": 1.0258,
@@ -27663,7 +27663,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 9.2308,
         "height": 1.107,
@@ -27773,7 +27773,7 @@
       "display": false,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "pass",
       "box": {
         "width": 2.53,
         "height": 0.705,
@@ -27820,7 +27820,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 9.5618,
         "height": 0.705,
@@ -27923,7 +27923,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "pass",
       "box": {
         "width": 3.9426,
         "height": 0.75,
@@ -27977,7 +27977,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 3.1576,
         "height": 0.8839,
@@ -28031,7 +28031,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "pass",
       "box": {
         "width": 0.583,
         "height": 0.694,
@@ -28057,7 +28057,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 3.8471,
         "height": 0.8839,
@@ -28111,7 +28111,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "pass",
       "box": {
         "width": 2.1804,
         "height": 0.694,
@@ -28151,7 +28151,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 6.4637,
         "height": 0.8839,
@@ -28247,7 +28247,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "pass",
       "box": {
         "width": 9.8516,
         "height": 1.7575,
@@ -28399,7 +28399,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 4.4524,
         "height": 0.95,
@@ -28509,7 +28509,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "pass",
       "box": {
         "width": 10.3064,
         "height": 1.45,
@@ -28647,7 +28647,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 7.6317,
         "height": 1.7065,
@@ -28743,7 +28743,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "pass",
       "box": {
         "width": 3.9854,
         "height": 1.118,
@@ -28825,7 +28825,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 4.5647,
         "height": 0.966,
@@ -28914,7 +28914,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 6.6738,
         "height": 1.2235,
@@ -29024,7 +29024,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 19.0182,
         "height": 0.75,
@@ -29225,7 +29225,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 8.0217,
         "height": 0.75,
@@ -29314,7 +29314,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 9.3106,
         "height": 0.8917,
@@ -29473,7 +29473,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 20.5476,
         "height": 0.8252,
@@ -29667,7 +29667,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 13.2162,
         "height": 0.892,
@@ -29868,7 +29868,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 9.4022,
         "height": 0.75,
@@ -29975,7 +29975,7 @@
       ],
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 3,
         "height": 0.75,
@@ -29998,7 +29998,7 @@
       ],
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 18,
         "height": 0.75,
@@ -30020,7 +30020,7 @@
       ],
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 6,
         "height": 0.75,
@@ -30042,7 +30042,7 @@
       ],
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 11.4,
         "height": 0.75,
@@ -30064,7 +30064,7 @@
       ],
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "pass",
       "box": {
         "width": 6.867,
         "height": 0.75,
@@ -30178,7 +30178,7 @@
       ],
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 7.3864,
         "height": 1.46,
@@ -30348,7 +30348,7 @@
       ],
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "pass",
       "box": {
         "width": 1.806,
         "height": 0.75,
@@ -30400,7 +30400,7 @@
       ],
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "pass",
       "box": {
         "width": 9.1069,
         "height": 0.75,
@@ -30521,7 +30521,7 @@
       ],
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "pass",
       "box": {
         "width": 2.1804,
         "height": 0.694,
@@ -30561,7 +30561,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 1.2433,
         "height": 0.7255,
@@ -30594,7 +30594,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 5.3714,
         "height": 1.381,
@@ -30697,7 +30697,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 5.1184,
         "height": 1.108,
@@ -30772,7 +30772,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 3.567,
         "height": 0.705,
@@ -30840,7 +30840,7 @@
       "display": false,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 3.013,
         "height": 0.687,
@@ -30894,7 +30894,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 3.679,
         "height": 0.705,
@@ -30962,7 +30962,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 2.5844,
         "height": 0.705,
@@ -31002,7 +31002,7 @@
       "display": false,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 0.641,
         "height": 0.75,
@@ -31028,7 +31028,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "pass",
       "box": {
         "width": 2.7154,
         "height": 0.688,
@@ -31068,7 +31068,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "pass",
       "box": {
         "width": 2.6664,
         "height": 0.704,
@@ -31108,7 +31108,7 @@
       "display": false,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 1.4736,
         "height": 0.8339,
@@ -31148,7 +31148,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "pass",
       "box": {
         "width": 11.4257,
         "height": 0.712,
@@ -31258,7 +31258,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "pass",
       "box": {
         "width": 12.4587,
         "height": 0.716,
@@ -31368,7 +31368,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "pass",
       "box": {
         "width": 7.5578,
         "height": 0.705,
@@ -31450,7 +31450,7 @@
       "display": false,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 4.725,
         "height": 0.622,
@@ -31532,7 +31532,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 5.775,
         "height": 0.694,
@@ -31628,7 +31628,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 7.813,
         "height": 0.694,
@@ -31757,7 +31757,7 @@
       ],
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 2.8184,
         "height": 0.709,
@@ -31802,7 +31802,7 @@
       ],
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 5.201,
         "height": 0.75,
@@ -31888,7 +31888,7 @@
       ],
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 2.4584,
         "height": 0.683,
@@ -31932,7 +31932,7 @@
       ],
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 0.5,
         "height": 0.666,
@@ -31962,7 +31962,7 @@
       ],
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 2.5834,
         "height": 0.683,
@@ -32006,7 +32006,7 @@
       ],
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 5.2529,
         "height": 0.748,
@@ -32078,7 +32078,7 @@
       ],
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "pass",
       "box": {
         "width": 6.2193,
         "height": 0.706,
@@ -32151,7 +32151,7 @@
       ],
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "pass",
       "box": {
         "width": 1.79,
         "height": 0.716,
@@ -32196,7 +32196,7 @@
       ],
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "pass",
       "box": {
         "width": 4.0069,
         "height": 0.666,
@@ -32255,7 +32255,7 @@
       ],
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "pass",
       "box": {
         "width": 3.9319,
         "height": 0.694,
@@ -32314,7 +32314,7 @@
       ],
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "pass",
       "box": {
         "width": 2.1804,
         "height": 0.694,
@@ -32358,7 +32358,7 @@
       ],
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "pass",
       "box": {
         "width": 3.9739,
         "height": 0.583,
@@ -32416,7 +32416,7 @@
       ],
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 1.0766,
         "height": 0.8339,
@@ -32453,7 +32453,7 @@
       ],
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "pass",
       "box": {
         "width": 3.8359,
         "height": 0.694,
@@ -32511,7 +32511,7 @@
       ],
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 8.9312,
         "height": 0.705,
@@ -32597,7 +32597,7 @@
       ],
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 1.921,
         "height": 0.75,
@@ -32641,7 +32641,7 @@
       ],
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 3.579,
         "height": 0.7255,
@@ -32699,7 +32699,7 @@
       ],
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 0.4004,
         "height": 0.75,
@@ -32729,7 +32729,7 @@
       ],
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 7.7363,
         "height": 1.1006,
@@ -32816,7 +32816,7 @@
       ],
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 12.4936,
         "height": 1.067,
@@ -32994,7 +32994,7 @@
       ],
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 11.3699,
         "height": 1.5099,
@@ -33211,7 +33211,7 @@
       ],
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 8.6119,
         "height": 0.75,
@@ -33368,7 +33368,7 @@
       ],
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 19.4659,
         "height": 2.65,
@@ -33553,7 +33553,7 @@
       ],
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 15.4112,
         "height": 1.559,
@@ -33766,7 +33766,7 @@
       ],
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 2.603,
         "height": 0.75,
@@ -33832,7 +33832,7 @@
       ],
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 5.1004,
         "height": 1.388,
@@ -33926,7 +33926,7 @@
       ],
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 12.5768,
         "height": 0.8839,
@@ -34063,7 +34063,7 @@
       ],
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 0.736,
         "height": 0.683,
@@ -34094,7 +34094,7 @@
       ],
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 6.1118,
         "height": 0.666,
@@ -34196,7 +34196,7 @@
       ],
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 2.165,
         "height": 0.666,
@@ -34247,7 +34247,7 @@
       ],
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 0.016,
         "height": 0.75,
@@ -34269,7 +34269,7 @@
       ],
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 1.7944,
         "height": 0.583,
@@ -34306,7 +34306,7 @@
       ],
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 6.359,
         "height": 0.8839,
@@ -34406,7 +34406,7 @@
       ],
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 1.0571,
         "height": 0.75,
@@ -34450,7 +34450,7 @@
       ],
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "unsupported",
+      "texMathStatus": "differs",
       "box": {
         "width": 3.952,
         "height": 1.108,

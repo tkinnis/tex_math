@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "phase": "Phases 2-3",
+  "phase": "Phases 2-5",
   "toleranceMultiplier": 5.0,
   "corpusCaseCount": 352,
   "hardware": {
@@ -20,11 +20,11 @@
       "batchIterations": 5,
       "samples": 10,
       "warmupSamples": 2,
-      "meanUs": 1021.38,
-      "medianUs": 945.2,
-      "p95Us": 1366.2,
-      "minUs": 782.0,
-      "maxUs": 1366.2
+      "meanUs": 837.56,
+      "medianUs": 799.8,
+      "p95Us": 1023.4,
+      "minUs": 698.8,
+      "maxUs": 1023.4
     },
     {
       "id": "display_list_to_svg_small",
@@ -33,11 +33,11 @@
       "batchIterations": 400,
       "samples": 20,
       "warmupSamples": 4,
-      "meanUs": 70.75,
-      "medianUs": 70.72,
-      "p95Us": 83.67,
-      "minUs": 64.41,
-      "maxUs": 83.67
+      "meanUs": 56.18,
+      "medianUs": 55.83,
+      "p95Us": 60.31,
+      "minUs": 54.73,
+      "maxUs": 60.31
     },
     {
       "id": "display_list_to_svg_large",
@@ -46,24 +46,24 @@
       "batchIterations": 60,
       "samples": 20,
       "warmupSamples": 4,
-      "meanUs": 1557.63,
-      "medianUs": 1529.06,
-      "p95Us": 1753.95,
-      "minUs": 1439.53,
-      "maxUs": 1753.95
+      "meanUs": 1276.6,
+      "medianUs": 1278.73,
+      "p95Us": 1331.62,
+      "minUs": 1206.95,
+      "maxUs": 1331.62
     },
     {
       "id": "budget_input_check_valid",
-      "description": "Validate input budgets, parse quadratic formula, and dispatch TexMathEngine.render",
+      "description": "Validate input budgets, parse, and lay out quadratic formula via TexMathEngine.render",
       "unit": "us",
       "batchIterations": 1500,
       "samples": 20,
       "warmupSamples": 4,
-      "meanUs": 16.02,
-      "medianUs": 16.2,
-      "p95Us": 19.68,
-      "minUs": 11.81,
-      "maxUs": 19.68
+      "meanUs": 14.41,
+      "medianUs": 14.05,
+      "p95Us": 17.56,
+      "minUs": 13.16,
+      "maxUs": 17.56
     },
     {
       "id": "budget_input_check_exceeded",
@@ -72,11 +72,24 @@
       "batchIterations": 1500,
       "samples": 20,
       "warmupSamples": 4,
-      "meanUs": 3.19,
-      "medianUs": 3.29,
-      "p95Us": 3.88,
-      "minUs": 2.07,
-      "maxUs": 3.88
+      "meanUs": 2.17,
+      "medianUs": 2.05,
+      "p95Us": 3.1,
+      "minUs": 1.86,
+      "maxUs": 3.1
+    },
+    {
+      "id": "notebook_50_equations",
+      "description": "Parse and lay out 50 notebook equations in batch via TexMathEngine.render",
+      "unit": "us",
+      "batchIterations": 40,
+      "samples": 20,
+      "warmupSamples": 4,
+      "meanUs": 1734.2,
+      "medianUs": 1750.93,
+      "p95Us": 2105.75,
+      "minUs": 1365.18,
+      "maxUs": 2105.75
     },
     {
       "id": "corpus_full_dispatch",
@@ -85,11 +98,11 @@
       "batchIterations": 25,
       "samples": 20,
       "warmupSamples": 3,
-      "meanUs": 7456.09,
-      "medianUs": 7446.02,
-      "p95Us": 8426.64,
-      "minUs": 5943.64,
-      "maxUs": 8426.64
+      "meanUs": 9097.79,
+      "medianUs": 7986.34,
+      "p95Us": 14177.0,
+      "minUs": 4862.76,
+      "maxUs": 14177.0
     }
   ]
 }

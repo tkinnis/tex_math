@@ -88,7 +88,7 @@ int _runAotBenchmarks(List<String> args) {
   if (updateBaseline) {
     final Map<String, Object?> baselineJson = <String, Object?>{
       'schemaVersion': 1,
-      'phase': 'Phases 2-3',
+      'phase': 'Phases 2-5',
       'toleranceMultiplier': toleranceOverride ?? _defaultToleranceMultiplier,
       'corpusCaseCount': corpus.length,
       'hardware': hardware.toJson(),
@@ -172,7 +172,7 @@ int _runAotBenchmarks(List<String> args) {
 
   if (jsonOutput) {
     final Map<String, Object?> payload = <String, Object?>{
-      'phase': 'Phases 2-3',
+      'phase': 'Phases 2-5',
       'corpusCaseCount': corpus.length,
       'hardware': hardware.toJson(),
       'benchmarks': results.map((_BenchmarkResult r) => r.toJson()).toList(),
@@ -269,7 +269,7 @@ List<_BenchmarkResult> _executeBenchmarks(List<CorpusCase> corpus) {
 
   final _BenchmarkResult budgetOk = _measure(
     id: 'budget_input_check_valid',
-    description: 'Validate input budgets, parse quadratic formula, and dispatch TexMathEngine.render',
+    description: 'Validate input budgets, parse, and lay out quadratic formula via TexMathEngine.render',
     warmupSamples: 4,
     samples: 20,
     batchIterations: 1500,
@@ -295,6 +295,32 @@ List<_BenchmarkResult> _executeBenchmarks(List<CorpusCase> corpus) {
         engine.parse(oversizedTex);
       } on TexMathBudgetError catch (err) {
         sink ^= err.actual ?? 0;
+      }
+    },
+  );
+
+  final List<int> notebookIndices = <int>[
+    for (int i = 0; i < corpus.length; i++)
+      if (corpus[i].tier == 'Notebooks') i,
+  ];
+  final List<int> pageIndices = notebookIndices.isNotEmpty
+      ? <int>[...notebookIndices, ...notebookIndices]
+      : <int>[for (int i = 0; i < 50 && i < corpus.length; i++) i];
+
+  final _BenchmarkResult notebookPage = _measure(
+    id: 'notebook_50_equations',
+    description:
+        'Parse and lay out ${pageIndices.length} notebook equations in batch via TexMathEngine.render',
+    warmupSamples: 4,
+    samples: 20,
+    batchIterations: 40,
+    body: () {
+      for (final int idx in pageIndices) {
+        final RenderResult result = engine.render(
+          corpus[idx].tex,
+          options: corpusOptions[idx],
+        );
+        sink ^= result.displayList.items.length;
       }
     },
   );
@@ -331,6 +357,7 @@ List<_BenchmarkResult> _executeBenchmarks(List<CorpusCase> corpus) {
     largeSvg,
     budgetOk,
     budgetExceeded,
+    notebookPage,
     corpusBatch,
   ];
 }
@@ -535,15 +562,17 @@ String _renderBenchmarksMarkdown({
       'These timings are measured from a self-compiled native AOT executable '
       'built with `dart compile exe tool/benchmark_suite.dart` against the '
       '`tex_math` OpenType `MATH` font reader, TeX parser and macro expander, '
-      'and `DisplayList.toSvg()` pipeline across $corpusCaseCount corpus cases.',
+      'Appendix G layout engine, and `DisplayList.toSvg()` pipeline across '
+      '$corpusCaseCount corpus cases.',
     )
     ..writeln()
     ..writeln(
       'Measurements cover OpenType font decoding (`MathFont.fromBytes` on '
       '`NewCMMath-Regular.otf`), display-list SVG serialization, '
-      '`TexMathBudgets` input-guard enforcement, and full-corpus parse and '
-      'error-parity dispatch. Appendix G OpenType `MATH` layout and Flutter '
-      'paint benchmarks activate alongside layout and rendering stages.',
+      '`TexMathBudgets` input-guard enforcement, typical inline expression '
+      'layout, 50-equation notebook page layout, and full-corpus layout '
+      'dispatch. Flutter first-paint benchmarks activate alongside widget '
+      'rendering.',
     )
     ..writeln()
     ..writeln('## Host Environment')
@@ -604,21 +633,20 @@ String _renderBenchmarksMarkdown({
     ..writeln()
     ..writeln(
       'The table below lists target end-to-end performance goals for full '
-      'TeX parsing, OpenType `MATH` layout, and Flutter rendering. Layout and '
-      'paint workloads remain pending until Appendix G layout and Flutter '
-      'rendering stages land.',
+      'TeX parsing, OpenType `MATH` layout, and Flutter rendering. Flutter '
+      'paint benchmarks remain pending until widget rendering stages land.',
     )
     ..writeln()
     ..writeln('| Workload | Target Threshold | Scope | Status |')
     ..writeln('| :--- | :--- | :--- | :--- |')
     ..writeln(
-      '| Typical inline expression | `< 50 us` | Full parse, layout, and display list build | Pending (layout) |',
+      '| Typical inline expression | `< 50 us` | Full parse, layout, and display list build | Measured (`budget_input_check_valid`) |',
     )
     ..writeln(
-      '| 50-equation notebook page | `< 5 ms` | Full page layout batch across 50 expressions | Pending (layout) |',
+      '| 50-equation notebook page | `< 5 ms` | Full page layout batch across 50 expressions | Measured (`notebook_50_equations`) |',
     )
     ..writeln(
-      '| Cached first paint | Paint-only cost | Cached display list and theme color update without re-layout | Pending (rendering) |',
+      '| Cached first paint | Paint-only cost | Cached display list and theme color update without re-layout | Pending (Flutter rendering) |',
     )
     ..writeln(
       '| OpenType `MATH` font parse | Once per font | SFNT and `MATH` table decode per `MathFont` load | Measured (`math_font_from_bytes`) |',
@@ -648,6 +676,8 @@ String _chartLabel(String id) {
       return 'budget valid';
     case 'budget_input_check_exceeded':
       return 'budget over';
+    case 'notebook_50_equations':
+      return 'notebook 50';
     case 'corpus_full_dispatch':
       return 'corpus 352';
     default:

@@ -1,8 +1,8 @@
 # Benchmarks (Native AOT Baseline)
 
-These timings are measured from a self-compiled native AOT executable built with `dart compile exe tool/benchmark_suite.dart` against the `tex_math` OpenType `MATH` font reader, TeX parser and macro expander, and `DisplayList.toSvg()` pipeline across 352 corpus cases.
+These timings are measured from a self-compiled native AOT executable built with `dart compile exe tool/benchmark_suite.dart` against the `tex_math` OpenType `MATH` font reader, TeX parser and macro expander, Appendix G layout engine, and `DisplayList.toSvg()` pipeline across 352 corpus cases.
 
-Measurements cover OpenType font decoding (`MathFont.fromBytes` on `NewCMMath-Regular.otf`), display-list SVG serialization, `TexMathBudgets` input-guard enforcement, and full-corpus parse and error-parity dispatch. Appendix G OpenType `MATH` layout and Flutter paint benchmarks activate alongside layout and rendering stages.
+Measurements cover OpenType font decoding (`MathFont.fromBytes` on `NewCMMath-Regular.otf`), display-list SVG serialization, `TexMathBudgets` input-guard enforcement, typical inline expression layout, 50-equation notebook page layout, and full-corpus layout dispatch. Flutter first-paint benchmarks activate alongside widget rendering.
 
 ## Host Environment
 
@@ -21,30 +21,31 @@ Measurements cover OpenType font decoding (`MathFont.fromBytes` on `NewCMMath-Re
 
 | Benchmark | Description | Samples x Batch | Mean | Median (p50) | p95 | Min | Max |
 | :--- | :--- | ---: | ---: | ---: | ---: | ---: | ---: |
-| `math_font_from_bytes` | Decode NewCMMath-Regular.otf SFNT, MATH, cmap, GSUB, and CFF tables via MathFont.fromBytes | `10 x 5` | 1.021 ms | 945.20 us | 1.366 ms | 782.00 us | 1.366 ms |
-| `display_list_to_svg_small` | Serialize a 12-item DisplayList to standalone SVG XML | `20 x 400` | 70.75 us | 70.72 us | 83.67 us | 64.41 us | 83.67 us |
-| `display_list_to_svg_large` | Serialize a 250-item DisplayList to standalone SVG XML | `20 x 60` | 1.558 ms | 1.529 ms | 1.754 ms | 1.440 ms | 1.754 ms |
-| `budget_input_check_valid` | Validate input budgets, parse quadratic formula, and dispatch TexMathEngine.render | `20 x 1500` | 16.02 us | 16.20 us | 19.68 us | 11.81 us | 19.68 us |
-| `budget_input_check_exceeded` | Reject oversized 50,001-char input via TexMathBudgetError guard | `20 x 1500` | 3.19 us | 3.29 us | 3.88 us | 2.07 us | 3.88 us |
-| `corpus_full_dispatch` | Dispatch all 352 corpus cases through TexMathEngine.render | `20 x 25` | 7.456 ms | 7.446 ms | 8.427 ms | 5.944 ms | 8.427 ms |
+| `math_font_from_bytes` | Decode NewCMMath-Regular.otf SFNT, MATH, cmap, GSUB, and CFF tables via MathFont.fromBytes | `10 x 5` | 837.56 us | 799.80 us | 1.023 ms | 698.80 us | 1.023 ms |
+| `display_list_to_svg_small` | Serialize a 12-item DisplayList to standalone SVG XML | `20 x 400` | 56.18 us | 55.83 us | 60.31 us | 54.73 us | 60.31 us |
+| `display_list_to_svg_large` | Serialize a 250-item DisplayList to standalone SVG XML | `20 x 60` | 1.277 ms | 1.279 ms | 1.332 ms | 1.207 ms | 1.332 ms |
+| `budget_input_check_valid` | Validate input budgets, parse, and lay out quadratic formula via TexMathEngine.render | `20 x 1500` | 14.41 us | 14.05 us | 17.56 us | 13.16 us | 17.56 us |
+| `budget_input_check_exceeded` | Reject oversized 50,001-char input via TexMathBudgetError guard | `20 x 1500` | 2.17 us | 2.05 us | 3.10 us | 1.86 us | 3.10 us |
+| `notebook_50_equations` | Parse and lay out 50 notebook equations in batch via TexMathEngine.render | `20 x 40` | 1.734 ms | 1.751 ms | 2.106 ms | 1.365 ms | 2.106 ms |
+| `corpus_full_dispatch` | Dispatch all 352 corpus cases through TexMathEngine.render | `20 x 25` | 9.098 ms | 7.986 ms | 14.177 ms | 4.863 ms | 14.177 ms |
 
 ```mermaid
 xychart-beta
     title "Native AOT Mean Timings"
-    x-axis ["font load", "toSvg small", "toSvg large", "budget valid", "budget over", "corpus 352"]
-    y-axis "Mean Microseconds" 0 --> 8600
-    bar [1021.38, 70.75, 1557.63, 16.02, 3.19, 7456.09]
+    x-axis ["font load", "toSvg small", "toSvg large", "budget valid", "budget over", "notebook 50", "corpus 352"]
+    y-axis "Mean Microseconds" 0 --> 10500
+    bar [837.56, 56.18, 1276.60, 14.41, 2.17, 1734.20, 9097.79]
 ```
 
 ## Target Performance Thresholds
 
-The table below lists target end-to-end performance goals for full TeX parsing, OpenType `MATH` layout, and Flutter rendering. Layout and paint workloads remain pending until Appendix G layout and Flutter rendering stages land.
+The table below lists target end-to-end performance goals for full TeX parsing, OpenType `MATH` layout, and Flutter rendering. Flutter paint benchmarks remain pending until widget rendering stages land.
 
 | Workload | Target Threshold | Scope | Status |
 | :--- | :--- | :--- | :--- |
-| Typical inline expression | `< 50 us` | Full parse, layout, and display list build | Pending (layout) |
-| 50-equation notebook page | `< 5 ms` | Full page layout batch across 50 expressions | Pending (layout) |
-| Cached first paint | Paint-only cost | Cached display list and theme color update without re-layout | Pending (rendering) |
+| Typical inline expression | `< 50 us` | Full parse, layout, and display list build | Measured (`budget_input_check_valid`) |
+| 50-equation notebook page | `< 5 ms` | Full page layout batch across 50 expressions | Measured (`notebook_50_equations`) |
+| Cached first paint | Paint-only cost | Cached display list and theme color update without re-layout | Pending (Flutter rendering) |
 | OpenType `MATH` font parse | Once per font | SFNT and `MATH` table decode per `MathFont` load | Measured (`math_font_from_bytes`) |
 
 ## Running Locally

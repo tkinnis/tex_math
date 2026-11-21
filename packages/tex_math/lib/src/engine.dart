@@ -6,6 +6,7 @@ import 'error.dart';
 import 'export/mathml.dart';
 import 'export/spoken_text.dart';
 import 'font.dart';
+import 'layout/layout_engine.dart';
 import 'options.dart';
 import 'parser/parser.dart';
 import 'source_span.dart';
@@ -37,8 +38,9 @@ final class TexMathEngine {
 
   /// Lays out [syntaxTree] into a flat [DisplayList].
   ///
-  /// Enforces [TexMathBudgets.maxNestingDepth] on [syntaxTree] and throws
-  /// [TexMathUnsupportedError] while Appendix G layout awaits Wave 2.
+  /// Enforces [TexMathBudgets.maxNestingDepth] on [syntaxTree] and resolves
+  /// OpenType `MATH` metrics from [font] (or [TexMathEngine.font]). Throws
+  /// [TexMathFontError] when no [MathFont] is provided.
   DisplayList layout(
     MathNode syntaxTree, {
     TexMathOptions? options,
@@ -46,10 +48,15 @@ final class TexMathEngine {
   }) {
     final TexMathOptions effective = options ?? defaultOptions;
     _enforceNestingDepthBudget(syntaxTree, effective.budgets, 1);
-    throw TexMathUnsupportedError(
-      'Math layout is unimplemented in Phase 1.',
-      span: syntaxTree.span,
-    );
+    final MathFont? effectiveFont = font ?? this.font;
+    if (effectiveFont == null) {
+      throw TexMathFontError(
+        'A MathFont is required for layout.',
+        errorClass: TexMathErrorClass.invalidFont,
+        span: syntaxTree.span,
+      );
+    }
+    return layoutMathTree(syntaxTree, font: effectiveFont, options: effective);
   }
 
   /// Parses and lays out [source], returning a complete [RenderResult].
@@ -58,11 +65,22 @@ final class TexMathEngine {
     TexMathOptions? options,
     MathFont? font,
   }) {
-    final MathNode tree = parse(source, options: options);
-    final DisplayList displayList = layout(
+    final TexMathOptions effective = options ?? defaultOptions;
+    final MathNode tree = parse(source, options: effective);
+    _enforceNestingDepthBudget(tree, effective.budgets, 1);
+    final MathFont? effectiveFont = font ?? this.font;
+    if (effectiveFont == null) {
+      throw TexMathFontError(
+        'A MathFont is required for layout.',
+        errorClass: TexMathErrorClass.invalidFont,
+        span: tree.span,
+      );
+    }
+    final DisplayList displayList = layoutMathTree(
       tree,
-      options: options,
-      font: font ?? this.font,
+      font: effectiveFont,
+      options: effective,
+      source: source,
     );
     return RenderResult(
       displayList: displayList,

@@ -9,6 +9,10 @@ export 'src/error.dart';
 export 'src/export/mathml.dart';
 export 'src/export/spoken_text.dart';
 export 'src/font.dart';
+export 'src/layout/box.dart';
+export 'src/layout/layout_engine.dart';
+export 'src/layout/stretchy.dart';
+export 'src/layout/style_spacing.dart';
 export 'src/options.dart';
 export 'src/parser/package_registry.dart'
     show TexPackageDescriptor, TexPackageRegistry, TexPackageTier;

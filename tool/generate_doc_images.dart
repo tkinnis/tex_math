@@ -2,6 +2,8 @@ import 'dart:io';
 
 import 'package:tex_math/tex_math.dart';
 
+import 'src/engine_check.dart';
+
 void main(List<String> args) {
   if (args.contains('--help') || args.contains('-h')) {
     stdout.writeln('Usage: dart run tool/generate_doc_images.dart [--check]');
@@ -9,9 +11,10 @@ void main(List<String> args) {
   }
 
   final bool checkOnly = args.contains('--check');
+  final TexMathEngine engine = defaultVerificationEngine();
   final Map<String, String> assets = <String, String>{
-    'doc/images/display_list_sample.svg': _buildDisplayListSampleSvg(),
-    'doc/images/box_metrics_diagram.svg': _buildBoxMetricsDiagramSvg(),
+    'doc/images/display_list_sample.svg': _buildDisplayListSampleSvg(engine),
+    'doc/images/box_metrics_diagram.svg': _buildBoxMetricsDiagramSvg(engine),
   };
 
   final Directory imageDir = Directory('doc/images');
@@ -38,119 +41,38 @@ void main(List<String> args) {
   }
 }
 
-String _buildDisplayListSampleSvg() {
-  const GlyphOutline plusOutline = GlyphOutline(
-    glyphId: 43,
-    advanceWidth: 778,
-    commands: <PathCommand>[
-      MoveTo(355, 50),
-      LineTo(423, 50),
-      LineTo(423, 216),
-      LineTo(589, 216),
-      LineTo(589, 284),
-      LineTo(423, 284),
-      LineTo(423, 450),
-      LineTo(355, 450),
-      LineTo(355, 284),
-      LineTo(189, 284),
-      LineTo(189, 216),
-      LineTo(355, 216),
-      ClosePath(),
-    ],
+String _buildDisplayListSampleSvg(TexMathEngine engine) {
+  final RenderResult rendered = engine.render(
+    r'\frac{a + b}{c - d}',
+    options: const TexMathOptions(displayMode: TexMathDisplayMode.display),
   );
+  final DisplayMetrics raw = rendered.displayList.metrics;
+  const double padX = 0.35;
+  const double padY = 0.25;
 
-  const GlyphOutline minusOutline = GlyphOutline(
-    glyphId: 8722,
-    advanceWidth: 778,
-    commands: <PathCommand>[
-      MoveTo(189, 216),
-      LineTo(589, 216),
-      LineTo(589, 284),
-      LineTo(189, 284),
-      ClosePath(),
-    ],
-  );
-
-  const DisplayList displayList = DisplayList(
-    source: r'\frac{a + b}{c - d}',
-    metrics: DisplayMetrics(
-      widthEm: 4.4,
-      heightEm: 1.5,
-      depthEm: 1.1,
-      baselineEm: 1.5,
-      unitsPerEm: 1000,
+  final List<DisplayItem> items = <DisplayItem>[
+    RuleItem(
+      xEm: 0.15,
+      yEm: -0.008,
+      widthEm: raw.widthEm + (padX - 0.15) * 2,
+      heightEm: 0.016,
+      colorRole: TexMathColorRole.muted,
     ),
-    items: <DisplayItem>[
-      RuleItem(
-        xEm: 0.1,
-        yEm: -0.01,
-        widthEm: 4.2,
-        heightEm: 0.02,
-        colorRole: TexMathColorRole.muted,
-      ),
-      AnchorItem(id: 'origin', xEm: 0.1, yEm: 0.0, label: 'baseline'),
-      GlyphItem(
-        glyphId: 97,
-        codePoint: 0x0061,
-        xEm: 0.75,
-        yEm: 0.65,
-        advanceEm: 0.5,
-        span: SourceSpan(6, 7),
-      ),
-      GlyphItem(
-        glyphId: 43,
-        codePoint: 0x002B,
-        xEm: 1.55,
-        yEm: 0.65,
-        advanceEm: 0.78,
-        outline: plusOutline,
-        colorRole: TexMathColorRole.accent,
-        span: SourceSpan(8, 9),
-      ),
-      GlyphItem(
-        glyphId: 98,
-        codePoint: 0x0062,
-        xEm: 2.65,
-        yEm: 0.65,
-        advanceEm: 0.5,
-        span: SourceSpan(10, 11),
-      ),
-      RuleItem(
-        xEm: 0.55,
-        yEm: 0.24,
-        widthEm: 2.9,
-        heightEm: 0.05,
-        colorRole: TexMathColorRole.foreground,
-        span: SourceSpan(0, 19),
-      ),
-      GlyphItem(
-        glyphId: 99,
-        codePoint: 0x0063,
-        xEm: 0.75,
-        yEm: -0.65,
-        advanceEm: 0.5,
-        span: SourceSpan(13, 14),
-      ),
-      GlyphItem(
-        glyphId: 8722,
-        codePoint: 0x2212,
-        xEm: 1.55,
-        yEm: -0.65,
-        advanceEm: 0.78,
-        outline: minusOutline,
-        colorRole: TexMathColorRole.accent,
-        span: SourceSpan(15, 16),
-      ),
-      GlyphItem(
-        glyphId: 100,
-        codePoint: 0x0064,
-        xEm: 2.65,
-        yEm: -0.65,
-        advanceEm: 0.5,
-        span: SourceSpan(17, 18),
-      ),
-      AnchorItem(id: 'end', xEm: 4.2, yEm: 0.0, label: 'advance'),
-    ],
+    const AnchorItem(id: 'origin', xEm: padX, yEm: 0.0, label: 'baseline'),
+    ..._offsetDisplayItems(rendered.displayList.items, dx: padX),
+    AnchorItem(id: 'end', xEm: padX + raw.widthEm, yEm: 0.0, label: 'advance'),
+  ];
+
+  final DisplayList displayList = DisplayList(
+    source: rendered.source,
+    metrics: DisplayMetrics(
+      widthEm: raw.widthEm + padX * 2,
+      heightEm: raw.heightEm + padY,
+      depthEm: raw.depthEm + padY,
+      baselineEm: raw.heightEm + padY,
+      unitsPerEm: raw.unitsPerEm,
+    ),
+    items: items,
   );
 
   return displayList.toSvg(
@@ -159,119 +81,145 @@ String _buildDisplayListSampleSvg() {
   );
 }
 
-String _buildBoxMetricsDiagramSvg() {
-  const GlyphOutline sigmaOutline = GlyphOutline(
-    glyphId: 8721,
-    advanceWidth: 900,
-    commands: <PathCommand>[
-      MoveTo(100, 900),
-      LineTo(820, 900),
-      LineTo(820, 720),
-      LineTo(760, 720),
-      LineTo(730, 820),
-      LineTo(260, 820),
-      LineTo(540, 460),
-      LineTo(240, 80),
-      LineTo(740, 80),
-      LineTo(780, 200),
-      LineTo(840, 200),
-      LineTo(840, 0),
-      LineTo(100, 0),
-      LineTo(100, 45),
-      LineTo(440, 450),
-      LineTo(100, 855),
-      ClosePath(),
-    ],
+String _buildBoxMetricsDiagramSvg(TexMathEngine engine) {
+  final RenderResult rendered = engine.render(
+    r'\sum_{i=1}^{n} x_i',
+    options: const TexMathOptions(displayMode: TexMathDisplayMode.display),
+  );
+  final DisplayMetrics raw = rendered.displayList.metrics;
+  const double padLeft = 0.4;
+  const double padRight = 1.4;
+  const double padY = 0.25;
+
+  final double labelX = padLeft + raw.widthEm + 0.35;
+  final List<DisplayItem> wLabel = _recolorAndOffset(
+    engine.render('w').displayList.items,
+    dx: labelX,
+    dy: raw.heightEm * 0.65,
+    colorRole: TexMathColorRole.accent,
+  );
+  final List<DisplayItem> hLabel = _recolorAndOffset(
+    engine.render('h').displayList.items,
+    dx: labelX,
+    dy: raw.heightEm * 0.18,
+    colorRole: TexMathColorRole.foreground,
+  );
+  final List<DisplayItem> dLabel = _recolorAndOffset(
+    engine.render('d').displayList.items,
+    dx: labelX,
+    dy: -raw.depthEm * 0.65,
+    colorRole: TexMathColorRole.muted,
   );
 
-  const DisplayList displayList = DisplayList(
-    source: r'\sum',
-    metrics: DisplayMetrics(
-      widthEm: 6.0,
-      heightEm: 1.6,
-      depthEm: 0.9,
-      baselineEm: 1.6,
-      unitsPerEm: 1000,
+  final List<DisplayItem> items = <DisplayItem>[
+    RuleItem(
+      xEm: padLeft,
+      yEm: -raw.depthEm,
+      widthEm: raw.widthEm,
+      heightEm: raw.heightEm + raw.depthEm,
+      strokeWidthEm: 0.02,
+      colorRole: TexMathColorRole.muted,
     ),
-    items: <DisplayItem>[
-      RuleItem(
-        xEm: 0.4,
-        yEm: -0.6,
-        widthEm: 5.2,
-        heightEm: 0.02,
-        colorRole: TexMathColorRole.muted,
-      ),
-      RuleItem(
-        xEm: 0.4,
-        yEm: 1.25,
-        widthEm: 5.2,
-        heightEm: 0.02,
-        colorRole: TexMathColorRole.muted,
-      ),
-      RuleItem(
-        xEm: 0.4,
-        yEm: -0.6,
-        widthEm: 0.02,
-        heightEm: 1.85,
-        colorRole: TexMathColorRole.muted,
-      ),
-      RuleItem(
-        xEm: 5.58,
-        yEm: -0.6,
-        widthEm: 0.02,
-        heightEm: 1.85,
-        colorRole: TexMathColorRole.muted,
-      ),
-      RuleItem(
-        xEm: 0.4,
-        yEm: 0.0,
-        widthEm: 5.2,
-        heightEm: 0.03,
-        colorRole: TexMathColorRole.accent,
-      ),
-      AnchorItem(id: 'baseline-start', xEm: 0.4, yEm: 0.0, label: 'baseline'),
-      AnchorItem(id: 'height-top', xEm: 0.4, yEm: 1.25, label: 'heightEm'),
-      AnchorItem(id: 'depth-bottom', xEm: 0.4, yEm: -0.6, label: 'depthEm'),
-      GlyphItem(
-        glyphId: 8721,
-        codePoint: 0x2211,
-        xEm: 1.0,
-        yEm: -0.15,
-        advanceEm: 0.9,
-        outline: sigmaOutline,
-        colorRole: TexMathColorRole.foreground,
-      ),
-      GlyphItem(
-        glyphId: 119,
-        codePoint: 0x0077,
-        xEm: 2.7,
-        yEm: 0.95,
-        advanceEm: 0.6,
-        colorRole: TexMathColorRole.accent,
-      ),
-      GlyphItem(
-        glyphId: 104,
-        codePoint: 0x0068,
-        xEm: 2.7,
-        yEm: 0.35,
-        advanceEm: 0.5,
-        colorRole: TexMathColorRole.foreground,
-      ),
-      GlyphItem(
-        glyphId: 100,
-        codePoint: 0x0064,
-        xEm: 2.7,
-        yEm: -0.45,
-        advanceEm: 0.5,
-        colorRole: TexMathColorRole.muted,
-      ),
-    ],
+    RuleItem(
+      xEm: padLeft,
+      yEm: -0.015,
+      widthEm: raw.widthEm,
+      heightEm: 0.03,
+      colorRole: TexMathColorRole.accent,
+    ),
+    const AnchorItem(
+      id: 'baseline-start',
+      xEm: padLeft,
+      yEm: 0.0,
+      label: 'baseline',
+    ),
+    AnchorItem(
+      id: 'height-top',
+      xEm: padLeft,
+      yEm: raw.heightEm,
+      label: 'heightEm',
+    ),
+    AnchorItem(
+      id: 'depth-bottom',
+      xEm: padLeft,
+      yEm: -raw.depthEm,
+      label: 'depthEm',
+    ),
+    ..._offsetDisplayItems(rendered.displayList.items, dx: padLeft),
+    ...wLabel,
+    ...hLabel,
+    ...dLabel,
+  ];
+
+  final DisplayList displayList = DisplayList(
+    source: rendered.source,
+    metrics: DisplayMetrics(
+      widthEm: padLeft + raw.widthEm + padRight,
+      heightEm: raw.heightEm + padY,
+      depthEm: raw.depthEm + padY,
+      baselineEm: raw.heightEm + padY,
+      unitsPerEm: raw.unitsPerEm,
+    ),
+    items: items,
   );
 
   return displayList.toSvg(
     fontSize: 44.0,
     title: 'tex_math DisplayMetrics Box Diagram',
   );
+}
+
+List<DisplayItem> _offsetDisplayItems(
+  List<DisplayItem> items, {
+  double dx = 0.0,
+  double dy = 0.0,
+}) {
+  return _recolorAndOffset(items, dx: dx, dy: dy);
+}
+
+List<DisplayItem> _recolorAndOffset(
+  List<DisplayItem> items, {
+  double dx = 0.0,
+  double dy = 0.0,
+  TexMathColorRole? colorRole,
+}) {
+  return <DisplayItem>[
+    for (final DisplayItem item in items)
+      switch (item) {
+        GlyphItem() => GlyphItem(
+          glyphId: item.glyphId,
+          codePoint: item.codePoint,
+          xEm: item.xEm + dx,
+          yEm: item.yEm + dy,
+          scaleX: item.scaleX,
+          scaleY: item.scaleY,
+          advanceEm: item.advanceEm,
+          outline: item.outline,
+          span: item.span,
+          colorRole: colorRole ?? item.colorRole,
+          customColor: colorRole != null ? null : item.customColor,
+        ),
+        RuleItem() => RuleItem(
+          xEm: item.xEm + dx,
+          yEm: item.yEm + dy,
+          widthEm: item.widthEm,
+          heightEm: item.heightEm,
+          strokeWidthEm: item.strokeWidthEm,
+          span: item.span,
+          colorRole: colorRole ?? item.colorRole,
+          customColor: colorRole != null ? null : item.customColor,
+        ),
+        AnchorItem() => AnchorItem(
+          id: item.id,
+          xEm: item.xEm + dx,
+          yEm: item.yEm + dy,
+          label: item.label,
+          span: item.span,
+          colorRole: colorRole ?? item.colorRole,
+          customColor: colorRole != null ? null : item.customColor,
+        ),
+      },
+  ];
 }
 
 void _validateSvgXml(String path, String svg) {

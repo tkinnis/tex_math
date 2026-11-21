@@ -2,85 +2,53 @@ import 'dart:io';
 
 import 'package:tex_math/tex_math.dart';
 
-/// Builds a sample [DisplayList] depicting `\frac{a+b}{c}` using vector
-/// rules, glyph items, and an equation anchor, writes standalone SVG XML to
-/// stdout or an optional output path argument, and exercises engine budget
-/// error handling.
-void main(List<String> args) {
-  const DisplayList sample = DisplayList(
-    source: r'\frac{a + b}{c}',
-    metrics: DisplayMetrics(
-      widthEm: 2.8,
-      heightEm: 1.15,
-      depthEm: 0.75,
-      baselineEm: 1.15,
-      unitsPerEm: 1000,
-    ),
-    items: <DisplayItem>[
-      GlyphItem(
-        glyphId: 1,
-        codePoint: 0x0061,
-        xEm: 0.2,
-        yEm: 0.55,
-        advanceEm: 0.55,
-        span: SourceSpan(6, 7),
-      ),
-      GlyphItem(
-        glyphId: 2,
-        codePoint: 0x002B,
-        xEm: 0.95,
-        yEm: 0.55,
-        advanceEm: 0.78,
-        colorRole: TexMathColorRole.accent,
-        span: SourceSpan(8, 9),
-      ),
-      GlyphItem(
-        glyphId: 3,
-        codePoint: 0x0062,
-        xEm: 1.9,
-        yEm: 0.55,
-        advanceEm: 0.5,
-        span: SourceSpan(10, 11),
-      ),
-      RuleItem(
-        xEm: 0.1,
-        yEm: 0.24,
-        widthEm: 2.4,
-        heightEm: 0.05,
-        span: SourceSpan(0, 14),
-      ),
-      GlyphItem(
-        glyphId: 4,
-        codePoint: 0x0063,
-        xEm: 1.05,
-        yEm: -0.45,
-        advanceEm: 0.45,
-        span: SourceSpan(13, 14),
-      ),
-      AnchorItem(id: 'eq-sample', xEm: 2.7, yEm: 0.0, label: 'fraction'),
-    ],
-  );
+/// Demonstrates rendering TeX math into a vector [DisplayList] and standalone
+/// SVG XML with OpenType `MATH` layout when `NewCMMath-Regular.otf` is present.
+void main() {
+  const String source = r'\int_0^\infty e^{-x^2}\,dx = \frac{\sqrt{\pi}}{2}';
+  final File? fontFile = _locateBundledFont();
 
-  final String svg = sample.toSvg(
-    fontSize: 24.0,
-    title: 'Sample fraction display list',
-  );
-
-  if (args.isNotEmpty) {
-    File(args.first).writeAsStringSync('$svg\n');
-    stdout.writeln('Wrote ${svg.length} SVG characters to ${args.first}.');
-  } else {
+  if (fontFile != null) {
+    final MathFont font = MathFont.fromBytes(fontFile.readAsBytesSync());
+    final TexMathEngine engine = TexMathEngine(font: font);
+    final RenderResult result = engine.render(source);
+    final String svg = result.toSvg(fontSize: 20, title: source);
+    stdout.writeln(
+      'Rendered ${result.displayList.items.length} items '
+      '(${result.displayList.metrics.widthEm.toStringAsFixed(3)}em wide, '
+      '${svg.length} SVG bytes).',
+    );
+    stdout.writeln('MathML: ${result.toMathMl()}');
+    stdout.writeln('Spoken: ${result.toSpokenText()}');
     stdout.writeln(svg);
+  } else {
+    final MathNode tree = parseTex(source);
+    stdout.writeln('Parsed AST: ${tree.runtimeType}');
+    stdout.writeln('MathML: ${mathNodeToMathMl(tree)}');
+    stdout.writeln('Spoken: ${mathNodeToSpokenText(tree)}');
   }
 
-  const TexMathEngine engine = TexMathEngine(
+  // Budget enforcement example.
+  const TexMathEngine boundedEngine = TexMathEngine(
     defaultOptions: TexMathOptions(budgets: TexMathBudgets(maxInputLength: 16)),
   );
   try {
-    engine.render(r'\sum_{i=1}^{n} x_i^2');
-  } on TexMathBudgetError catch (error) {
-    stderr.writeln('Budget check enforced: $error');
-  } on TexMathUnsupportedError catch (error) {
-    stderr.writeln('Phase 1 engine boundary: $error');
+    boundedEngine.parse(r'\sum_{i=1}^{n} x_i^2 + y_i^2');
+  } on TexMathBudgetError catch (err) {
+    stdout.writeln('Budget error (${err.budgetName}): ${err.message}');
   }
+}
+
+File? _locateBundledFont() {
+  const List<String> candidates = <String>[
+    '../tex_math_flutter/assets/fonts/NewCMMath-Regular.otf',
+    'packages/tex_math_flutter/assets/fonts/NewCMMath-Regular.otf',
+  ];
+  for (final String path in candidates) {
+    final File file = File(path);
+    if (file.existsSync()) {
+      return file;
+    }
+  }
+  return null;
 }

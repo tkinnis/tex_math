@@ -364,11 +364,8 @@ void main() {
       expect(parsed, isA<MathRootNode>());
       expect(const TexMathEngine().toMathMl(r'x'), contains('<mi>x</mi>'));
       expect(const TexMathEngine().toSpokenText(r'x'), 'x');
-      expect(() => renderTex(r'x'), throwsA(isA<TexMathUnsupportedError>()));
-      expect(
-        () => renderTexToSvg(r'x'),
-        throwsA(isA<TexMathUnsupportedError>()),
-      );
+      expect(() => renderTex(r'x'), throwsA(isA<TexMathFontError>()));
+      expect(() => renderTexToSvg(r'x'), throwsA(isA<TexMathFontError>()));
     });
 
     test('enforces maxNestingDepth on layout input trees', () {
@@ -391,7 +388,7 @@ void main() {
       expect(() => engine.layout(deepTree), throwsA(isA<TexMathBudgetError>()));
       expect(
         () => const TexMathEngine().layout(deepTree),
-        throwsA(isA<TexMathUnsupportedError>()),
+        throwsA(isA<TexMathFontError>()),
       );
     });
   });

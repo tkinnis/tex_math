@@ -8,6 +8,117 @@ import 'font.dart';
 import 'options.dart';
 import 'source_span.dart';
 
+/// Semantic classification of a potential line-breaking opportunity in math.
+enum MathBreakKind {
+  /// No automatic line break opportunity attached to this box.
+  none,
+
+  /// Discretionary break opportunity immediately after a binary operator.
+  afterBinary,
+
+  /// Discretionary break opportunity immediately after a relation symbol.
+  afterRelation,
+
+  /// Explicit numeric break penalty attached to a box.
+  penalty,
+
+  /// Explicit forced line break (such as `\\` in multiline structures).
+  explicit,
+}
+
+/// Line-breaking metadata attached to laid-out boxes for downstream wrapping.
+@immutable
+final class BreakPoint {
+  /// Creates break-hint metadata describing whether and how a line break may
+  /// occur at this box boundary.
+  const BreakPoint({
+    this.kind = MathBreakKind.none,
+    this.penalty = 0,
+    this.isExplicit = false,
+    this.isGood = false,
+  });
+
+  /// Sentinel representing the absence of any break hint.
+  static const BreakPoint none = BreakPoint();
+
+  /// Category of this break hint.
+  final MathBreakKind kind;
+
+  /// TeX-style line-breaking penalty value (`0` for neutral).
+  final int penalty;
+
+  /// Whether this break point forces a mandatory line break.
+  final bool isExplicit;
+
+  /// Whether this break point represents a preferred break site.
+  final bool isGood;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is BreakPoint &&
+          kind == other.kind &&
+          penalty == other.penalty &&
+          isExplicit == other.isExplicit &&
+          isGood == other.isGood;
+
+  @override
+  int get hashCode => Object.hash(kind, penalty, isExplicit, isGood);
+
+  @override
+  String toString() =>
+      'BreakPoint(kind: $kind, penalty: $penalty, '
+      'isExplicit: $isExplicit, isGood: $isGood)';
+}
+
+/// Positioned line-break opportunity emitted at top-level split boundaries.
+@immutable
+final class DisplayBreakHint {
+  /// Creates a break-point hint at [xEm] immediately following [afterItemIndex].
+  const DisplayBreakHint({
+    required this.xEm,
+    required this.afterItemIndex,
+    required this.breakPoint,
+    this.span,
+  });
+
+  /// Horizontal break coordinate from the display-list origin in ems.
+  final double xEm;
+
+  /// Index in [DisplayList.items] of the last item preceding the break (`-1`
+  /// when the break precedes item index `0`).
+  final int afterItemIndex;
+
+  /// TeX-style line-breaking metadata for this split boundary.
+  final BreakPoint breakPoint;
+
+  /// Optional source span associated with the break-inducing element.
+  final SourceSpan? span;
+
+  /// Semantic category of this break opportunity.
+  MathBreakKind get kind => breakPoint.kind;
+
+  /// TeX-style line-breaking penalty value.
+  int get penalty => breakPoint.penalty;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is DisplayBreakHint &&
+          xEm == other.xEm &&
+          afterItemIndex == other.afterItemIndex &&
+          breakPoint == other.breakPoint &&
+          span == other.span;
+
+  @override
+  int get hashCode => Object.hash(xEm, afterItemIndex, breakPoint, span);
+
+  @override
+  String toString() =>
+      'DisplayBreakHint(xEm: $xEm, afterItemIndex: $afterItemIndex, '
+      'breakPoint: $breakPoint)';
+}
+
 /// Positioned layout primitive emitted by the layout engine for rendering or
 /// SVG export.
 @immutable
@@ -120,6 +231,7 @@ final class RuleItem extends DisplayItem {
     required this.yEm,
     required this.widthEm,
     required this.heightEm,
+    this.strokeWidthEm,
     super.span,
     super.colorRole,
     super.customColor,
@@ -137,6 +249,9 @@ final class RuleItem extends DisplayItem {
   /// Rule thickness/height in ems.
   final double heightEm;
 
+  /// Optional border stroke thickness in ems for unfilled rectangular frames.
+  final double? strokeWidthEm;
+
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -145,17 +260,27 @@ final class RuleItem extends DisplayItem {
           yEm == other.yEm &&
           widthEm == other.widthEm &&
           heightEm == other.heightEm &&
+          strokeWidthEm == other.strokeWidthEm &&
           span == other.span &&
           colorRole == other.colorRole &&
           customColor == other.customColor;
 
   @override
-  int get hashCode =>
-      Object.hash(xEm, yEm, widthEm, heightEm, span, colorRole, customColor);
+  int get hashCode => Object.hash(
+    xEm,
+    yEm,
+    widthEm,
+    heightEm,
+    strokeWidthEm,
+    span,
+    colorRole,
+    customColor,
+  );
 
   @override
   String toString() =>
-      'RuleItem(xEm: $xEm, yEm: $yEm, widthEm: $widthEm, heightEm: $heightEm)';
+      'RuleItem(xEm: $xEm, yEm: $yEm, widthEm: $widthEm, '
+      'heightEm: $heightEm, strokeWidthEm: $strokeWidthEm)';
 }
 
 /// Non-inked anchor marker used for cross-references, labels, or diagnostics.
@@ -268,8 +393,14 @@ final class DisplayMetrics {
 /// Flat layout output ready for Canvas painting or standalone SVG export.
 @immutable
 final class DisplayList {
-  /// Creates a display list with [metrics], [items], and optional [source].
-  const DisplayList({required this.metrics, required this.items, this.source});
+  /// Creates a display list with [metrics], [items], optional [source], and
+  /// optional [breakHints].
+  const DisplayList({
+    required this.metrics,
+    required this.items,
+    this.source,
+    this.breakHints = const <DisplayBreakHint>[],
+  });
 
   /// Overall bounding box and baseline metrics.
   final DisplayMetrics metrics;
@@ -279,6 +410,9 @@ final class DisplayList {
 
   /// Optional original TeX source associated with this display list.
   final String? source;
+
+  /// Ordered top-level line-breaking hints emitted during layout.
+  final List<DisplayBreakHint> breakHints;
 
   /// Serializes this display list as a standalone XML SVG document.
   ///
@@ -336,6 +470,7 @@ final class DisplayList {
           :final double yEm,
           :final double widthEm,
           :final double heightEm,
+          :final double? strokeWidthEm,
         ):
           final double rx = _finite(xEm * safeFontSize);
           final double ry = _finite(
@@ -345,8 +480,15 @@ final class DisplayList {
           final double rh = _nonNegativeFinite(heightEm * safeFontSize);
           buffer
             ..write('<rect x="${_fmt(rx)}" y="${_fmt(ry)}"')
-            ..write(' width="${_fmt(rw)}" height="${_fmt(rh)}"')
-            ..write(' fill="${_escapeXmlAttr(fill)}"/>');
+            ..write(' width="${_fmt(rw)}" height="${_fmt(rh)}"');
+          if (strokeWidthEm != null && strokeWidthEm > 0) {
+            final double sw = _nonNegativeFinite(strokeWidthEm * safeFontSize);
+            buffer
+              ..write(' fill="none" stroke="${_escapeXmlAttr(fill)}"')
+              ..write(' stroke-width="${_fmt(sw)}"/>');
+          } else {
+            buffer.write(' fill="${_escapeXmlAttr(fill)}"/>');
+          }
 
         case AnchorItem(
           :final String id,
@@ -390,7 +532,7 @@ final class DisplayList {
                 ' transform="translate(${_fmt(gx)}, ${_fmt(gy)}) '
                 'scale(${_fmt(sx)}, ${_fmt(sy)})"/>',
               );
-          } else if (_isPrintableUnicodeScalar(codePoint)) {
+          } else if (outline == null && _isPrintableUnicodeScalar(codePoint)) {
             final String ch = String.fromCharCode(codePoint);
             buffer
               ..write('<text x="0" y="0"')
@@ -433,10 +575,16 @@ final class DisplayList {
       other is DisplayList &&
           metrics == other.metrics &&
           source == other.source &&
-          _itemListEquals(items, other.items);
+          _itemListEquals(items, other.items) &&
+          _listEquals(breakHints, other.breakHints);
 
   @override
-  int get hashCode => Object.hash(metrics, source, Object.hashAll(items));
+  int get hashCode => Object.hash(
+    metrics,
+    source,
+    Object.hashAll(items),
+    Object.hashAll(breakHints),
+  );
 
   @override
   String toString() => 'DisplayList(metrics: $metrics, items: ${items.length})';
@@ -501,6 +649,10 @@ final class RenderResult {
 }
 
 bool _itemListEquals(List<DisplayItem> a, List<DisplayItem> b) {
+  return _listEquals(a, b);
+}
+
+bool _listEquals<T>(List<T> a, List<T> b) {
   if (identical(a, b)) {
     return true;
   }
@@ -548,6 +700,9 @@ bool _isPrintableUnicodeScalar(int codePoint) {
     return false;
   }
   if (codePoint >= 0xD800 && codePoint <= 0xDFFF) {
+    return false;
+  }
+  if (codePoint >= 0x2061 && codePoint <= 0x2064) {
     return false;
   }
   return true;

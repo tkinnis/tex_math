@@ -43,7 +43,7 @@ void main() {
 
       expect(find.byType(TexMathErrorWidget), findsOneWidget);
       expect(find.text(r'\frac{a + b}{c - d}'), findsOneWidget);
-      expect(find.textContaining('unimplemented in Phase 1'), findsOneWidget);
+      expect(find.textContaining('MathFont'), findsOneWidget);
 
       final Text sourceText = tester.widget<Text>(
         find.text(r'\frac{a + b}{c - d}'),
@@ -187,7 +187,7 @@ void main() {
 
       await expectLater(
         layouter.renderInBackground(r'\frac{a}{b}'),
-        throwsA(isA<TexMathUnsupportedError>()),
+        throwsA(isA<TexMathFontError>()),
       );
 
       const RenderResult stubResult = RenderResult(

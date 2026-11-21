@@ -147,6 +147,7 @@ final class TexMathOptions {
     this.macros = const <String, String>{},
     this.budgets = const TexMathBudgets(),
     this.strictErrors = true,
+    this.useOpticalScriptVariants = false,
   });
 
   /// Default active TeX package list matching JupyterLab defaults without
@@ -247,6 +248,10 @@ final class TexMathOptions {
   /// producing fallback error nodes.
   final bool strictErrors;
 
+  /// Whether script layout substitutes OpenType `GSUB` `ssty` optical glyphs
+  /// rather than relying solely on `MATH` scale-down factors.
+  final bool useOpticalScriptVariants;
+
   /// Returns a copy of these options with the given fields replaced.
   TexMathOptions copyWith({
     TexMathDisplayMode? displayMode,
@@ -255,6 +260,7 @@ final class TexMathOptions {
     Map<String, String>? macros,
     TexMathBudgets? budgets,
     bool? strictErrors,
+    bool? useOpticalScriptVariants,
   }) {
     return TexMathOptions(
       displayMode: displayMode ?? this.displayMode,
@@ -263,6 +269,8 @@ final class TexMathOptions {
       macros: macros ?? this.macros,
       budgets: budgets ?? this.budgets,
       strictErrors: strictErrors ?? this.strictErrors,
+      useOpticalScriptVariants:
+          useOpticalScriptVariants ?? this.useOpticalScriptVariants,
     );
   }
 
@@ -275,7 +283,8 @@ final class TexMathOptions {
           _stringListEquals(requireAllowlist, other.requireAllowlist) &&
           _stringMapEquals(macros, other.macros) &&
           budgets == other.budgets &&
-          strictErrors == other.strictErrors;
+          strictErrors == other.strictErrors &&
+          useOpticalScriptVariants == other.useOpticalScriptVariants;
 
   @override
   int get hashCode => Object.hash(
@@ -289,6 +298,7 @@ final class TexMathOptions {
     ),
     budgets,
     strictErrors,
+    useOpticalScriptVariants,
   );
 
   @override
@@ -299,7 +309,8 @@ final class TexMathOptions {
       'requireAllowlist: $requireAllowlist, '
       'macros: $macros, '
       'budgets: $budgets, '
-      'strictErrors: $strictErrors)';
+      'strictErrors: $strictErrors, '
+      'useOpticalScriptVariants: $useOpticalScriptVariants)';
 }
 
 bool _stringListEquals(List<String> a, List<String> b) {

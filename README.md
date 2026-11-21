@@ -72,19 +72,19 @@ Widget buildFormula() {
 
 ## Corpus Coverage & Benchmarks
 
-Measured corpus parity from [`doc/COVERAGE.md`](doc/COVERAGE.md) (`corpus/expectations.json` verified against `MathJax 4.1.3` with `mathjax-newcm`) reports **352** total corpus cases (**315** Oracle Accepted, **37** Oracle Refused). Live `TexMathEngine` execution with `NewCMMath-Regular.otf` achieves `37/37` error-class parity (`0` Pass, `0` Differs, `315` Unsupported, `37` Refused Match, `10.5%` Pass %) while accepted expressions await Appendix G layout:
+Measured corpus parity from [`doc/COVERAGE.md`](doc/COVERAGE.md) (`corpus/expectations.json` verified against `MathJax 4.1.3` with `mathjax-newcm`) reports **352** total corpus cases (**315** Oracle Accepted, **37** Oracle Refused). Live `TexMathEngine` execution with `NewCMMath-Regular.otf` renders `315/315` accepted expressions into `DisplayList` and standalone SVG primitives (`0` Unsupported), matches `37/37` error-class refusals (`Refused Match`), and matches strict `0.02em` MathJax geometry on `74` accepted expressions (`74` Pass, `241` Differs, `0` Unsupported, `37` Refused Match, `31.5%` Pass %):
 
 | Tier | Pass | Differs | Unsupported | Refused Match | Total | Pass % |
 | :--- | ---: | ---: | ---: | ---: | ---: | ---: |
-| Tier 1 (Core TeX, AMS, Macros, Textmacros, Tag/ConfigMacros) | 0 | 0 | 125 | 0 | 125 | 0.0% |
-| Tier 2 (JupyterLab Standard Extensions) | 0 | 0 | 105 | 0 | 105 | 0.0% |
-| Tier 3 (Remaining MathJax 4 Extensions) | 0 | 0 | 35 | 0 | 35 | 0.0% |
-| Stretchy (Delimiters, Radicals, Braces, Wide Accents) | 0 | 0 | 25 | 0 | 25 | 0.0% |
-| Notebooks (Physics, Calculus, Linear Algebra, ML, Chemistry) | 0 | 0 | 25 | 0 | 25 | 0.0% |
+| Tier 1 (Core TeX, AMS, Macros, Textmacros, Tag/ConfigMacros) | 38 | 87 | 0 | 0 | 125 | 30.4% |
+| Tier 2 (JupyterLab Standard Extensions) | 26 | 79 | 0 | 0 | 105 | 24.8% |
+| Tier 3 (Remaining MathJax 4 Extensions) | 7 | 28 | 0 | 0 | 35 | 20.0% |
+| Stretchy (Delimiters, Radicals, Braces, Wide Accents) | 3 | 22 | 0 | 0 | 25 | 12.0% |
+| Notebooks (Physics, Calculus, Linear Algebra, ML, Chemistry) | 0 | 25 | 0 | 0 | 25 | 0.0% |
 | Errors (Malformed Inputs & Macro/Delimiter Violations) | 0 | 0 | 0 | 37 | 37 | 100.0% |
-| **Total** | **0** | **0** | **315** | **37** | **352** | **10.5%** |
+| **Total** | **74** | **241** | **0** | **37** | **352** | **31.5%** |
 
-Native Dart AOT measurements for `MathFont.fromBytes` (`1.021 ms` mean on `NewCMMath-Regular.otf`), `DisplayList.toSvg()`, `TexMathBudgets` guards, and full-corpus parse dispatch (`7.456 ms` mean across `352` cases) are recorded in [`doc/BENCHMARKS.md`](doc/BENCHMARKS.md).
+Native Dart AOT measurements for `MathFont.fromBytes` (`837.56 us` mean on `NewCMMath-Regular.otf`), `DisplayList.toSvg()`, typical inline layout (`14.41 us` mean), 50-equation notebook batch layout (`1.734 ms` mean), and full-corpus layout dispatch (`9.098 ms` mean across `352` cases) are recorded in [`doc/BENCHMARKS.md`](doc/BENCHMARKS.md).
 
 ## Documentation
 
