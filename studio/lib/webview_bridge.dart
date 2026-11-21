@@ -706,6 +706,14 @@ window.studioRender = async function(req) {
     }
     syncMathJaxStylesheet();
     const svg = wrapper.querySelector('svg');
+    const pxSize = req.fontSize || 22;
+    if (svg) {
+      const vb = (svg.getAttribute('viewBox') || '').trim().split(/\\s+/).map(Number);
+      if (vb.length === 4 && Number.isFinite(vb[2]) && Number.isFinite(vb[3]) && vb[2] > 0 && vb[3] > 0) {
+        svg.style.width = ((vb[2] / 1000) * pxSize) + 'px';
+        svg.style.height = ((vb[3] / 1000) * pxSize) + 'px';
+      }
+    }
     out.innerHTML = '';
     out.appendChild(wrapper);
     errBox.style.display = 'none';

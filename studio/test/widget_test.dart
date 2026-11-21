@@ -755,6 +755,7 @@ void main() {
       expect(mathJaxHtml, contains('syncMathJaxStylesheet'));
       expect(mathJaxHtml, contains('MathJax.svgStylesheet'));
       expect(mathJaxHtml, contains('MJX-SVG-styles'));
+      expect(mathJaxHtml, contains('vb[2] / 1000'));
 
       final String katexBodyCss = cssRuleBody(katexHtml, 'html, body');
       expect(katexBodyCss, contains('-webkit-font-smoothing: antialiased;'));
