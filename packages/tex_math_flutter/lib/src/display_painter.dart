@@ -6,9 +6,9 @@ import 'package:tex_math/tex_math.dart';
 
 import 'theme.dart';
 
-/// Cache mapping `(fontSignature, glyphId)` pairs (and standalone
-/// [GlyphOutline] records when no font or signature is attached) to reusable
-/// Flutter [Path] geometry, plus a bounded LRU cache of fallback [TextPainter]s.
+/// Cache mapping `(fontSignature, glyphId)` pairs (and standalone or synthetic
+/// `glyphId == 0` [GlyphOutline] records) to reusable Flutter [Path] geometry,
+/// plus a bounded LRU cache of fallback [TextPainter]s.
 ///
 /// Caching paths per `(fontSignature, glyphId)` allows theme color updates and
 /// repeated expressions (including isolate-laid-out display lists) to repaint
@@ -110,7 +110,8 @@ final class TexMathPathCache {
   }
 
   /// Resolves a cached [Path] for [glyphId] using [font] or [fontSignature]
-  /// when available, or [outline] directly for standalone display lists.
+  /// when available, or [outline] directly for standalone display lists and
+  /// synthetic (`glyphId == 0`) outlines.
   Path? resolvePath({
     required int glyphId,
     MathFont? font,
@@ -122,8 +123,9 @@ final class TexMathPathCache {
     final int? effectiveSignature = hasRealFont
         ? font.signature
         : fontSignature;
+    final bool isSyntheticOutline = glyphId == 0 && outline != null;
 
-    if (effectiveSignature != null) {
+    if (effectiveSignature != null && !isSyntheticOutline) {
       final _FontGlyphKey key = _FontGlyphKey(
         effectiveSignature,
         glyphId,

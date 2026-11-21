@@ -22,7 +22,7 @@ final class TexMathErrorWidget extends StatelessWidget {
   /// Optional structured [TexMathError] associated with this failure.
   final TexMathError? error;
 
-  /// Optional explicit error message overriding [error]?.message.
+  /// Optional explicit error message overriding [error]?.formattedMessage.
   final String? errorMessage;
 
   /// Display mode controlling inline vs block padding and layout.
@@ -36,10 +36,17 @@ final class TexMathErrorWidget extends StatelessWidget {
   Widget build(BuildContext context) {
     final TexMathThemeData theme = TexMathTheme.of(context);
     final String resolvedMessage =
-        errorMessage ?? error?.message ?? 'Unable to render TeX expression.';
+        errorMessage ??
+        error?.formattedMessage ??
+        'Unable to render TeX expression.';
     final bool isDisplay = displayMode == TexMathDisplayMode.display;
     final Color background =
         theme.errorBackground ?? theme.error.withValues(alpha: 0.08);
+    final TextStyle baseSourceStyle = TextStyle(
+      fontFamily: 'monospace',
+      fontSize: isDisplay ? 14.0 : 12.0,
+      color: theme.foreground,
+    );
 
     final Widget content = Container(
       padding: EdgeInsets.symmetric(
@@ -55,14 +62,7 @@ final class TexMathErrorWidget extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          Text(
-            source,
-            style: TextStyle(
-              fontFamily: 'monospace',
-              fontSize: isDisplay ? 14.0 : 12.0,
-              color: theme.foreground,
-            ),
-          ),
+          _buildSourceWidget(theme: theme, baseSourceStyle: baseSourceStyle),
           const SizedBox(height: 2.0),
           Text(
             resolvedMessage,
@@ -93,6 +93,47 @@ final class TexMathErrorWidget extends StatelessWidget {
       readOnly: true,
       excludeSemantics: true,
       child: maybeSelectable,
+    );
+  }
+
+  Widget _buildSourceWidget({
+    required TexMathThemeData theme,
+    required TextStyle baseSourceStyle,
+  }) {
+    final SourceSpan? span = error?.span;
+    if (span == null || source.isEmpty) {
+      return Text(source, style: baseSourceStyle);
+    }
+
+    final int start = span.start.clamp(0, source.length);
+    final int end = span.end.clamp(start, source.length);
+    final TextStyle highlightStyle = TextStyle(
+      color: theme.error,
+      fontWeight: FontWeight.w700,
+      decoration: TextDecoration.underline,
+      decorationColor: theme.error,
+      backgroundColor: theme.error.withValues(alpha: 0.16),
+    );
+
+    final List<InlineSpan> spans = <InlineSpan>[
+      if (start > 0) TextSpan(text: source.substring(0, start)),
+      if (end > start)
+        TextSpan(text: source.substring(start, end), style: highlightStyle)
+      else
+        TextSpan(
+          text: '‸',
+          style: TextStyle(
+            color: theme.error,
+            fontWeight: FontWeight.w700,
+            backgroundColor: theme.error.withValues(alpha: 0.16),
+          ),
+        ),
+      if (end < source.length) TextSpan(text: source.substring(end)),
+    ];
+
+    return Text.rich(
+      TextSpan(style: baseSourceStyle, children: spans),
+      style: baseSourceStyle,
     );
   }
 }
