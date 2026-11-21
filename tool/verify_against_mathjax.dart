@@ -75,8 +75,12 @@ Future<Map<String, Object?>> _runOracle(List<CorpusCase> cases) async {
       )
       .toList();
 
+  final bool needsTexHtml = cases.any(
+    (CorpusCase c) => c.packages?.contains('texhtml') ?? false,
+  );
   final Process process = await Process.start('node', <String>[
     _oracleScriptPath,
+    if (needsTexHtml) '--allow-texhtml',
   ]);
 
   final Future<String> stdoutFuture = utf8.decodeStream(process.stdout);

@@ -133,6 +133,70 @@ const ALL_TEX_PACKAGES = [
   'verb',
 ];
 
+const ALLOWED_TEX_PACKAGE_SET = new Set(ALL_TEX_PACKAGES);
+const ALLOWED_REQUEST_PACKAGES = new Set(['base', ...ALL_TEX_PACKAGES]);
+const ALLOWED_DYNAMIC_FONT_CHUNK_RE =
+  /^@mathjax\/mathjax-[a-z0-9-]+\/(?:js|mjs)\/(?:svg|chtml)\/dynamic\/[A-Za-z0-9_-]+\.js$/;
+const ALLOWED_TEX_MODULE_PATHS = new Set(
+  ALL_TEX_PACKAGES.map((pkg) => `[tex]/${pkg}`)
+    .filter((spec) => Object.hasOwn(source, spec))
+    .map((spec) => source[spec]),
+);
+
+let allowTexHtml = false;
+
+function hasUnsafePathTokens(specifier) {
+  if (
+    typeof specifier !== 'string' ||
+    specifier.length === 0 ||
+    /[\0\\?#%]/.test(specifier)
+  ) {
+    return true;
+  }
+  const segments = specifier.split('/');
+  return segments.some(
+    (segment) => segment.length === 0 || segment === '.' || segment === '..',
+  );
+}
+
+function resolveSafeAsyncLoadTarget(name) {
+  if (hasUnsafePathTokens(name)) {
+    return null;
+  }
+  if (name.startsWith('[tex]/')) {
+    const pkg = name.slice('[tex]/'.length);
+    if (!ALLOWED_TEX_PACKAGE_SET.has(pkg)) {
+      return null;
+    }
+    if (pkg === 'texhtml' && !allowTexHtml) {
+      return null;
+    }
+    if (!Object.hasOwn(LOADERCONFIG.source, name)) {
+      return null;
+    }
+    return Package.resolvePath(name);
+  }
+  if (ALLOWED_DYNAMIC_FONT_CHUNK_RE.test(name)) {
+    return name;
+  }
+  return null;
+}
+
+function isAllowedRequireTarget(file) {
+  if (typeof file !== 'string' || file.length === 0 || /[\0?#%]/.test(file)) {
+    return false;
+  }
+  if (ALLOWED_TEX_MODULE_PATHS.has(file)) {
+    if (!allowTexHtml && file === source['[tex]/texhtml']) {
+      return false;
+    }
+    return true;
+  }
+  return (
+    !hasUnsafePathTokens(file) && ALLOWED_DYNAMIC_FONT_CHUNK_RE.test(file)
+  );
+}
+
 // LiteElement lacks addEventListener, which SvgMaction invokes for interactive nodes.
 if (typeof LiteElement.prototype.addEventListener !== 'function') {
   LiteElement.prototype.addEventListener = () => {};
@@ -140,14 +204,19 @@ if (typeof LiteElement.prototype.addEventListener !== 'function') {
 
 Object.assign(LOADERCONFIG.dependencies, dependencies);
 Object.assign(LOADERCONFIG.source, source);
-LOADERCONFIG.require = (file) => import(file);
-mathjax.asyncLoad = (name) =>
-  import(name.charAt(0) === '[' ? Package.resolvePath(name) : name);
-
-Loader.preLoaded(
-  'input/tex-base',
-  ...ALL_TEX_PACKAGES.map((pkg) => `[tex]/${pkg}`),
-);
+LOADERCONFIG.require = async (file) => {
+  if (!isAllowedRequireTarget(file)) {
+    throw new Error(`Disallowed MathJax require target: ${String(file)}`);
+  }
+  return import(file);
+};
+mathjax.asyncLoad = async (name) => {
+  const target = resolveSafeAsyncLoadTarget(name);
+  if (!target) {
+    throw new Error(`Disallowed MathJax asyncLoad specifier: ${String(name)}`);
+  }
+  return import(target);
+};
 
 const adaptor = liteAdaptor();
 RegisterHTMLHandler(adaptor);
@@ -454,10 +523,46 @@ function extractSvgGeometry(svgEl) {
   return { box, glyphs, rules };
 }
 
+function errorResult(id, errorClass, errorMessage, mathjaxErrorId = null) {
+  return {
+    id,
+    accepted: false,
+    errorClass,
+    errorMessage,
+    mathjaxErrorId,
+    box: null,
+    glyphs: [],
+    rules: [],
+  };
+}
+
 async function renderCase(item, includeSvg) {
+  if (item.packages !== undefined && !Array.isArray(item.packages)) {
+    return errorResult(
+      item.id,
+      'syntaxError',
+      'Invalid packages configuration; expected an array of package names',
+    );
+  }
   const packages = Array.isArray(item.packages)
     ? item.packages
     : DEFAULT_PACKAGES;
+  for (const pkg of packages) {
+    if (typeof pkg !== 'string' || !ALLOWED_REQUEST_PACKAGES.has(pkg)) {
+      return errorResult(
+        item.id,
+        'syntaxError',
+        `Unsupported or disallowed TeX package "${String(pkg)}"`,
+      );
+    }
+    if (pkg === 'texhtml' && !allowTexHtml) {
+      return errorResult(
+        item.id,
+        'syntaxError',
+        'TeX package "texhtml" is disallowed unless --allow-texhtml is passed',
+      );
+    }
+  }
   const allowNoErrors = packages.includes('noerrors');
   const display =
     item.display === true || item.display === 'display';
@@ -473,8 +578,14 @@ async function renderCase(item, includeSvg) {
       throw err;
     },
   };
-  if (packages.includes('texhtml')) {
+  if (allowTexHtml && packages.includes('texhtml')) {
     texOptions.allowTexHTML = true;
+  } else if (!allowTexHtml && packages.includes('setoptions')) {
+    texOptions.setoptions = {
+      allowOptions: {
+        texhtml: false,
+      },
+    };
   }
   if (item.macros && packages.includes('configmacros')) {
     texOptions.macros = item.macros;
@@ -499,16 +610,7 @@ async function renderCase(item, includeSvg) {
         ? container
         : adaptor.tags(container, 'svg')[0];
     if (!svgEl) {
-      return {
-        id: item.id,
-        accepted: false,
-        errorClass: 'syntaxError',
-        errorMessage: 'No SVG element produced',
-        mathjaxErrorId: null,
-        box: null,
-        glyphs: [],
-        rules: [],
-      };
+      return errorResult(item.id, 'syntaxError', 'No SVG element produced');
     }
 
     const { box, glyphs, rules } = extractSvgGeometry(svgEl);
@@ -528,27 +630,18 @@ async function renderCase(item, includeSvg) {
   } catch (err) {
     const texErr = capturedError ?? (err instanceof TexError ? err : null);
     if (texErr) {
-      return {
-        id: item.id,
-        accepted: false,
-        errorClass: mapTexErrorClass(texErr),
-        errorMessage: texErr.message,
-        mathjaxErrorId: texErr.id,
-        box: null,
-        glyphs: [],
-        rules: [],
-      };
+      return errorResult(
+        item.id,
+        mapTexErrorClass(texErr),
+        texErr.message,
+        texErr.id,
+      );
     }
-    return {
-      id: item.id,
-      accepted: false,
-      errorClass: 'syntaxError',
-      errorMessage: err instanceof Error ? err.message : String(err),
-      mathjaxErrorId: null,
-      box: null,
-      glyphs: [],
-      rules: [],
-    };
+    return errorResult(
+      item.id,
+      'syntaxError',
+      err instanceof Error ? err.message : String(err),
+    );
   }
 }
 
@@ -563,6 +656,15 @@ async function readStdin() {
 async function main() {
   const args = new Set(process.argv.slice(2));
   const includeSvg = args.has('--include-svg');
+  allowTexHtml = args.has('--allow-texhtml');
+
+  const preloadedPackages = allowTexHtml
+    ? ALL_TEX_PACKAGES
+    : ALL_TEX_PACKAGES.filter((pkg) => pkg !== 'texhtml');
+  Loader.preLoaded(
+    'input/tex-base',
+    ...preloadedPackages.map((pkg) => `[tex]/${pkg}`),
+  );
 
   const rawInput = await readStdin();
   const trimmed = rawInput.trim();
