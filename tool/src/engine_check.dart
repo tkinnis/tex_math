@@ -77,7 +77,7 @@ final class EngineEvaluation {
   /// High-level evaluation outcome.
   final EngineOutcome outcome;
 
-  /// Actual [TexMathErrorClass.name] thrown by the engine, if any.
+  /// Actual [TexMathErrorClass] `name` thrown by the engine, if any.
   final String? errorClass;
 
   /// Diagnostic mismatch or error message when relevant.

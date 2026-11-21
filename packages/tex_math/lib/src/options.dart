@@ -2,6 +2,8 @@ import 'dart:collection';
 
 import 'package:meta/meta.dart';
 
+import 'error.dart' show TexMathError;
+
 /// Mathematical typesetting mode controlling display style vs inline layout.
 enum TexMathDisplayMode {
   /// Inline math mode (`$...$`), using compact text-style limits and fractions.

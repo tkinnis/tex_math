@@ -52,7 +52,7 @@ final class TexMathThemeData {
   /// Secondary muted color for [TexMathColorRole.muted].
   final Color muted;
 
-  /// Optional container background tint for [TexMathErrorWidget].
+  /// Optional container background tint for `TexMathErrorWidget`.
   final Color? errorBackground;
 
   /// Default logical font size when not overridden by an ambient [TextStyle].

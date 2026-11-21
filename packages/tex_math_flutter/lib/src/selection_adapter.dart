@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart' show SelectionArea;
 import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 import 'package:tex_math/tex_math.dart';
@@ -8,7 +9,7 @@ import 'package:tex_math/tex_math.dart';
 import 'display_painter.dart';
 import 'theme.dart';
 
-/// Policy controlling how [TexMath] handles rendered equations wider than the
+/// Policy controlling how `TexMath` handles rendered equations wider than the
 /// available horizontal layout constraints.
 enum TexMathOverflow {
   /// Wraps the equation in a horizontal [SingleChildScrollView] so long
@@ -450,7 +451,7 @@ final class TexMathRenderLeaf extends LeafRenderObjectWidget {
   final SelectionRegistrar? registrar;
 
   /// Whether painted glyphs may extend beyond the layout box (`TexMathOverflow.visible`),
-  /// expanding hit-testing and selection [boundingBoxes] to the visual bounds.
+  /// expanding hit-testing and selection [RenderTexMath.boundingBoxes] to the visual bounds.
   final bool allowVisualOverflow;
 
   @override

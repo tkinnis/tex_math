@@ -2,7 +2,7 @@ import 'dart:async';
 
 /// Executes [action] in a zone that delegates microtasks and timers to
 /// [Zone.root] while preserving the caller's [Zone.errorZone] so real isolate
-/// work is never stalled by test [FakeAsync] queues and errors still propagate
+/// work is never stalled by test `FakeAsync` queues and errors still propagate
 /// back to the caller's zone.
 T runInRealAsyncZone<T>(T Function() action) {
   final Zone current = Zone.current;

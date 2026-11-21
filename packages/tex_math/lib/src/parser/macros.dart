@@ -489,8 +489,8 @@ final class TexTokenBudgetState {
   /// Cumulative tokens materialized across tokenization and macro substitution.
   int tokenCount = 0;
 
-  /// Records [count] tokens and throws [TexMathBudgetError] when exceeding
-  /// [budgets.maxTokens].
+  /// Records [count] tokens against [budgets] and throws [TexMathBudgetError]
+  /// when exceeding [TexMathBudgets.maxTokens].
   void chargeTokens(
     int count, {
     required TexMathBudgets budgets,

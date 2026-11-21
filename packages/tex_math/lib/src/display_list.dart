@@ -2,6 +2,7 @@ import 'package:meta/meta.dart';
 
 import 'break_point.dart';
 import 'error.dart';
+import 'font.dart' show MathFont;
 import 'font/outline.dart';
 import 'format_utils.dart';
 import 'options.dart';

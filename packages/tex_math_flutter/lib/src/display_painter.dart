@@ -41,7 +41,7 @@ final class TexMathPathCache {
   static final Path _emptyPathSentinel = Path();
 
   /// Process-wide shared cache reused across [TexMathDisplayPainter] and
-  /// [TexMath] instances when no explicit cache is provided.
+  /// `TexMath` instances when no explicit cache is provided.
   static final TexMathPathCache shared = TexMathPathCache();
 
   /// Maximum number of cached path entries retained across font and outline

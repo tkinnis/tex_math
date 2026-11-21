@@ -8,7 +8,7 @@ import '../error.dart';
 /// before accessing underlying bytes, throwing [TexMathFontError] on any
 /// truncation or out-of-range access.
 final class FontByteReader {
-  /// Wraps [bytes] starting at [baseOffset] for [sliceLength] bytes.
+  /// Wraps `bytes` starting at `baseOffset` for `sliceLength` bytes.
   FontByteReader._(this._bytes, this._data, this._baseOffset, this.length);
 
   /// Creates a bounds-safe reader over [bytes].
