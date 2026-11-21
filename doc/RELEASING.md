@@ -6,16 +6,16 @@
 
 ## 1. Lockstep Versioning Contract
 
-`tool/check_versions.dart` enforces synchronization across five files (six checks) on every CI run and before any release tag:
+`tool/check_versions.dart` enforces synchronization across the four authoritative publishable files (five lockstep version checks) and verifies that internal `publish_to: none` workspace pubspecs keep `any` constraints on every CI run and before any release tag:
 
 * `packages/tex_math/pubspec.yaml`: `version: X.Y.Z`
 * `packages/tex_math_flutter/pubspec.yaml`: `version: X.Y.Z`
 * `packages/tex_math_flutter/pubspec.yaml`: `dependencies.tex_math: ^X.Y.Z`
 * `packages/tex_math/CHANGELOG.md`: top heading `## X.Y.Z`
 * `packages/tex_math_flutter/CHANGELOG.md`: top heading `## X.Y.Z`
-* [`REFERENCE.md`](../REFERENCE.md): `tex_math` and `tex_math_flutter` table rows matching `X.Y.Z`
+* `pubspec.yaml`, `studio/pubspec.yaml`, and `packages/tex_math_flutter/example/pubspec.yaml`: internal `tex_math` and `tex_math_flutter` constraints pinned to `any`
 
-The lockstep invariant ensures that every `tex_math_flutter` release pins the exact matching `^X.Y.Z` release of `tex_math` without cross-version skew.
+The lockstep invariant ensures that every `tex_math_flutter` release pins the exact matching `^X.Y.Z` release of `tex_math` without cross-version skew, while [`REFERENCE.md`](../REFERENCE.md), package READMEs (`dart pub add` / `flutter pub add`), and internal `publish_to: none` workspace pubspecs avoid duplicating release version numbers.
 
 ---
 
@@ -24,10 +24,9 @@ The lockstep invariant ensures that every `tex_math_flutter` release pins the ex
 ### Step 1: Bump Lockstep Version Metadata
 
 1. Update `version:` in both `packages/tex_math/pubspec.yaml` and `packages/tex_math_flutter/pubspec.yaml` to the target `X.Y.Z` version.
-2. Update `tex_math: ^X.Y.Z` under `dependencies:` in `packages/tex_math_flutter/pubspec.yaml` and `dev_dependencies:` in root `pubspec.yaml`.
+2. Update `tex_math: ^X.Y.Z` under `dependencies:` in `packages/tex_math_flutter/pubspec.yaml` (internal `publish_to: none` workspace pubspecs in `pubspec.yaml`, `studio/pubspec.yaml`, and `packages/tex_math_flutter/example/pubspec.yaml` remain `any`).
 3. Prepend a `## X.Y.Z` release section to both [`packages/tex_math/CHANGELOG.md`](../packages/tex_math/CHANGELOG.md) and [`packages/tex_math_flutter/CHANGELOG.md`](../packages/tex_math_flutter/CHANGELOG.md) summarizing user-visible changes.
-4. Update the `tex_math` and `tex_math_flutter` version rows in [`REFERENCE.md`](../REFERENCE.md) to `X.Y.Z`.
-5. Run `flutter pub get` at the repository root to refresh workspace resolution.
+4. Run `flutter pub get` at the repository root to refresh workspace resolution.
 
 ### Step 2: Run All Verification Gates
 

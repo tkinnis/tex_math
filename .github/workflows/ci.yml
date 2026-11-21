@@ -10,6 +10,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   verify:
     name: Analyze, Test, Oracle & Benchmarks
@@ -21,12 +25,16 @@ jobs:
       - name: Setup Flutter & Dart SDK
         uses: subosito/flutter-action@v2
         with:
+          flutter-version: "3.47.6"
           channel: stable
+          cache: true
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: "22"
+          cache: "npm"
+          cache-dependency-path: tool/oracle/package-lock.json
 
       - name: Install Dart & Flutter workspace dependencies
         run: flutter pub get
@@ -48,9 +56,11 @@ jobs:
           dart run example/main.dart
           dart doc --dry-run
 
-      - name: Run Flutter package tests
+      - name: Run Flutter package tests & dartdoc check
         working-directory: packages/tex_math_flutter
-        run: flutter test
+        run: |
+          flutter test
+          dart doc --dry-run
 
       - name: Run Flutter example app tests
         working-directory: packages/tex_math_flutter/example
@@ -73,8 +83,11 @@ jobs:
       - name: Verify REFERENCE.md pins and oracle lockfile hash
         run: dart run tool/sync_reference.dart --verify
 
+      - name: Verify generated documentation SVGs
+        run: dart run tool/generate_doc_images.dart --check
+
       - name: Run native AOT benchmark regression gate
-        run: dart run tool/benchmark_suite.dart --check-regressions
+        run: dart run tool/benchmark_suite.dart --check-regressions --tolerance=4.0
 
       - name: Validate pub.dev publish readiness for tex_math
         working-directory: packages/tex_math

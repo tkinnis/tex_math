@@ -6,11 +6,10 @@ Every stage of tokenization, macro expansion, syntax-tree parsing, Appendix G la
 
 ## Installation
 
-Add `tex_math` to your `pubspec.yaml` file (requires Dart `^3.13.0`):
+Install `tex_math` with the Dart CLI (requires Dart `^3.13.0`):
 
-```yaml
-dependencies:
-  tex_math: ^0.1.0-dev
+```bash
+dart pub add tex_math
 ```
 
 `tex_math` is font-agnostic and reads metrics and vector outlines directly from any OpenType math font (.otf or .ttf containing a `MATH` table) supplied as a `Uint8List`. Syntax-tree exports (`parseTex`, `toMathMl`, and `toSpokenText`) work without a font, while vector layout and SVG rendering require a loaded `MathFont`. If you are building a Flutter app and want `NewCMMath-Regular.otf` (8.1.1) bundled automatically alongside widgets and Material theming, use [tex_math_flutter](https://pub.dev/packages/tex_math_flutter) instead.

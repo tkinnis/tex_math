@@ -27,11 +27,13 @@ jobs:
 
       - name: Stage documentation site
         run: |
-          mkdir -p _site/doc _site/packages/tex_math _site/packages/tex_math_flutter _site/studio
+          mkdir -p _site/doc _site/corpus _site/packages/tex_math _site/packages/tex_math_flutter/assets/fonts _site/studio
           cp README.md REFERENCE.md CONTRIBUTING.md CODE_OF_CONDUCT.md SECURITY.md LICENSE AGENTS.md _site/
           cp -R doc/* _site/doc/
-          cp packages/tex_math/README.md packages/tex_math/CHANGELOG.md _site/packages/tex_math/
-          cp packages/tex_math_flutter/README.md packages/tex_math_flutter/CHANGELOG.md _site/packages/tex_math_flutter/
+          cp corpus/README.md _site/corpus/
+          cp packages/tex_math/README.md packages/tex_math/CHANGELOG.md packages/tex_math/LICENSE _site/packages/tex_math/
+          cp packages/tex_math_flutter/README.md packages/tex_math_flutter/CHANGELOG.md packages/tex_math_flutter/LICENSE _site/packages/tex_math_flutter/
+          cp packages/tex_math_flutter/assets/fonts/GUST-FONT-LICENSE.txt _site/packages/tex_math_flutter/assets/fonts/
           cp studio/README.md _site/studio/
           cp doc/index.html _site/index.html
           cp doc/_sidebar.md _site/_sidebar.md
@@ -44,6 +46,8 @@ jobs:
 
       - name: Configure Pages
         uses: actions/configure-pages@v5
+        with:
+          enablement: true
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3

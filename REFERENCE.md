@@ -1,6 +1,6 @@
 # Reference Specification & Upstream Pins
 
-This document is the **single source of truth** for the upstream MathJax, JupyterLab, font, and oracle package versions that **`tex_math`** targets, along with the package tier breakdown used across the verification corpus and automated tooling (`tool/check_versions.dart`, `tool/sync_reference.dart`, `tool/verify_against_mathjax.dart`).
+This document is the **single source of truth** for the upstream MathJax, JupyterLab, font, and oracle package versions that **`tex_math`** targets, along with the package tier breakdown used across the verification corpus and automated tooling (`tool/sync_reference.dart`, `tool/verify_against_mathjax.dart`).
 
 ---
 
@@ -8,8 +8,8 @@ This document is the **single source of truth** for the upstream MathJax, Jupyte
 
 | Component | Version / Value | Notes |
 | :--- | :--- | :--- |
-| `tex_math` | `0.1.0-dev` | Lockstep pure-Dart core package (`packages/tex_math/pubspec.yaml`). |
-| `tex_math_flutter` | `0.1.0-dev` | Lockstep Flutter widget and font bundle package (`packages/tex_math_flutter/pubspec.yaml`). |
+| `tex_math` | See `packages/tex_math/pubspec.yaml` | Authoritative lockstep pure-Dart core package version (synchronized with `packages/tex_math/CHANGELOG.md` via `tool/check_versions.dart`). |
+| `tex_math_flutter` | See `packages/tex_math_flutter/pubspec.yaml` | Authoritative lockstep Flutter widget and font bundle package version (synchronized with `packages/tex_math_flutter/CHANGELOG.md` via `tool/check_versions.dart`). |
 | `mathjax` | `4.1.3` | Pinned MathJax meta-package (`mathjax/MathJax` tag `4.1.3`, commit `0bfa580685ca72e4a3a37657ccd754a65c1a42c6`). |
 | `@mathjax/src` | `4.1.3` | Pinned MathJax 4 source (`mathjax/MathJax-src` tag `4.1.3`, commit `fb987178c2d279a99b0db5ea02e751691703955e`). |
 | `@mathjax/mathjax-newcm-font` | `4.1.3` | Pinned MathJax New Computer Modern math font tables and SVG paths. |

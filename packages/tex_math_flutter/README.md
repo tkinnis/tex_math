@@ -6,11 +6,10 @@ All parsing and OpenType `MATH` layout runs synchronously in pure Dart via `tex_
 
 ## Installation
 
-Add `tex_math_flutter` to your `pubspec.yaml` file (requires Dart `^3.13.0` and Flutter `>=3.47.0`):
+Install `tex_math_flutter` with the Flutter CLI (requires Dart `^3.13.0` and Flutter `>=3.47.0`):
 
-```yaml
-dependencies:
-  tex_math_flutter: ^0.1.0-dev
+```bash
+flutter pub add tex_math_flutter
 ```
 
 `NewCMMath-Regular.otf` (8.1.1) and its GUST font license and manifest are bundled automatically inside the package assets, so no extra `pubspec.yaml` font declaration is needed. Importing `package:tex_math_flutter/tex_math_flutter.dart` also re-exports core configuration, engine, font, and error types from [tex_math](https://pub.dev/packages/tex_math) in a single import.

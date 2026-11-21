@@ -1,7 +1,6 @@
 import 'dart:io';
 
 import 'src/cli_args.dart';
-import 'src/reference_markdown.dart';
 
 void main(List<String> args) {
   if (args.contains('--help') || args.contains('-h')) {
@@ -35,15 +34,6 @@ void main(List<String> args) {
     'packages/tex_math_flutter/CHANGELOG.md',
     errors,
   );
-  final String? referenceVersion = _readReferenceVersion(
-    'REFERENCE.md',
-    'tex_math',
-    errors,
-  );
-  final String? referenceFlutterVersion = readReferenceVersionFromFile(
-    'REFERENCE.md',
-    'tex_math_flutter',
-  );
 
   if (texMathVersion != null) {
     if (flutterVersion != null && flutterVersion != texMathVersion) {
@@ -72,19 +62,6 @@ void main(List<String> args) {
         'heading is $flutterChangelog, expected $texMathVersion.',
       );
     }
-    if (referenceVersion != null && referenceVersion != texMathVersion) {
-      errors.add(
-        'REFERENCE.md mismatch: tex_math entry is $referenceVersion, '
-        'expected $texMathVersion.',
-      );
-    }
-    if (referenceFlutterVersion != null &&
-        referenceFlutterVersion != texMathVersion) {
-      errors.add(
-        'REFERENCE.md mismatch: tex_math_flutter entry is '
-        '$referenceFlutterVersion, expected $texMathVersion.',
-      );
-    }
     if (expectedTag != null) {
       final String requiredTag = 'v$texMathVersion';
       if (expectedTag != requiredTag) {
@@ -95,6 +72,25 @@ void main(List<String> args) {
       }
     }
   }
+
+  _verifyInternalWorkspacePubspec(
+    path: 'pubspec.yaml',
+    section: 'dev_dependencies',
+    packageNames: const <String>['tex_math'],
+    errors: errors,
+  );
+  _verifyInternalWorkspacePubspec(
+    path: 'studio/pubspec.yaml',
+    section: 'dependencies',
+    packageNames: const <String>['tex_math', 'tex_math_flutter'],
+    errors: errors,
+  );
+  _verifyInternalWorkspacePubspec(
+    path: 'packages/tex_math_flutter/example/pubspec.yaml',
+    section: 'dependencies',
+    packageNames: const <String>['tex_math', 'tex_math_flutter'],
+    errors: errors,
+  );
 
   if (errors.isNotEmpty) {
     for (final String error in errors) {
@@ -108,6 +104,42 @@ void main(List<String> args) {
     'Version lockstep verified: $texMathVersion'
     '${expectedTag != null ? ' (tag $expectedTag)' : ''}.',
   );
+}
+
+void _verifyInternalWorkspacePubspec({
+  required String path,
+  required String section,
+  required List<String> packageNames,
+  required List<String> errors,
+}) {
+  final File file = File(path);
+  if (!file.existsSync()) {
+    errors.add('Missing file: $path');
+    return;
+  }
+  final bool isUnpublished = file.readAsLinesSync().any(
+    (String line) => RegExp(r'^publish_to:\s*none\s*(?:#.*)?$').hasMatch(line),
+  );
+  if (!isUnpublished) {
+    errors.add(
+      'Internal workspace pubspec $path must declare publish_to: none.',
+    );
+    return;
+  }
+  for (final String packageName in packageNames) {
+    final String? constraint = _readPubspecDependency(
+      path,
+      packageName,
+      errors,
+      section: section,
+    );
+    if (constraint != null && constraint != 'any') {
+      errors.add(
+        'Internal constraint mismatch: $path has $section.$packageName: '
+        '$constraint, expected any.',
+      );
+    }
+  }
 }
 
 String? _readPubspecVersion(String path, List<String> errors) {
@@ -133,15 +165,16 @@ String? _readPubspecVersion(String path, List<String> errors) {
 String? _readPubspecDependency(
   String path,
   String packageName,
-  List<String> errors,
-) {
+  List<String> errors, {
+  String section = 'dependencies',
+}) {
   final File file = File(path);
   if (!file.existsSync()) {
     errors.add('Missing file: $path');
     return null;
   }
   final List<String> lines = file.readAsLinesSync();
-  bool inDependencies = false;
+  bool inSection = false;
   final RegExp depPattern = RegExp(
     '^\\s+${RegExp.escape(packageName)}:\\s*[\'"]?([^\'"\\s#]+)[\'"]?\\s*(?:#.*)?\$',
   );
@@ -152,17 +185,17 @@ String? _readPubspecDependency(
       continue;
     }
     if (!line.startsWith(' ') && !line.startsWith('\t')) {
-      inDependencies = trimmed == 'dependencies:';
+      inSection = trimmed == '$section:';
       continue;
     }
-    if (inDependencies) {
+    if (inSection) {
       final RegExpMatch? match = depPattern.firstMatch(line);
       if (match != null) {
         return match.group(1);
       }
     }
   }
-  errors.add('Could not find dependencies.$packageName constraint in $path.');
+  errors.add('Could not find $section.$packageName constraint in $path.');
   return null;
 }
 
@@ -184,17 +217,4 @@ String? _readTopChangelogVersion(String path, List<String> errors) {
   }
   errors.add('Could not find top ## <version> heading in $path.');
   return null;
-}
-
-String? _readReferenceVersion(String path, String key, List<String> errors) {
-  final File file = File(path);
-  if (!file.existsSync()) {
-    errors.add('Missing file: $path');
-    return null;
-  }
-  final String? version = readReferenceVersionFromFile(path, key);
-  if (version == null) {
-    errors.add('Could not find `$key` version row in $path.');
-  }
-  return version;
 }

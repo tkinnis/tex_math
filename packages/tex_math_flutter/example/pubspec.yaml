@@ -11,8 +11,8 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  tex_math: ^0.1.0-dev
-  tex_math_flutter: ^0.1.0-dev
+  tex_math: any
+  tex_math_flutter: any
 
 dev_dependencies:
   flutter_test:
