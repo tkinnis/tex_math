@@ -4,6 +4,7 @@ import '../ast.dart';
 import '../font.dart';
 import '../source_span.dart';
 import 'box.dart';
+import 'glyph_resolve.dart';
 import 'style_spacing.dart';
 
 /// Builds a [GlyphBox] from a resolved [glyphId] and semantic [codePoint]
@@ -28,12 +29,10 @@ GlyphBox buildGlyphBoxFromId({
 
   final GlyphMetrics metrics = font.metricsForGlyph(effectiveGlyphId);
   final GlyphOutline? outline = effectiveGlyphId == 0
-      ? GlyphOutline(glyphId: 0, commands: const <PathCommand>[])
+      ? const GlyphOutline(glyphId: 0, commands: <PathCommand>[])
       : font.outlineForGlyph(effectiveGlyphId);
   final double upem = font.unitsPerEm.toDouble();
-  final double? rawIc = font.mathTable?.glyphInfo.italicsCorrection(
-    effectiveGlyphId,
-  );
+  final double? rawIc = metrics.italicsCorrection;
 
   return GlyphBox(
     glyphId: effectiveGlyphId,
@@ -170,10 +169,7 @@ int? delimiterCodePoint(String delimiter, {bool isStretchy = true}) {
     case r'\bracevert':
       return 0x7C;
     default:
-      if (trimmed.runes.length == 1) {
-        return trimmed.runes.first;
-      }
-      return null;
+      return singleCodePointOrNull(trimmed);
   }
 }
 

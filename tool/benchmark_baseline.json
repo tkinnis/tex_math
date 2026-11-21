@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "phase": "Phases 2-5",
+  "phase": "Phase 7",
   "toleranceMultiplier": 5.0,
   "corpusCaseCount": 352,
   "hardware": {
@@ -20,11 +20,89 @@
       "batchIterations": 5,
       "samples": 10,
       "warmupSamples": 2,
-      "meanUs": 837.56,
-      "medianUs": 799.8,
-      "p95Us": 1023.4,
-      "minUs": 698.8,
-      "maxUs": 1023.4
+      "meanUs": 699.0,
+      "medianUs": 634.9,
+      "p95Us": 1049.4,
+      "minUs": 482.6,
+      "maxUs": 1049.4
+    },
+    {
+      "id": "inline_expression_layout",
+      "description": "Parse and lay out representative inline math expressions via TexMathEngine.render",
+      "unit": "us",
+      "batchIterations": 1600,
+      "samples": 20,
+      "warmupSamples": 4,
+      "meanUs": 7.76,
+      "medianUs": 7.68,
+      "p95Us": 9.42,
+      "minUs": 6.65,
+      "maxUs": 9.42
+    },
+    {
+      "id": "notebook_50_equations",
+      "description": "Parse and lay out 50 corpus equations (base, ams, mhchem, stretchy) in batch via TexMathEngine.render",
+      "unit": "us",
+      "batchIterations": 40,
+      "samples": 20,
+      "warmupSamples": 4,
+      "meanUs": 1829.87,
+      "medianUs": 1809.3,
+      "p95Us": 2148.95,
+      "minUs": 1588.83,
+      "maxUs": 2148.95
+    },
+    {
+      "id": "cached_display_list_lookup",
+      "description": "Retrieve cached RenderResult by (source, options, fontId) LRU key with zero re-layout",
+      "unit": "us",
+      "batchIterations": 16000,
+      "samples": 20,
+      "warmupSamples": 4,
+      "meanUs": 0.46,
+      "medianUs": 0.45,
+      "p95Us": 0.63,
+      "minUs": 0.34,
+      "maxUs": 0.63
+    },
+    {
+      "id": "corpus_parse_phase",
+      "description": "Tokenize, expand macros, and parse all 352 corpus cases via TexMathEngine.parse",
+      "unit": "us",
+      "batchIterations": 25,
+      "samples": 20,
+      "warmupSamples": 3,
+      "meanUs": 4089.88,
+      "medianUs": 4071.08,
+      "p95Us": 4491.32,
+      "minUs": 3683.12,
+      "maxUs": 4491.32
+    },
+    {
+      "id": "corpus_layout_phase",
+      "description": "Lay out all 315 valid corpus syntax trees via TexMathEngine.layout",
+      "unit": "us",
+      "batchIterations": 25,
+      "samples": 20,
+      "warmupSamples": 3,
+      "meanUs": 2925.4,
+      "medianUs": 2905.26,
+      "p95Us": 3690.68,
+      "minUs": 2455.48,
+      "maxUs": 3690.68
+    },
+    {
+      "id": "corpus_full_dispatch",
+      "description": "Dispatch all 352 corpus cases end-to-end through TexMathEngine.render",
+      "unit": "us",
+      "batchIterations": 25,
+      "samples": 20,
+      "warmupSamples": 3,
+      "meanUs": 7739.55,
+      "medianUs": 7572.58,
+      "p95Us": 9245.8,
+      "minUs": 7044.68,
+      "maxUs": 9245.8
     },
     {
       "id": "display_list_to_svg_small",
@@ -33,11 +111,11 @@
       "batchIterations": 400,
       "samples": 20,
       "warmupSamples": 4,
-      "meanUs": 56.18,
-      "medianUs": 55.83,
-      "p95Us": 60.31,
-      "minUs": 54.73,
-      "maxUs": 60.31
+      "meanUs": 12.66,
+      "medianUs": 12.25,
+      "p95Us": 18.78,
+      "minUs": 9.81,
+      "maxUs": 18.78
     },
     {
       "id": "display_list_to_svg_large",
@@ -46,11 +124,11 @@
       "batchIterations": 60,
       "samples": 20,
       "warmupSamples": 4,
-      "meanUs": 1276.6,
-      "medianUs": 1278.73,
-      "p95Us": 1331.62,
-      "minUs": 1206.95,
-      "maxUs": 1331.62
+      "meanUs": 258.54,
+      "medianUs": 267.19,
+      "p95Us": 298.42,
+      "minUs": 216.87,
+      "maxUs": 298.42
     },
     {
       "id": "budget_input_check_valid",
@@ -59,11 +137,11 @@
       "batchIterations": 1500,
       "samples": 20,
       "warmupSamples": 4,
-      "meanUs": 14.41,
-      "medianUs": 14.05,
-      "p95Us": 17.56,
-      "minUs": 13.16,
-      "maxUs": 17.56
+      "meanUs": 13.05,
+      "medianUs": 12.81,
+      "p95Us": 17.71,
+      "minUs": 10.52,
+      "maxUs": 17.71
     },
     {
       "id": "budget_input_check_exceeded",
@@ -72,37 +150,11 @@
       "batchIterations": 1500,
       "samples": 20,
       "warmupSamples": 4,
-      "meanUs": 2.17,
-      "medianUs": 2.05,
-      "p95Us": 3.1,
-      "minUs": 1.86,
-      "maxUs": 3.1
-    },
-    {
-      "id": "notebook_50_equations",
-      "description": "Parse and lay out 50 notebook equations in batch via TexMathEngine.render",
-      "unit": "us",
-      "batchIterations": 40,
-      "samples": 20,
-      "warmupSamples": 4,
-      "meanUs": 1734.2,
-      "medianUs": 1750.93,
-      "p95Us": 2105.75,
-      "minUs": 1365.18,
-      "maxUs": 2105.75
-    },
-    {
-      "id": "corpus_full_dispatch",
-      "description": "Dispatch all 352 corpus cases through TexMathEngine.render",
-      "unit": "us",
-      "batchIterations": 25,
-      "samples": 20,
-      "warmupSamples": 3,
-      "meanUs": 9097.79,
-      "medianUs": 7986.34,
-      "p95Us": 14177.0,
-      "minUs": 4862.76,
-      "maxUs": 14177.0
+      "meanUs": 3.35,
+      "medianUs": 3.45,
+      "p95Us": 4.4,
+      "minUs": 1.88,
+      "maxUs": 4.4
     }
   ]
 }

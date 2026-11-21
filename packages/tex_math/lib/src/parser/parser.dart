@@ -801,7 +801,7 @@ final class _TexParser implements TexParserHost {
         .trim();
     final int endOffset = closeIdx + closeTag.length;
     cursor.discardRawUntilOffset(endOffset);
-    final String plainText = rawHtml.replaceAll(RegExp(r'<[^>]*>'), '');
+    final String plainText = rawHtml.replaceAll(_htmlTagPattern, '');
     final SourceSpan htmlSpan = SourceSpan(start, endOffset);
     return MathGroupNode(
       span: htmlSpan,
@@ -2017,7 +2017,7 @@ final class _TexParser implements TexParserHost {
             final String p = part.trim();
             if (p.startsWith('border:')) {
               attrs['border'] = p.substring('border:'.length).trim();
-            } else if (RegExp(r'^\d').hasMatch(p)) {
+            } else if (p.isNotEmpty && _isAsciiDigitUnit(p.codeUnitAt(0))) {
               attrs['padding'] = p;
             } else if (p.isNotEmpty) {
               attrs['background'] = resolveTexColor(
@@ -3122,14 +3122,14 @@ final class _TexParser implements TexParserHost {
     final String rawCs = readArgumentText('Newextarrow').trim();
     final String spaceSpec = readArgumentText('Newextarrow').trim();
     final String charSpec = readArgumentText('Newextarrow').trim();
-    if (!RegExp(r'^\\([a-zA-Z]+|.)$').hasMatch(rawCs)) {
+    if (!_newExtArrowCsPattern.hasMatch(rawCs)) {
       throw TexMathMacroError(
         'First argument to \\Newextarrow must be a control sequence.',
         errorClass: TexMathErrorClass.invalidMacroDefinition,
         span: span,
       );
     }
-    if (!RegExp(r'^\d+,\d+$').hasMatch(spaceSpec)) {
+    if (!_newExtArrowSpacePattern.hasMatch(spaceSpec)) {
       throw TexMathMacroError(
         'Second argument to \\Newextarrow must be two integers.',
         errorClass: TexMathErrorClass.invalidMacroDefinition,
@@ -4011,16 +4011,13 @@ final class _TexParser implements TexParserHost {
       if (next == null || next.kind == TexTokenKind.space) {
         break;
       }
-      if (next.kind == TexTokenKind.other &&
-          RegExp(r'^[0-9.+\-]$').hasMatch(next.text)) {
+      if (next.kind == TexTokenKind.other && _isDimenScalarText(next.text)) {
         buf.write(cursor.nextRaw()!.text);
         continue;
       }
       if (next.kind == TexTokenKind.letter) {
         buf.write(cursor.nextRaw()!.text);
-        if (buf.length >= 2 &&
-            RegExp(r'(pt|pc|in|bp|cm|mm|dd|cc|sp|em|ex|mu|px)$')
-                .hasMatch(buf.toString())) {
+        if (buf.length >= 2 && _dimenSuffixPattern.hasMatch(buf.toString())) {
           break;
         }
         continue;
@@ -4088,9 +4085,9 @@ final class _TexParser implements TexParserHost {
       parsed = int.tryParse(cleaned.substring(2), radix: 16);
     } else if (cleaned.startsWith('x') || cleaned.startsWith('X')) {
       parsed = int.tryParse(cleaned.substring(1), radix: 16);
-    } else if (RegExp(r'^[0-9]+$').hasMatch(cleaned)) {
+    } else if (_isAllAsciiDigits(cleaned)) {
       parsed = int.tryParse(cleaned);
-    } else if (RegExp(r'^[0-9a-fA-F]+$').hasMatch(cleaned)) {
+    } else if (_isAllHexDigits(cleaned)) {
       parsed = int.tryParse(cleaned, radix: 16);
     }
     if (parsed == null || parsed < 0 || parsed > 0x10FFFF) {
@@ -4135,11 +4132,7 @@ final class _TexParser implements TexParserHost {
         break;
       }
       final String ch = tok.text;
-      final bool matches = switch (radix) {
-        16 => RegExp(r'^[0-9a-fA-F]$').hasMatch(ch),
-        8 => RegExp(r'^[0-7]$').hasMatch(ch),
-        _ => RegExp(r'^[0-9]$').hasMatch(ch),
-      };
+      final bool matches = _isDigitInRadix(ch, radix);
       if (!matches) {
         break;
       }
@@ -4728,16 +4721,11 @@ bool _isDigitString(String text) =>
     text.codeUnitAt(0) >= 0x30 &&
     text.codeUnitAt(0) <= 0x39;
 
-bool _isValidTexDimension(String dim) {
-  return RegExp(
-    r'^[+-]?(?:\d+(?:\.\d*)?|\.\d+)\s*(?:pt|pc|in|bp|cm|mm|dd|cc|sp|em|ex|mu|px)$',
-  ).hasMatch(dim.trim());
-}
+bool _isValidTexDimension(String dim) =>
+    _validTexDimensionPattern.hasMatch(dim.trim());
 
 double _parseDimensionToEm(String dim) {
-  final RegExpMatch? m = RegExp(
-    r'^([+-]?(?:\d+(?:\.\d*)?|\.\d+))\s*(pt|pc|in|bp|cm|mm|dd|cc|sp|em|ex|mu|px)?$',
-  ).firstMatch(dim.trim());
+  final RegExpMatch? m = _parseTexDimensionPattern.firstMatch(dim.trim());
   if (m == null) {
     return 0.0;
   }
@@ -4860,4 +4848,68 @@ String _composeAccent(String ch, String combining) {
     ('c', '\u0327'): '\u00E7',
   };
   return precomposed[(ch, combining)] ?? '$ch$combining';
+}
+
+final RegExp _htmlTagPattern = RegExp(r'<[^>]*>');
+final RegExp _newExtArrowCsPattern = RegExp(r'^\\([a-zA-Z]+|.)$');
+final RegExp _newExtArrowSpacePattern = RegExp(r'^\d+,\d+$');
+final RegExp _dimenSuffixPattern = RegExp(
+  r'(pt|pc|in|bp|cm|mm|dd|cc|sp|em|ex|mu|px)$',
+);
+final RegExp _validTexDimensionPattern = RegExp(
+  r'^[+-]?(?:\d+(?:\.\d*)?|\.\d+)\s*(?:pt|pc|in|bp|cm|mm|dd|cc|sp|em|ex|mu|px)$',
+);
+final RegExp _parseTexDimensionPattern = RegExp(
+  r'^([+-]?(?:\d+(?:\.\d*)?|\.\d+))\s*(pt|pc|in|bp|cm|mm|dd|cc|sp|em|ex|mu|px)?$',
+);
+
+bool _isAsciiDigitUnit(int c) => c >= 0x30 && c <= 0x39;
+
+bool _isHexDigitUnit(int c) =>
+    (c >= 0x30 && c <= 0x39) ||
+    (c >= 0x41 && c <= 0x46) ||
+    (c >= 0x61 && c <= 0x66);
+
+bool _isDimenScalarText(String text) {
+  if (text.length != 1) {
+    return false;
+  }
+  final int c = text.codeUnitAt(0);
+  return _isAsciiDigitUnit(c) || c == 0x2E || c == 0x2B || c == 0x2D;
+}
+
+bool _isAllAsciiDigits(String text) {
+  if (text.isEmpty) {
+    return false;
+  }
+  for (int i = 0; i < text.length; i++) {
+    if (!_isAsciiDigitUnit(text.codeUnitAt(i))) {
+      return false;
+    }
+  }
+  return true;
+}
+
+bool _isAllHexDigits(String text) {
+  if (text.isEmpty) {
+    return false;
+  }
+  for (int i = 0; i < text.length; i++) {
+    if (!_isHexDigitUnit(text.codeUnitAt(i))) {
+      return false;
+    }
+  }
+  return true;
+}
+
+bool _isDigitInRadix(String ch, int radix) {
+  if (ch.length != 1) {
+    return false;
+  }
+  final int c = ch.codeUnitAt(0);
+  return switch (radix) {
+    16 => _isHexDigitUnit(c),
+    8 => c >= 0x30 && c <= 0x37,
+    _ => _isAsciiDigitUnit(c),
+  };
 }

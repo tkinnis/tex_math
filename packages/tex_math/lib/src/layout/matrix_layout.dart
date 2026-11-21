@@ -6,6 +6,7 @@ import '../options.dart';
 import '../parser/parser.dart';
 import '../source_span.dart';
 import 'box.dart';
+import 'glyph_resolve.dart';
 import 'stretchy.dart';
 import 'style_spacing.dart';
 
@@ -914,7 +915,7 @@ bool _isEmptyCdCell(MathNode node) {
       node.isExtensible &&
       node.operatorName.isNotEmpty) {
     return (
-      codePoint: node.operatorName.runes.first,
+      codePoint: firstCodePointOr(node.operatorName, 0),
       labelA: null,
       labelB: null,
     );
@@ -925,14 +926,18 @@ bool _isEmptyCdCell(MathNode node) {
         base.isExtensible &&
         base.operatorName.isNotEmpty) {
       return (
-        codePoint: base.operatorName.runes.first,
+        codePoint: firstCodePointOr(base.operatorName, 0),
         labelA: node.superscript,
         labelB: node.subscript,
       );
     }
   }
   if (node is SymbolNode && node.isStretchy && node.value.isNotEmpty) {
-    return (codePoint: node.value.runes.first, labelA: null, labelB: null);
+    return (
+      codePoint: firstCodePointOr(node.value, 0),
+      labelA: null,
+      labelB: null,
+    );
   }
   return null;
 }

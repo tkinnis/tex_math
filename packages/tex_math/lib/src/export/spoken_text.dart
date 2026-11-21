@@ -269,8 +269,10 @@ String _speakDelimiter(String? delim, {required bool isLeft}) {
   }
 }
 
+final RegExp _whitespacePattern = RegExp(r'\s+');
+
 String _normalizeSpaces(String input) =>
-    input.replaceAll(RegExp(r'\s+'), ' ').trim();
+    input.replaceAll(_whitespacePattern, ' ').trim();
 
 const Map<String, String> _spokenCommands = <String, String>{
   'prime': 'prime',

@@ -127,6 +127,39 @@ final class FontByteReader {
     _checkRange(offset, byteCount, context);
   }
 
+  /// Reads an unsigned 8-bit integer without rechecking bounds.
+  /// Callers must validate `[offset, offset + 1)` via [checkRange] first.
+  int readUint8Fast(int offset) => _data.getUint8(_baseOffset + offset);
+
+  /// Reads a big-endian unsigned 16-bit integer without rechecking bounds.
+  /// Callers must validate `[offset, offset + 2)` via [checkRange] first.
+  int readUint16Fast(int offset) =>
+      _data.getUint16(_baseOffset + offset, Endian.big);
+
+  /// Reads a big-endian signed 16-bit integer without rechecking bounds.
+  /// Callers must validate `[offset, offset + 2)` via [checkRange] first.
+  int readInt16Fast(int offset) =>
+      _data.getInt16(_baseOffset + offset, Endian.big);
+
+  /// Reads a big-endian unsigned 24-bit integer without rechecking bounds.
+  /// Callers must validate `[offset, offset + 3)` via [checkRange] first.
+  int readUint24Fast(int offset) {
+    final int base = _baseOffset + offset;
+    return (_data.getUint8(base) << 16) |
+        (_data.getUint8(base + 1) << 8) |
+        _data.getUint8(base + 2);
+  }
+
+  /// Reads a big-endian unsigned 32-bit integer without rechecking bounds.
+  /// Callers must validate `[offset, offset + 4)` via [checkRange] first.
+  int readUint32Fast(int offset) =>
+      _data.getUint32(_baseOffset + offset, Endian.big);
+
+  /// Reads a big-endian signed 32-bit integer without rechecking bounds.
+  /// Callers must validate `[offset, offset + 4)` via [checkRange] first.
+  int readInt32Fast(int offset) =>
+      _data.getInt32(_baseOffset + offset, Endian.big);
+
   void _checkRange(int offset, int byteCount, String context) {
     if (offset < 0 ||
         byteCount < 0 ||
@@ -178,7 +211,7 @@ final class CoverageTable {
       reader.checkRange(offset + 4, count * 2, '$context.glyphArray');
       final Uint16List glyphs = Uint16List(count);
       for (int i = 0; i < count; i++) {
-        glyphs[i] = reader.readUint16(offset + 4 + i * 2, '$context.glyph');
+        glyphs[i] = reader.readUint16Fast(offset + 4 + i * 2);
       }
       return CoverageTable._(
         singleGlyphs: glyphs,
@@ -195,12 +228,9 @@ final class CoverageTable {
       final Uint16List startIndices = Uint16List(count);
       for (int i = 0; i < count; i++) {
         final int pos = offset + 4 + i * 6;
-        final int start = reader.readUint16(pos, '$context.startGlyphID');
-        final int end = reader.readUint16(pos + 2, '$context.endGlyphID');
-        final int startIdx = reader.readUint16(
-          pos + 4,
-          '$context.startCoverageIndex',
-        );
+        final int start = reader.readUint16Fast(pos);
+        final int end = reader.readUint16Fast(pos + 2);
+        final int startIdx = reader.readUint16Fast(pos + 4);
         if (end < start) {
           throw TexMathFontError(
             'Invalid $context Format 2 range: end ($end) < start ($start).',

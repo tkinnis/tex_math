@@ -215,17 +215,26 @@ final class HmtxTable {
     final Int32List lsbs = Int32List(numGlyphs);
 
     int lastAdv = 0;
-    for (int i = 0; i < numberOfHMetrics; i++) {
-      final int pos = i * 4;
-      lastAdv = reader.readUint16(pos, 'hmtx.advanceWidth');
-      advs[i] = lastAdv;
-      lsbs[i] = reader.readInt16(pos + 2, 'hmtx.lsb');
-    }
-    final int lsbBase = numberOfHMetrics * 4;
-    for (int i = 0; i < extraLsbs; i++) {
-      final int gid = numberOfHMetrics + i;
-      advs[gid] = lastAdv;
-      lsbs[gid] = reader.readInt16(lsbBase + i * 2, 'hmtx.leftSideBearings');
+    if (extraLsbs >= 0) {
+      for (int i = 0; i < numberOfHMetrics; i++) {
+        final int pos = i * 4;
+        lastAdv = reader.readUint16Fast(pos);
+        advs[i] = lastAdv;
+        lsbs[i] = reader.readInt16Fast(pos + 2);
+      }
+      final int lsbBase = numberOfHMetrics * 4;
+      for (int i = 0; i < extraLsbs; i++) {
+        final int gid = numberOfHMetrics + i;
+        advs[gid] = lastAdv;
+        lsbs[gid] = reader.readInt16Fast(lsbBase + i * 2);
+      }
+    } else {
+      for (int i = 0; i < numberOfHMetrics; i++) {
+        final int pos = i * 4;
+        lastAdv = reader.readUint16(pos, 'hmtx.advanceWidth');
+        advs[i] = lastAdv;
+        lsbs[i] = reader.readInt16(pos + 2, 'hmtx.lsb');
+      }
     }
     return HmtxTable._(advs, lsbs);
   }
@@ -335,19 +344,28 @@ String parseFamilyName(FontByteReader? reader) {
 
 /// Parsed `cmap` Format 4 and Format 12 Unicode-to-glyph mapper.
 final class CmapTable {
-  const CmapTable._(this._format12, this._format4);
+  const CmapTable._(this._format12, this._format4, this._asciiGlyphs);
 
   /// Empty `cmap` returning `0` for all code points.
-  static const CmapTable empty = CmapTable._(null, null);
+  static const CmapTable empty = CmapTable._(null, null, null);
 
   final _CmapFormat12? _format12;
   final _CmapFormat4? _format4;
+  final Uint32List? _asciiGlyphs;
 
   /// Maps Unicode scalar [codePoint] to OpenType glyph ID, or `0` if unmapped.
   int glyphIdForCodePoint(int codePoint) {
     if (codePoint < 0 || codePoint > 0x10FFFF) {
       return 0;
     }
+    final Uint32List? ascii = _asciiGlyphs;
+    if (ascii != null && codePoint < 128) {
+      return ascii[codePoint];
+    }
+    return _lookupUncached(codePoint);
+  }
+
+  int _lookupUncached(int codePoint) {
     final _CmapFormat12? f12 = _format12;
     if (f12 != null) {
       final int gid = f12.lookup(codePoint);
@@ -414,7 +432,15 @@ final class CmapTable {
     final _CmapFormat4? f4 = bestFmt4Offset >= 0
         ? _CmapFormat4.parse(reader, bestFmt4Offset, numGlyphs)
         : null;
-    return CmapTable._(f12, f4);
+    if (f12 == null && f4 == null) {
+      return empty;
+    }
+    final CmapTable uncached = CmapTable._(f12, f4, null);
+    final Uint32List ascii = Uint32List(128);
+    for (int cp = 0; cp < 128; cp++) {
+      ascii[cp] = uncached._lookupUncached(cp);
+    }
+    return CmapTable._(f12, f4, ascii);
   }
 }
 
@@ -468,13 +494,11 @@ final class _CmapFormat4 {
     final Uint16List idRangeOffsets = Uint16List(segCount);
 
     for (int i = 0; i < segCount; i++) {
-      endCodes[i] = reader.readUint16(endBase + i * 2, 'cmap4.endCode');
-      startCodes[i] = reader.readUint16(startBase + i * 2, 'cmap4.startCode');
-      idDeltas[i] = reader.readInt16(deltaBase + i * 2, 'cmap4.idDelta');
-      idRangeOffsets[i] = reader.readUint16(
-        rangeBase + i * 2,
-        'cmap4.idRangeOffset',
-      );
+      final int pos = i * 2;
+      endCodes[i] = reader.readUint16Fast(endBase + pos);
+      startCodes[i] = reader.readUint16Fast(startBase + pos);
+      idDeltas[i] = reader.readInt16Fast(deltaBase + pos);
+      idRangeOffsets[i] = reader.readUint16Fast(rangeBase + pos);
     }
 
     return _CmapFormat4(
@@ -509,10 +533,10 @@ final class _CmapFormat4 {
           final int fieldPos = idRangeOffsetBase + mid * 2;
           final int glyphOff =
               fieldPos + rangeOff + 2 * (codePoint - startCodes[mid]);
-          if (glyphOff + 2 > reader.length) {
+          if (glyphOff < 0 || glyphOff + 2 > reader.length) {
             return 0;
           }
-          gid = reader.readUint16(glyphOff, 'cmap4.glyphIdArray');
+          gid = reader.readUint16Fast(glyphOff);
           if (gid != 0) {
             gid = (gid + idDeltas[mid]) & 0xFFFF;
           }
@@ -550,9 +574,9 @@ final class _CmapFormat12 {
 
     for (int i = 0; i < numGroups; i++) {
       final int pos = offset + 16 + i * 12;
-      starts[i] = reader.readUint32(pos, 'cmap12.startCharCode');
-      ends[i] = reader.readUint32(pos + 4, 'cmap12.endCharCode');
-      startGlyphs[i] = reader.readUint32(pos + 8, 'cmap12.startGlyphID');
+      starts[i] = reader.readUint32Fast(pos);
+      ends[i] = reader.readUint32Fast(pos + 4);
+      startGlyphs[i] = reader.readUint32Fast(pos + 8);
     }
 
     return _CmapFormat12(
@@ -712,7 +736,7 @@ final class GsubSstyTable {
       final int subCount = reader.readUint16(lBase + 4, 'GSUB.subTableCount');
       reader.checkRange(lBase + 6, subCount * 2, 'GSUB.subTableOffsets');
 
-      final Map<int, int> singleMap = <int, int>{};
+      Map<int, int>? singleMap;
       for (int s = 0; s < subCount; s++) {
         final int subRel = reader.readUint16(
           lBase + 6 + s * 2,
@@ -731,18 +755,22 @@ final class GsubSstyTable {
         }
 
         if (effType == 1) {
-          _parseSingleSubst(reader, subOff, singleMap);
+          _parseSingleSubst(reader, subOff, singleMap ??= <int, int>{});
         } else if (effType == 3) {
           _parseAlternateSubst(reader, subOff, alternates);
         }
       }
-      if (singleMap.isNotEmpty) {
+      if (singleMap != null && singleMap.isNotEmpty) {
         singleSubstMaps.add(singleMap);
       }
     }
 
     return GsubSstyTable._(alternates, singleSubstMaps);
   }
+
+  static const int _sstyTag32 = 0x73737479; // 'ssty'
+  static const int _mathTag32 = 0x6D617468; // 'math'
+  static const int _dfltTag32 = 0x44464C54; // 'DFLT'
 
   static List<int> _findSstyFeatureIndices(
     FontByteReader reader,
@@ -763,14 +791,11 @@ final class GsubSstyTable {
       if (featureIdx < 0 || featureIdx >= featureCount) {
         return false;
       }
-      return reader.readTag(
-            featureListOffset + 2 + featureIdx * 6,
-            'GSUB.featureTag',
-          ) ==
-          'ssty';
+      return reader.readUint32Fast(featureListOffset + 2 + featureIdx * 6) ==
+          _sstyTag32;
     }
 
-    List<int> collectForScript(String targetTag) {
+    List<int> collectForScript(int targetTag32) {
       final int scriptCount = reader.readUint16(
         scriptListOffset,
         'GSUB.scriptCount',
@@ -782,12 +807,10 @@ final class GsubSstyTable {
       );
       for (int i = 0; i < scriptCount; i++) {
         final int rec = scriptListOffset + 2 + i * 6;
-        final String tag = reader.readTag(rec, 'GSUB.scriptTag');
-        if (tag != targetTag) {
+        if (reader.readUint32Fast(rec) != targetTag32) {
           continue;
         }
-        final int sBase =
-            scriptListOffset + reader.readUint16(rec + 4, 'GSUB.scriptOffset');
+        final int sBase = scriptListOffset + reader.readUint16Fast(rec + 4);
         final int dfltOff = reader.readUint16(sBase, 'GSUB.defaultLangSysOff');
         if (dfltOff == 0) {
           continue;
@@ -797,10 +820,7 @@ final class GsubSstyTable {
         reader.checkRange(langBase + 6, fCount * 2, 'GSUB.langFeatures');
         final List<int> found = <int>[];
         for (int j = 0; j < fCount; j++) {
-          final int idx = reader.readUint16(
-            langBase + 6 + j * 2,
-            'GSUB.langFeatureIdx',
-          );
+          final int idx = reader.readUint16Fast(langBase + 6 + j * 2);
           if (isSstyFeature(idx)) {
             found.add(idx);
           }
@@ -812,11 +832,11 @@ final class GsubSstyTable {
       return const <int>[];
     }
 
-    final List<int> mathFeatures = collectForScript('math');
+    final List<int> mathFeatures = collectForScript(_mathTag32);
     if (mathFeatures.isNotEmpty) {
       return mathFeatures;
     }
-    final List<int> dfltFeatures = collectForScript('DFLT');
+    final List<int> dfltFeatures = collectForScript(_dfltTag32);
     if (dfltFeatures.isNotEmpty) {
       return dfltFeatures;
     }
@@ -866,10 +886,7 @@ final class GsubSstyTable {
       );
       final int n = glyphs.length < glyphCount ? glyphs.length : glyphCount;
       for (int i = 0; i < n; i++) {
-        out[glyphs[i]] = reader.readUint16(
-          subOff + 6 + i * 2,
-          'GSUB.SingleSubst.subGid',
-        );
+        out[glyphs[i]] = reader.readUint16Fast(subOff + 6 + i * 2);
       }
     }
   }
@@ -905,19 +922,14 @@ final class GsubSstyTable {
     final List<int> glyphs = cov.toGlyphList();
     final int n = glyphs.length < altSetCount ? glyphs.length : altSetCount;
     for (int i = 0; i < n; i++) {
-      final int altSetOff =
-          subOff +
-          reader.readUint16(subOff + 6 + i * 2, 'GSUB.AlternateSetOffset');
+      final int altSetOff = subOff + reader.readUint16Fast(subOff + 6 + i * 2);
       final int count = reader.readUint16(altSetOff, 'GSUB.AlternateSet.count');
       reader.checkRange(altSetOff + 2, count * 2, 'GSUB.AlternateSet.glyphIDs');
-      final List<int> alts = List<int>.filled(count, 0);
+      final Uint16List alts = Uint16List(count);
       for (int j = 0; j < count; j++) {
-        alts[j] = reader.readUint16(
-          altSetOff + 2 + j * 2,
-          'GSUB.AlternateSet.glyph',
-        );
+        alts[j] = reader.readUint16Fast(altSetOff + 2 + j * 2);
       }
-      out.putIfAbsent(glyphs[i], () => List<int>.unmodifiable(alts));
+      out.putIfAbsent(glyphs[i], () => alts);
     }
   }
 }

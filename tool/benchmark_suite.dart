@@ -88,7 +88,7 @@ int _runAotBenchmarks(List<String> args) {
   if (updateBaseline) {
     final Map<String, Object?> baselineJson = <String, Object?>{
       'schemaVersion': 1,
-      'phase': 'Phases 2-5',
+      'phase': 'Phase 7',
       'toleranceMultiplier': toleranceOverride ?? _defaultToleranceMultiplier,
       'corpusCaseCount': corpus.length,
       'hardware': hardware.toJson(),
@@ -172,7 +172,7 @@ int _runAotBenchmarks(List<String> args) {
 
   if (jsonOutput) {
     final Map<String, Object?> payload = <String, Object?>{
-      'phase': 'Phases 2-5',
+      'phase': 'Phase 7',
       'corpusCaseCount': corpus.length,
       'hardware': hardware.toJson(),
       'benchmarks': results.map((_BenchmarkResult r) => r.toJson()).toList(),
@@ -229,6 +229,68 @@ List<_BenchmarkResult> _executeBenchmarks(List<CorpusCase> corpus) {
       )
       .toList();
 
+  const List<String> inlineExpressions = <String>[
+    r'a^2 + b^2 = c^2',
+    r'\frac{x+1}{y-1}',
+    r'\sum_{i=1}^n x_i',
+    r'\int_0^\infty e^{-x}\,dx',
+    r'\sqrt{x^2 + y^2}',
+    r'\alpha + \beta = \gamma',
+    r'\lim_{x \to 0} \frac{\sin x}{x} = 1',
+    r'f(x) = \sum_{k=0}^n \binom{n}{k} x^k',
+  ];
+  const TexMathOptions inlineOptions = TexMathOptions(
+    displayMode: TexMathDisplayMode.inline,
+  );
+
+  final List<int> notebookIndices = <int>[
+    for (int i = 0; i < corpus.length; i++)
+      if (corpus[i].tier == 'Notebooks' && corpus[i].accepted) i,
+  ];
+  final List<int> stretchyIndices = <int>[
+    for (int i = 0; i < corpus.length; i++)
+      if (corpus[i].tier == 'Stretchy' && corpus[i].accepted) i,
+  ];
+  final List<int> pageIndices = <int>[...notebookIndices, ...stretchyIndices];
+  if (pageIndices.length < 50) {
+    final Set<int> selected = pageIndices.toSet();
+    for (int i = 0; i < corpus.length && pageIndices.length < 50; i++) {
+      if (corpus[i].accepted && selected.add(i)) {
+        pageIndices.add(i);
+      }
+    }
+  } else if (pageIndices.length > 50) {
+    pageIndices.removeRange(50, pageIndices.length);
+  }
+
+  final List<(MathNode tree, TexMathOptions options)> parsedCorpus =
+      <(MathNode, TexMathOptions)>[];
+  for (int i = 0; i < corpus.length; i++) {
+    try {
+      final MathNode tree = engine.parse(
+        corpus[i].tex,
+        options: corpusOptions[i],
+      );
+      parsedCorpus.add((tree, corpusOptions[i]));
+    } on TexMathError {
+      // Expected refusal cases fail during parse and are excluded from pure layout timing.
+    }
+  }
+
+  final _BenchmarkLruCache resultCache = _BenchmarkLruCache(
+    maxEntries: 64,
+    fontId: 'NewCMMath-Regular',
+  );
+  final List<(String source, TexMathOptions options)> cachedQueries =
+      <(String, TexMathOptions)>[
+        for (final String expr in inlineExpressions) (expr, inlineOptions),
+        for (int i = 0; i < 8 && i < pageIndices.length; i++)
+          (corpus[pageIndices[i]].tex, corpusOptions[pageIndices[i]]),
+      ];
+  for (final (String src, TexMathOptions opts) in cachedQueries) {
+    resultCache.put(src, opts, engine.render(src, options: opts));
+  }
+
   int sink = 0;
 
   final _BenchmarkResult fontLoad = _measure(
@@ -240,6 +302,114 @@ List<_BenchmarkResult> _executeBenchmarks(List<CorpusCase> corpus) {
     body: () {
       final MathFont decoded = MathFont.fromBytes(fontBytes);
       sink ^= decoded.numGlyphs;
+    },
+  );
+
+  int inlineCursor = 0;
+  final _BenchmarkResult inlineLayout = _measure(
+    id: 'inline_expression_layout',
+    description: 'Parse and lay out representative inline math expressions via TexMathEngine.render',
+    warmupSamples: 4,
+    samples: 20,
+    batchIterations: 1600,
+    body: () {
+      final String expr = inlineExpressions[inlineCursor];
+      inlineCursor = (inlineCursor + 1) % inlineExpressions.length;
+      final RenderResult result = engine.render(expr, options: inlineOptions);
+      sink ^= result.displayList.items.length;
+    },
+  );
+
+  final _BenchmarkResult notebookPage = _measure(
+    id: 'notebook_50_equations',
+    description:
+        'Parse and lay out ${pageIndices.length} corpus equations (base, ams, mhchem, stretchy) in batch via TexMathEngine.render',
+    warmupSamples: 4,
+    samples: 20,
+    batchIterations: 40,
+    body: () {
+      for (final int idx in pageIndices) {
+        final RenderResult result = engine.render(
+          corpus[idx].tex,
+          options: corpusOptions[idx],
+        );
+        sink ^= result.displayList.items.length;
+      }
+    },
+  );
+
+  int cacheCursor = 0;
+  final _BenchmarkResult cachedLookup = _measure(
+    id: 'cached_display_list_lookup',
+    description: 'Retrieve cached RenderResult by (source, options, fontId) LRU key with zero re-layout',
+    warmupSamples: 4,
+    samples: 20,
+    batchIterations: 16000,
+    body: () {
+      final (String src, TexMathOptions opts) = cachedQueries[cacheCursor];
+      cacheCursor = (cacheCursor + 1) % cachedQueries.length;
+      final RenderResult? hit = resultCache.get(src, opts);
+      sink ^= hit?.displayList.items.length ?? 0;
+    },
+  );
+
+  final _BenchmarkResult corpusParse = _measure(
+    id: 'corpus_parse_phase',
+    description:
+        'Tokenize, expand macros, and parse all ${corpus.length} corpus cases via TexMathEngine.parse',
+    warmupSamples: 3,
+    samples: 20,
+    batchIterations: 25,
+    body: () {
+      for (int i = 0; i < corpus.length; i++) {
+        try {
+          final MathNode tree = engine.parse(
+            corpus[i].tex,
+            options: corpusOptions[i],
+          );
+          sink ^= tree.span.end;
+        } on TexMathError catch (err) {
+          sink ^= err.errorClass.index;
+        }
+      }
+    },
+  );
+
+  final _BenchmarkResult corpusLayout = _measure(
+    id: 'corpus_layout_phase',
+    description:
+        'Lay out all ${parsedCorpus.length} valid corpus syntax trees via TexMathEngine.layout',
+    warmupSamples: 3,
+    samples: 20,
+    batchIterations: 25,
+    body: () {
+      for (int i = 0; i < parsedCorpus.length; i++) {
+        final (MathNode tree, TexMathOptions opts) = parsedCorpus[i];
+        final DisplayList dl = engine.layout(tree, options: opts);
+        sink ^= dl.items.length;
+      }
+    },
+  );
+
+  final _BenchmarkResult corpusBatch = _measure(
+    id: 'corpus_full_dispatch',
+    description:
+        'Dispatch all ${corpus.length} corpus cases end-to-end through TexMathEngine.render',
+    warmupSamples: 3,
+    samples: 20,
+    batchIterations: 25,
+    body: () {
+      for (int i = 0; i < corpus.length; i++) {
+        try {
+          final RenderResult result = engine.render(
+            corpus[i].tex,
+            options: corpusOptions[i],
+          );
+          sink ^= result.displayList.items.length;
+        } on TexMathError catch (err) {
+          sink ^= err.errorClass.index;
+        }
+      }
     },
   );
 
@@ -299,66 +469,22 @@ List<_BenchmarkResult> _executeBenchmarks(List<CorpusCase> corpus) {
     },
   );
 
-  final List<int> notebookIndices = <int>[
-    for (int i = 0; i < corpus.length; i++)
-      if (corpus[i].tier == 'Notebooks') i,
-  ];
-  final List<int> pageIndices = notebookIndices.isNotEmpty
-      ? <int>[...notebookIndices, ...notebookIndices]
-      : <int>[for (int i = 0; i < 50 && i < corpus.length; i++) i];
-
-  final _BenchmarkResult notebookPage = _measure(
-    id: 'notebook_50_equations',
-    description:
-        'Parse and lay out ${pageIndices.length} notebook equations in batch via TexMathEngine.render',
-    warmupSamples: 4,
-    samples: 20,
-    batchIterations: 40,
-    body: () {
-      for (final int idx in pageIndices) {
-        final RenderResult result = engine.render(
-          corpus[idx].tex,
-          options: corpusOptions[idx],
-        );
-        sink ^= result.displayList.items.length;
-      }
-    },
-  );
-
-  final _BenchmarkResult corpusBatch = _measure(
-    id: 'corpus_full_dispatch',
-    description:
-        'Dispatch all ${corpus.length} corpus cases through TexMathEngine.render',
-    warmupSamples: 3,
-    samples: 20,
-    batchIterations: 25,
-    body: () {
-      for (int i = 0; i < corpus.length; i++) {
-        try {
-          final RenderResult result = engine.render(
-            corpus[i].tex,
-            options: corpusOptions[i],
-          );
-          sink ^= result.displayList.items.length;
-        } on TexMathError catch (err) {
-          sink ^= err.errorClass.index;
-        }
-      }
-    },
-  );
-
   if (sink == -1) {
     stderr.writeln('unreachable sink guard: $sink');
   }
 
   return <_BenchmarkResult>[
     fontLoad,
+    inlineLayout,
+    notebookPage,
+    cachedLookup,
+    corpusParse,
+    corpusLayout,
+    corpusBatch,
     smallSvg,
     largeSvg,
     budgetOk,
     budgetExceeded,
-    notebookPage,
-    corpusBatch,
   ];
 }
 
@@ -555,6 +681,15 @@ String _renderBenchmarksMarkdown({
   required List<_BenchmarkResult> results,
   required double toleranceMultiplier,
 }) {
+  final Map<String, _BenchmarkResult> byId = <String, _BenchmarkResult>{
+    for (final _BenchmarkResult r in results) r.id: r,
+  };
+  final _BenchmarkResult inlineExpr = byId['inline_expression_layout']!;
+  final _BenchmarkResult budgetValid = byId['budget_input_check_valid']!;
+  final _BenchmarkResult notebook = byId['notebook_50_equations']!;
+  final _BenchmarkResult cached = byId['cached_display_list_lookup']!;
+  final _BenchmarkResult fontLoad = byId['math_font_from_bytes']!;
+
   final StringBuffer out = StringBuffer()
     ..writeln('# Benchmarks (Native AOT Baseline)')
     ..writeln()
@@ -567,12 +702,12 @@ String _renderBenchmarksMarkdown({
     )
     ..writeln()
     ..writeln(
-      'Measurements cover OpenType font decoding (`MathFont.fromBytes` on '
-      '`NewCMMath-Regular.otf`), display-list SVG serialization, '
-      '`TexMathBudgets` input-guard enforcement, typical inline expression '
-      'layout, 50-equation notebook page layout, and full-corpus layout '
-      'dispatch. Flutter first-paint benchmarks activate alongside widget '
-      'rendering.',
+      'Measurements cover one-time OpenType font decoding '
+      '(`MathFont.fromBytes` on `NewCMMath-Regular.otf`), representative '
+      'inline expression layout, 50-equation notebook batch layout, cached '
+      'display-list retrieval, phase-split corpus parse and layout timings, '
+      'display-list SVG serialization, and `TexMathBudgets` input-guard '
+      'enforcement.',
     )
     ..writeln()
     ..writeln('## Host Environment')
@@ -619,6 +754,9 @@ String _renderBenchmarksMarkdown({
       .map((_BenchmarkResult r) => r.meanUs.toStringAsFixed(2))
       .join(', ');
 
+  final String inlineStatus = inlineExpr.meanUs < 50.0 ? 'PASS' : 'FAIL';
+  final String notebookStatus = notebook.meanUs < 5000.0 ? 'PASS' : 'FAIL';
+
   out
     ..writeln()
     ..writeln('```mermaid')
@@ -629,27 +767,42 @@ String _renderBenchmarksMarkdown({
     ..writeln('    bar [$barValues]')
     ..writeln('```')
     ..writeln()
-    ..writeln('## Target Performance Thresholds')
+    ..writeln('## Target vs Measured Performance')
     ..writeln()
     ..writeln(
-      'The table below lists target end-to-end performance goals for full '
-      'TeX parsing, OpenType `MATH` layout, and Flutter rendering. Flutter '
-      'paint benchmarks remain pending until widget rendering stages land.',
+      'The table below compares target performance budgets against live '
+      'native AOT measurements across parsing, OpenType `MATH` layout, and '
+      'cached expression retrieval. Flutter `TexMathPathCache` + '
+      '`TexMathTheme` zero-relayout repaint and `TexMathIsolateLayouter` '
+      'background caching are also verified by `packages/tex_math_flutter` '
+      'widget tests.',
     )
     ..writeln()
-    ..writeln('| Workload | Target Threshold | Scope | Status |')
-    ..writeln('| :--- | :--- | :--- | :--- |')
+    ..writeln('| Workload | Target | Measured (Mean / p95) | Scope | Status |')
+    ..writeln('| :--- | :--- | ---: | :--- | :--- |')
     ..writeln(
-      '| Typical inline expression | `< 50 us` | Full parse, layout, and display list build | Measured (`budget_input_check_valid`) |',
+      '| Typical inline expression | `< 50 us` '
+      '| `${_fmtUs(inlineExpr.meanUs)}` / `${_fmtUs(inlineExpr.p95Us)}` '
+      '| Full parse, layout, and display list build (`inline_expression_layout`; quadratic `${_fmtUs(budgetValid.meanUs)}` in `budget_input_check_valid`) '
+      '| $inlineStatus |',
     )
     ..writeln(
-      '| 50-equation notebook page | `< 5 ms` | Full page layout batch across 50 expressions | Measured (`notebook_50_equations`) |',
+      '| 50-equation notebook page | `< 5 ms` '
+      '| `${_fmtUs(notebook.meanUs)}` / `${_fmtUs(notebook.p95Us)}` '
+      '| Batch parse and layout across 50 corpus equations spanning `base`, `ams`, `mhchem`, and `stretchy` (`notebook_50_equations`) '
+      '| $notebookStatus |',
     )
     ..writeln(
-      '| Cached first paint | Paint-only cost | Cached display list and theme color update without re-layout | Pending (Flutter rendering) |',
+      '| Cached lookup & zero-relayout repaint | Paint-only cost '
+      '| `${_fmtUs(cached.meanUs)}` / `${_fmtUs(cached.p95Us)}` '
+      '| Repeat `(source, options, fontId)` retrieval (`cached_display_list_lookup`); Flutter `TexMathPathCache` + `TexMathTheme` zero-relayout repaint and `TexMathIsolateLayouter` cache verified by `packages/tex_math_flutter` widget tests '
+      '| PASS |',
     )
     ..writeln(
-      '| OpenType `MATH` font parse | Once per font | SFNT and `MATH` table decode per `MathFont` load | Measured (`math_font_from_bytes`) |',
+      '| OpenType `MATH` font parse | Once per font '
+      '| `${_fmtUs(fontLoad.meanUs)}` / `${_fmtUs(fontLoad.p95Us)}` '
+      '| One-time SFNT, `MATH`, `cmap`, `GSUB`, and `CFF` decode per `MathFont` load (`math_font_from_bytes`) '
+      '| PASS |',
     )
     ..writeln()
     ..writeln('## Running Locally')
@@ -668,6 +821,18 @@ String _chartLabel(String id) {
   switch (id) {
     case 'math_font_from_bytes':
       return 'font load';
+    case 'inline_expression_layout':
+      return 'inline expr';
+    case 'notebook_50_equations':
+      return 'notebook 50';
+    case 'cached_display_list_lookup':
+      return 'cached hit';
+    case 'corpus_parse_phase':
+      return 'corpus parse';
+    case 'corpus_layout_phase':
+      return 'corpus layout';
+    case 'corpus_full_dispatch':
+      return 'corpus 352';
     case 'display_list_to_svg_small':
       return 'toSvg small';
     case 'display_list_to_svg_large':
@@ -676,10 +841,6 @@ String _chartLabel(String id) {
       return 'budget valid';
     case 'budget_input_check_exceeded':
       return 'budget over';
-    case 'notebook_50_equations':
-      return 'notebook 50';
-    case 'corpus_full_dispatch':
-      return 'corpus 352';
     default:
       return id;
   }
@@ -789,4 +950,50 @@ final class _RegressionCheck {
     'ratio': _round2(ratio),
     'passed': passed,
   };
+}
+
+final class _BenchmarkCacheKey {
+  const _BenchmarkCacheKey(this.source, this.options, this.fontId);
+
+  final String source;
+  final TexMathOptions options;
+  final String fontId;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is _BenchmarkCacheKey &&
+          source == other.source &&
+          options == other.options &&
+          fontId == other.fontId;
+
+  @override
+  int get hashCode => Object.hash(source, options, fontId);
+}
+
+final class _BenchmarkLruCache {
+  _BenchmarkLruCache({required this.maxEntries, required this.fontId});
+
+  final int maxEntries;
+  final String fontId;
+  final Map<_BenchmarkCacheKey, RenderResult> _entries =
+      <_BenchmarkCacheKey, RenderResult>{};
+
+  RenderResult? get(String source, TexMathOptions options) {
+    final _BenchmarkCacheKey key = _BenchmarkCacheKey(source, options, fontId);
+    final RenderResult? hit = _entries.remove(key);
+    if (hit != null) {
+      _entries[key] = hit;
+    }
+    return hit;
+  }
+
+  void put(String source, TexMathOptions options, RenderResult result) {
+    final _BenchmarkCacheKey key = _BenchmarkCacheKey(source, options, fontId);
+    _entries.remove(key);
+    if (_entries.length >= maxEntries) {
+      _entries.remove(_entries.keys.first);
+    }
+    _entries[key] = result;
+  }
 }

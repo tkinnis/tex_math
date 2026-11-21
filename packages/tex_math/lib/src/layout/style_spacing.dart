@@ -1,6 +1,7 @@
 import '../ast.dart';
 import '../font.dart';
 import '../parser/symbol_map.dart';
+import 'glyph_resolve.dart';
 
 /// Standard TeX thin math space (`3/18 em`).
 const double thinMuSkipEm = 3.0 / 18.0;
@@ -221,73 +222,12 @@ int resolveMathGlyphCodePoint({
   required MathFont font,
   TexMathFontVariant? variant,
   bool isTextMode = false,
-}) {
-  if (isTextMode) {
-    if (variant == null ||
-        variant == TexMathFontVariant.normal ||
-        variant == TexMathFontVariant.italic) {
-      return baseCodePoint;
-    }
-    final int mapped = mathUnicodeCodePoint(baseCodePoint, variant);
-    if (mapped != baseCodePoint && font.glyphIdForCodePoint(mapped) != 0) {
-      return mapped;
-    }
-    return baseCodePoint;
-  }
-
-  if (baseCodePoint == 0x002D &&
-      (variant == null || variant == TexMathFontVariant.normal) &&
-      font.glyphIdForCodePoint(0x2212) != 0) {
-    return 0x2212;
-  }
-
-  final TexMathFontVariant? effectiveVariant =
-      variant ?? _defaultMathVariant(baseCodePoint);
-
-  if (baseCodePoint == 0x0131 &&
-      (effectiveVariant == null ||
-          effectiveVariant == TexMathFontVariant.italic)) {
-    if (font.glyphIdForCodePoint(0x1D6A4) != 0) {
-      return 0x1D6A4;
-    }
-    return 0x0131;
-  }
-  if (baseCodePoint == 0x0237 &&
-      (effectiveVariant == null ||
-          effectiveVariant == TexMathFontVariant.italic)) {
-    if (font.glyphIdForCodePoint(0x1D6A5) != 0) {
-      return 0x1D6A5;
-    }
-    return 0x0237;
-  }
-
-  if (effectiveVariant == null) {
-    return baseCodePoint;
-  }
-
-  final int mapped = mathUnicodeCodePoint(baseCodePoint, effectiveVariant);
-  if (mapped != baseCodePoint && font.glyphIdForCodePoint(mapped) != 0) {
-    return mapped;
-  }
-  return baseCodePoint;
-}
-
-TexMathFontVariant? _defaultMathVariant(int cp) {
-  if ((cp >= 0x41 && cp <= 0x5A) || (cp >= 0x61 && cp <= 0x7A)) {
-    return TexMathFontVariant.italic;
-  }
-  if ((cp >= 0x03B1 && cp <= 0x03C9) ||
-      cp == 0x03D1 ||
-      cp == 0x03D5 ||
-      cp == 0x03D6 ||
-      cp == 0x03F0 ||
-      cp == 0x03F1 ||
-      cp == 0x03F5 ||
-      cp == 0x2202) {
-    return TexMathFontVariant.italic;
-  }
-  return null;
-}
+}) => resolveMathGlyphCodePointAndId(
+  baseCodePoint: baseCodePoint,
+  font: font,
+  variant: variant,
+  isTextMode: isTextMode,
+).$1;
 
 /// Resolves the OpenType glyph ID for [baseGlyphId] at [scriptLevel], using
 /// `GSUB` `ssty` alternates only when [useOpticalScriptVariants] is enabled.

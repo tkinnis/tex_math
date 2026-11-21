@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:meta/meta.dart';
 
 import '../error.dart';
@@ -675,15 +677,16 @@ final class MathGlyphInfo {
       final int count = it.readUint16(2, 'italicsCorrectionCount');
       it.checkRange(4, count * 4, 'italicsCorrection');
       italicsCov = CoverageTable.parse(it, covOff, 'ItalicsCoverage');
-      italicsVals = List<double>.generate(
-        count,
-        (int i) => _readMathValueRecord(
+      final Float64List values = Float64List(count);
+      for (int i = 0; i < count; i++) {
+        values[i] = _readMathValueFast(
           it,
           4 + i * 4,
           it,
           gdefVarStore: gdefVarStore,
-        ).value,
-      );
+        );
+      }
+      italicsVals = values;
     }
 
     CoverageTable topCov = CoverageTable.empty;
@@ -698,15 +701,16 @@ final class MathGlyphInfo {
       final int count = ta.readUint16(2, 'topAccentAttachmentCount');
       ta.checkRange(4, count * 4, 'topAccentAttachment');
       topCov = CoverageTable.parse(ta, covOff, 'TopAccentCoverage');
-      topVals = List<double>.generate(
-        count,
-        (int i) => _readMathValueRecord(
+      final Float64List values = Float64List(count);
+      for (int i = 0; i < count; i++) {
+        values[i] = _readMathValueFast(
           ta,
           4 + i * 4,
           ta,
           gdefVarStore: gdefVarStore,
-        ).value,
-      );
+        );
+      }
+      topVals = values;
     }
 
     final CoverageTable extCov = extShapeOff != 0
@@ -739,25 +743,25 @@ final class MathGlyphInfo {
           );
           final int hCount = kt.readUint16(0, 'MathKern.heightCount');
           kt.checkRange(2, (hCount * 2 + 1) * 4, 'MathKern.records');
-          final List<double> heights = List<double>.generate(
-            hCount,
-            (int j) => _readMathValueRecord(
+          final Float64List heights = Float64List(hCount);
+          for (int j = 0; j < hCount; j++) {
+            heights[j] = _readMathValueFast(
               kt,
               2 + j * 4,
               kt,
               gdefVarStore: gdefVarStore,
-            ).value,
-          );
+            );
+          }
           final int kernBase = 2 + hCount * 4;
-          final List<double> kerns = List<double>.generate(
-            hCount + 1,
-            (int j) => _readMathValueRecord(
+          final Float64List kerns = Float64List(hCount + 1);
+          for (int j = 0; j <= hCount; j++) {
+            kerns[j] = _readMathValueFast(
               kt,
               kernBase + j * 4,
               kt,
               gdefVarStore: gdefVarStore,
-            ).value,
-          );
+            );
+          }
           return _MathKernTable(heights, kerns);
         });
       }
@@ -765,14 +769,10 @@ final class MathGlyphInfo {
       kernEntries = List<_MathKernEntry>.generate(count, (int i) {
         final int pos = 4 + i * 8;
         return _MathKernEntry(
-          topRight: loadKern(ki.readUint16(pos, 'topRightMathKernOffset')),
-          topLeft: loadKern(ki.readUint16(pos + 2, 'topLeftMathKernOffset')),
-          bottomRight: loadKern(
-            ki.readUint16(pos + 4, 'bottomRightMathKernOffset'),
-          ),
-          bottomLeft: loadKern(
-            ki.readUint16(pos + 6, 'bottomLeftMathKernOffset'),
-          ),
+          topRight: loadKern(ki.readUint16Fast(pos)),
+          topLeft: loadKern(ki.readUint16Fast(pos + 2)),
+          bottomRight: loadKern(ki.readUint16Fast(pos + 4)),
+          bottomLeft: loadKern(ki.readUint16Fast(pos + 6)),
         );
       });
     }
@@ -1023,9 +1023,10 @@ final class MathVariants {
       final List<MathGlyphVariant> variants = List<MathGlyphVariant>.generate(
         variantCount,
         (int i) => MathGlyphVariant(
-          variantGlyph: c.readUint16(4 + i * 4, 'variantGlyph'),
-          advanceMeasurement: c.readUint16(6 + i * 4, 'advanceMeasurement'),
+          variantGlyph: c.readUint16Fast(4 + i * 4),
+          advanceMeasurement: c.readUint16Fast(6 + i * 4),
         ),
+        growable: false,
       );
 
       GlyphAssembly? assembly;
@@ -1042,21 +1043,22 @@ final class MathVariants {
           a,
           gdefVarStore: gdefVarStore,
         );
-        final int partCount = a.readUint16(4, 'GlyphAssembly.partCount');
+        final int partCount = a.readUint16Fast(4);
         a.checkRange(6, partCount * 10, 'GlyphAssembly.partRecords');
         final List<GlyphAssemblyPart> parts = List<GlyphAssemblyPart>.generate(
           partCount,
           (int i) {
             final int p = 6 + i * 10;
-            final int flags = a.readUint16(p + 8, 'partFlags');
+            final int flags = a.readUint16Fast(p + 8);
             return GlyphAssemblyPart(
-              glyphId: a.readUint16(p, 'glyphID'),
-              startConnectorLength: a.readUint16(p + 2, 'startConnectorLength'),
-              endConnectorLength: a.readUint16(p + 4, 'endConnectorLength'),
-              fullAdvance: a.readUint16(p + 6, 'fullAdvance'),
+              glyphId: a.readUint16Fast(p),
+              startConnectorLength: a.readUint16Fast(p + 2),
+              endConnectorLength: a.readUint16Fast(p + 4),
+              fullAdvance: a.readUint16Fast(p + 6),
               isExtender: (flags & 0x0001) != 0,
             );
           },
+          growable: false,
         );
         assembly = GlyphAssembly(
           italicsCorrectionRecord: ital,
@@ -1065,7 +1067,9 @@ final class MathVariants {
       }
 
       return MathGlyphConstruction(
-        variants: List<MathGlyphVariant>.unmodifiable(variants),
+        variants: variants.isEmpty
+            ? const <MathGlyphVariant>[]
+            : List<MathGlyphVariant>.unmodifiable(variants),
         assembly: assembly,
       );
     }
@@ -1073,33 +1077,29 @@ final class MathVariants {
     final List<MathGlyphConstruction> vertConstructions =
         List<MathGlyphConstruction>.generate(
           vertCount,
-          (int i) => parseConstruction(
-            sub.readUint16(10 + i * 2, 'vertGlyphConstructionOffsets'),
-          ),
+          (int i) => parseConstruction(sub.readUint16Fast(10 + i * 2)),
+          growable: false,
         );
 
     final int horizOffBase = 10 + vertCount * 2;
     final List<MathGlyphConstruction> horizConstructions =
         List<MathGlyphConstruction>.generate(
           horizCount,
-          (int i) => parseConstruction(
-            sub.readUint16(
-              horizOffBase + i * 2,
-              'horizGlyphConstructionOffsets',
-            ),
-          ),
+          (int i) =>
+              parseConstruction(sub.readUint16Fast(horizOffBase + i * 2)),
+          growable: false,
         );
 
     return MathVariants._(
       minConnectorOverlap: minOverlap,
       vertCoverage: vertCov,
-      vertConstructions: List<MathGlyphConstruction>.unmodifiable(
-        vertConstructions,
-      ),
+      vertConstructions: vertConstructions.isEmpty
+          ? const <MathGlyphConstruction>[]
+          : List<MathGlyphConstruction>.unmodifiable(vertConstructions),
       horizCoverage: horizCov,
-      horizConstructions: List<MathGlyphConstruction>.unmodifiable(
-        horizConstructions,
-      ),
+      horizConstructions: horizConstructions.isEmpty
+          ? const <MathGlyphConstruction>[]
+          : List<MathGlyphConstruction>.unmodifiable(horizConstructions),
     );
   }
 }
@@ -1179,7 +1179,32 @@ MathValueRecord _readMathValueRecord(
     offset + 2,
     'MathValueRecord.deviceOffset',
   );
-  double value = rawVal.toDouble();
+  final double value =
+      rawVal.toDouble() +
+      _readDeviceDelta(subtableBase, devOffset, gdefVarStore);
+  return MathValueRecord(value: value, deviceOffset: devOffset);
+}
+
+double _readMathValueFast(
+  FontByteReader reader,
+  int offset,
+  FontByteReader subtableBase, {
+  ItemVariationStore? gdefVarStore,
+}) {
+  final int rawVal = reader.readInt16Fast(offset);
+  final int devOffset = reader.readUint16Fast(offset + 2);
+  if (devOffset == 0 || gdefVarStore == null) {
+    return rawVal.toDouble();
+  }
+  return rawVal.toDouble() +
+      _readDeviceDelta(subtableBase, devOffset, gdefVarStore);
+}
+
+double _readDeviceDelta(
+  FontByteReader subtableBase,
+  int devOffset,
+  ItemVariationStore? gdefVarStore,
+) {
   if (devOffset != 0 &&
       gdefVarStore != null &&
       devOffset + 6 <= subtableBase.length) {
@@ -1188,18 +1213,12 @@ MathValueRecord _readMathValueRecord(
       'Device.deltaFormat',
     );
     if (deltaFormat == 0x8000) {
-      final int outerIdx = subtableBase.readUint16(
-        devOffset,
-        'VariationIndex.deltaSetOuterIndex',
-      );
-      final int innerIdx = subtableBase.readUint16(
-        devOffset + 2,
-        'VariationIndex.deltaSetInnerIndex',
-      );
-      value += gdefVarStore.deltaFor(outerIdx, innerIdx);
+      final int outerIdx = subtableBase.readUint16Fast(devOffset);
+      final int innerIdx = subtableBase.readUint16Fast(devOffset + 2);
+      return gdefVarStore.deltaFor(outerIdx, innerIdx);
     }
   }
-  return MathValueRecord(value: value, deviceOffset: devOffset);
+  return 0.0;
 }
 
 bool _listEquals<T>(List<T> a, List<T> b) {

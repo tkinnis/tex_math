@@ -179,6 +179,16 @@ List<TexToken> tokenizeTex(String source) {
             ),
           );
           i = end;
+        } else if (next < 128) {
+          tokens.add(
+            TexToken(
+              kind: TexTokenKind.controlSequence,
+              text: _asciiSingleChars[next],
+              span: SourceSpan(i, i + 2),
+              catCode: TexCatCode.escape,
+            ),
+          );
+          i += 2;
         } else {
           final int end = _advanceOneCodePoint(source, i + 1, length);
           tokens.add(
@@ -309,7 +319,9 @@ List<TexToken> tokenizeTex(String source) {
         tokens.add(
           TexToken(
             kind: TexTokenKind.space,
-            text: source.substring(start, i),
+            text: (i == start + 1 && unit < 128)
+                ? _asciiSingleChars[unit]
+                : source.substring(start, i),
             span: SourceSpan(start, i),
             catCode: cat,
           ),
@@ -319,9 +331,19 @@ List<TexToken> tokenizeTex(String source) {
           tokens.add(
             TexToken(
               kind: TexTokenKind.letter,
-              text: source.substring(i, i + 1),
+              text: _asciiSingleChars[unit],
               span: SourceSpan(i, i + 1),
               catCode: TexCatCode.letter,
+            ),
+          );
+          i++;
+        } else if (unit < 128) {
+          tokens.add(
+            TexToken(
+              kind: TexTokenKind.other,
+              text: _asciiSingleChars[unit],
+              span: SourceSpan(i, i + 1),
+              catCode: TexCatCode.other,
             ),
           );
           i++;
@@ -342,6 +364,12 @@ List<TexToken> tokenizeTex(String source) {
 
   return tokens;
 }
+
+final List<String> _asciiSingleChars = List<String>.generate(
+  128,
+  String.fromCharCode,
+  growable: false,
+);
 
 bool _isAsciiLetter(int unit) =>
     (unit >= 0x41 && unit <= 0x5A) || (unit >= 0x61 && unit <= 0x7A);

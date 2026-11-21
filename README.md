@@ -6,11 +6,11 @@
 
 ## Highlights
 
-* **Pure-Dart Core Engine (`packages/tex_math`)**: Deterministic, synchronous five-stage pipeline (tokenizer, macro expander, sealed AST parser, Appendix G layout engine, display list & SVG/MathML/spoken-text exporters) depending solely on `package:meta`, with zero `flutter`, `dart:ui`, `dart:io`, or `dart:html` imports.
-* **OpenType `MATH`-Driven Layout**: Reads `cmap`, `hmtx`/`hhea`, `head`, `OS/2`, `MATH`, `glyf`, and `CFF`/`CFF2` directly from in-memory font bytes (`MathFont.fromBytes`), using glyph-ID addressing for size variants and extensible assemblies without hardcoded font metric tables.
-* **Flutter Integration (`packages/tex_math_flutter`)**: Renders cached glyph `Path` outlines directly on `Canvas`, supports theme color roles (`TexMathTheme`), inline baseline alignment (`TexMathSpan`), `SelectionArea` / `Semantics` accessibility hooks, background isolate layout (`TexMathIsolateLayouter`), and bundles `NewCMMath-Regular.otf` (`8.1.1`).
+* **Pure-Dart Core Engine (`packages/tex_math`)**: Deterministic, synchronous five-stage pipeline (tokenizer, macro expander, 16-variant sealed AST parser across all 42 MathJax `4.1.3` TeX packages, Appendix G layout engine with `DisplayBreakHint`s, and display list & SVG/MathML/spoken-text exporters) depending solely on `package:meta`, with zero `flutter`, `dart:ui`, `dart:io`, `dart:html`, or `dart:js*` imports.
+* **OpenType `MATH`, Variable Font & Hinting Support**: Decodes `head`, `maxp`, `hhea`, `hmtx`, `OS/2`, `name`, `cmap` (Format 4/12), `GSUB` (`ssty`), `MATH`, `fvar`/`avar`/`HVAR`/`GDEF` variations, `glyf`/`loca`, and `CFF`/`CFF2` (including Type 2 stem hinting) directly from in-memory bytes (`MathFont.fromBytes`) without hardcoded font metric tables.
+* **Flutter Integration (`packages/tex_math_flutter`)**: Paints cached `Path` outlines (`TexMathPathCache`) without re-layout on `TexMathTheme` updates, auto-loads bundled `NewCMMath-Regular.otf` (`8.1.1`) once per lifecycle (`TexMathFontBundle.loadMathFont`), supports `TexMathOverflow` policies and `TexMathSpan` baseline alignment, provides `SelectionArea` sub-expression `"copy as LaTeX"` (`TexMathSelectionUtils`) and spoken-text `Semantics`, and runs persistent background isolate layout (`TexMathIsolateLayouter`).
 * **Safety Budgets & Strict Error Parity**: Enforces `TexMathBudgets` caps on input length, macro depth, macro expansions, nesting depth, output items, and SVG size, throwing structured `TexMathError` types mapped to MathJax's `TexMathErrorClass` taxonomy.
-* **Differential MathJax Verification**: Verified against a pinned MathJax `4.1.3` oracle (`tool/oracle/`) across a 352-case multi-tier corpus (`corpus/`) covering Core TeX/AMS, JupyterLab extensions, remaining MathJax 4 extensions, stretchy delimiters, notebook equations, and malformed inputs.
+* **Differential MathJax Verification & 3-Way Studio**: Verified against a pinned MathJax `4.1.3` oracle (`tool/oracle/`) across a 352-case multi-tier corpus (`corpus/`) and inspectable interactively in the macOS 3-Way Comparison Studio (`studio/`) with Side-by-Side, Pixel Diff, and Curtain Diff modes.
 
 ## Display List SVG Preview
 
@@ -25,9 +25,9 @@ Generated directly by `DisplayList.toSvg()` via [`tool/generate_doc_images.dart`
 | Component | Path | Purpose |
 | :--- | :--- | :--- |
 | **`tex_math`** | [`packages/tex_math/`](packages/tex_math/README.md) | Pure-Dart TeX parser, OpenType `MATH` layout engine, SVG / MathML / spoken-text exporters. |
-| **`tex_math_flutter`** | [`packages/tex_math_flutter/`](packages/tex_math_flutter/README.md) | Flutter `TexMath` / `TexMathSpan` widgets, `Path` caching, theming, accessibility, and bundled `NewCMMath-Regular.otf`. |
-| **Flutter Example** | [`packages/tex_math_flutter/example/`](packages/tex_math_flutter/example/lib/main.dart) | Minimal Flutter application demonstrating display and inline math rendering. |
-| **Comparison Studio** | [`studio/`](studio/README.md) | Desktop workbench comparing `tex_math`, MathJax, and KaTeX side by side. |
+| **`tex_math_flutter`** | [`packages/tex_math_flutter/`](packages/tex_math_flutter/README.md) | Flutter `TexMath` / `TexMathSpan` widgets, `TexMathPathCache`, theming, selection, persistent isolate layouter, and bundled `NewCMMath-Regular.otf`. |
+| **Flutter Example** | [`packages/tex_math_flutter/example/`](packages/tex_math_flutter/example/lib/main.dart) | Flutter showcase and 50-equation notebook app demonstrating theme toggling, `SelectionArea`, and `TexMathIsolateLayouter`. |
+| **Comparison Studio** | [`studio/`](studio/README.md) | macOS 3-way workbench comparing `tex_math`, MathJax `4.1.3`, and KaTeX `0.19.1` with Pixel Diff and Curtain Diff views. |
 | **Reference & Coverage** | [`REFERENCE.md`](REFERENCE.md) · [`doc/COVERAGE.md`](doc/COVERAGE.md) | Pinned upstream targets, package tiers, and measured corpus parity reports. |
 
 ## Quick Start
@@ -35,24 +35,22 @@ Generated directly by `DisplayList.toSvg()` via [`tool/generate_doc_images.dart`
 ### Pure Dart (`packages/tex_math`)
 
 ```dart
+import 'dart:io';
 import 'package:tex_math/tex_math.dart';
 
 void main() {
-  const DisplayList displayList = DisplayList(
-    source: r'\frac{a + b}{c}',
-    metrics: DisplayMetrics(
-      widthEm: 2.8,
-      heightEm: 1.15,
-      depthEm: 0.75,
-      baselineEm: 1.15,
-      unitsPerEm: 1000,
-    ),
-    items: <DisplayItem>[
-      RuleItem(xEm: 0.1, yEm: 0.24, widthEm: 2.4, heightEm: 0.05),
-    ],
+  final MathFont font = MathFont.fromBytes(
+    File('packages/tex_math_flutter/assets/fonts/NewCMMath-Regular.otf')
+        .readAsBytesSync(),
+  );
+  final TexMathEngine engine = TexMathEngine(font: font);
+  final RenderResult result = engine.render(
+    r'\int_0^\infty e^{-x^2}\,dx = \frac{\sqrt{\pi}}{2}',
   );
 
-  print(displayList.toSvg());
+  print(result.toSvg(fontSize: 20.0));
+  print(result.toMathMl());
+  print(result.toSpokenText());
 }
 ```
 
@@ -66,13 +64,14 @@ Widget buildFormula() {
   return const TexMath(
     r'\frac{a + b}{c - d}',
     displayMode: TexMathDisplayMode.display,
+    overflow: TexMathOverflow.scroll,
   );
 }
 ```
 
-## Corpus Coverage & Benchmarks
+## Corpus Coverage & Native AOT Benchmarks
 
-Measured corpus parity from [`doc/COVERAGE.md`](doc/COVERAGE.md) (`corpus/expectations.json` verified against `MathJax 4.1.3` with `mathjax-newcm`) reports **352** total corpus cases (**315** Oracle Accepted, **37** Oracle Refused). Live `TexMathEngine` execution with `NewCMMath-Regular.otf` renders `315/315` accepted expressions into `DisplayList` and standalone SVG primitives (`0` Unsupported), matches `37/37` error-class refusals (`Refused Match`), and matches strict `0.02em` MathJax geometry on `74` accepted expressions (`74` Pass, `241` Differs, `0` Unsupported, `37` Refused Match, `31.5%` Pass %):
+Measured corpus parity from [`doc/COVERAGE.md`](doc/COVERAGE.md) (`corpus/expectations.json` verified against `MathJax 4.1.3` with `mathjax-newcm`) covers **352** total corpus cases (**315** Oracle Accepted, **37** Oracle Refused). Live `TexMathEngine` execution with `NewCMMath-Regular.otf` renders `315/315` accepted expressions into `DisplayList` and standalone SVG `<path>`/`<rect>` primitives (`0` Unsupported), matches `37/37` error-class refusals (`Refused Match`), and matches strict `0.02em` MathJax geometry on `74` accepted expressions (`74` Pass, `241` Differs, `0` Unsupported, `37` Refused Match, `31.5%` Pass % — see [Architecture: OpenType MATH Conformance](doc/ARCHITECTURE.md#opentype-math-conformance-vs-mathjax-4-js-fontdata-divergences) for the OpenType `MATH` vs legacy `.tfm`/tile/subfont causes of the `241` differences):
 
 | Tier | Pass | Differs | Unsupported | Refused Match | Total | Pass % |
 | :--- | ---: | ---: | ---: | ---: | ---: | ---: |
@@ -84,18 +83,32 @@ Measured corpus parity from [`doc/COVERAGE.md`](doc/COVERAGE.md) (`corpus/expect
 | Errors (Malformed Inputs & Macro/Delimiter Violations) | 0 | 0 | 0 | 37 | 37 | 100.0% |
 | **Total** | **74** | **241** | **0** | **37** | **352** | **31.5%** |
 
-Native Dart AOT measurements for `MathFont.fromBytes` (`837.56 us` mean on `NewCMMath-Regular.otf`), `DisplayList.toSvg()`, typical inline layout (`14.41 us` mean), 50-equation notebook batch layout (`1.734 ms` mean), and full-corpus layout dispatch (`9.098 ms` mean across `352` cases) are recorded in [`doc/BENCHMARKS.md`](doc/BENCHMARKS.md).
+Native Dart AOT measurements on `Apple M4` (`arm64`, `macos` `Version 15.6 (Build 24G84)`, `32 GiB`, Dart `3.13.5`) recorded in [`doc/BENCHMARKS.md`](doc/BENCHMARKS.md) pass every target budget:
+
+| Benchmark | Mean | Median (p50) | p95 | Target |
+| :--- | ---: | ---: | ---: | :--- |
+| `math_font_from_bytes` | 699.00 us | 634.90 us | 1.049 ms | Once per font |
+| `inline_expression_layout` | 7.76 us | 7.68 us | 9.42 us | `< 50 us` |
+| `notebook_50_equations` | 1.830 ms | 1.809 ms | 2.149 ms | `< 5 ms` |
+| `cached_display_list_lookup` | 0.46 us | 0.45 us | 0.63 us | Paint-only cost |
+| `corpus_parse_phase` (`352` cases) | 4.090 ms | 4.071 ms | 4.491 ms | — |
+| `corpus_layout_phase` (`315` valid trees) | 2.925 ms | 2.905 ms | 3.691 ms | — |
+| `corpus_full_dispatch` (`352` cases) | 7.740 ms | 7.573 ms | 9.246 ms | — |
+| `display_list_to_svg_small` | 12.66 us | 12.25 us | 18.78 us | — |
+| `display_list_to_svg_large` | 258.54 us | 267.19 us | 298.42 us | — |
+| `budget_input_check_valid` | 13.05 us | 12.81 us | 17.71 us | — |
+| `budget_input_check_exceeded` | 3.35 us | 3.45 us | 4.40 us | — |
 
 ## Documentation
 
 | Guide | Description |
 | :--- | :--- |
-| **[Architecture & Design](doc/ARCHITECTURE.md)** | Five-stage TeX pipeline, OpenType `MATH` usage, accessibility, safety budgets, and architectural design decisions. |
+| **[Architecture & Design](doc/ARCHITECTURE.md)** | Five-stage TeX pipeline, OpenType `MATH` usage, OpenType vs MathJax FontData divergences, accessibility, safety budgets, and design contracts. |
 | **[API Manual](doc/API_MANUAL.md)** | Public types across `tex_math` and `tex_math_flutter`. |
 | **[Reference Pins](REFERENCE.md)** | Pinned MathJax `4.1.3`, JupyterLab `@jupyterlab/mathjax-extension`, font versions, and package tiers. |
 | **[Coverage Matrix](doc/COVERAGE.md)** | Generated corpus coverage across Tier 1, Tier 2, Tier 3, stretchy constructs, notebooks, and error cases. |
 | **[Benchmarks](doc/BENCHMARKS.md)** | Native Dart AOT measurements and regression baseline. |
-| **[Studio Guide](doc/STUDIO_GUIDE.md)** | Desktop comparison workbench usage. |
+| **[Studio Guide](doc/STUDIO_GUIDE.md)** | macOS 3-Way Comparison Studio workbench usage and headless tests. |
 | **[Reference Sync](doc/REFERENCE_SYNC.md)** | Procedure for verifying and updating upstream reference pins. |
 | **[Releasing](doc/RELEASING.md)** | Lockstep `vX.Y.Z` verification, tagging, and pub.dev release order. |
 

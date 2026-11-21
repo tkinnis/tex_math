@@ -278,8 +278,14 @@ String _translateCe(String input) {
   return out.toString().trim();
 }
 
+final RegExp _puWhitespacePattern = RegExp(r'\s+');
+final RegExp _puSciPattern = RegExp(r'^([+-]?\d+(?:\.\d+)?)[eE]([+-]?\d+)$');
+final RegExp _looksLikeNumberPattern = RegExp(
+  r'^[+-]?\d+(?:[.,]\d+)?(?:[eE][+-]?\d+)?$',
+);
+
 String _translatePu(String input) {
-  final List<String> tokens = input.trim().split(RegExp(r'\s+'));
+  final List<String> tokens = input.trim().split(_puWhitespacePattern);
   if (tokens.isEmpty) {
     return '';
   }
@@ -299,8 +305,7 @@ String _translatePu(String input) {
 
 String _translatePuToken(String token) {
   // Handle scientific notation e.g. 6.022e23 or 6.022e-5
-  final RegExpMatch? sciMatch = RegExp(r'^([+-]?\d+(?:\.\d+)?)[eE]([+-]?\d+)$')
-      .firstMatch(token);
+  final RegExpMatch? sciMatch = _puSciPattern.firstMatch(token);
   if (sciMatch != null) {
     return '${sciMatch.group(1)} \\cdot 10^{${sciMatch.group(2)}}';
   }
@@ -350,11 +355,9 @@ String _translatePuToken(String token) {
   return out.toString();
 }
 
-bool _looksLikeNumber(String s) =>
-    RegExp(r'^[+-]?\d+(?:[.,]\d+)?(?:[eE][+-]?\d+)?$').hasMatch(s);
+bool _looksLikeNumber(String s) => _looksLikeNumberPattern.hasMatch(s);
 
 ({String tex, int length})? _matchReactionArrow(String input, int index) {
-  final String rest = input.substring(index);
   const List<(String, String)> arrows = <(String, String)>[
     ('<=>>', r'\rightleftharpoons'),
     ('<<=>', r'\rightleftharpoons'),
@@ -365,7 +368,7 @@ bool _looksLikeNumber(String s) =>
     ('<-', r'\longleftarrow'),
   ];
   for (final (String pattern, String tex) in arrows) {
-    if (rest.startsWith(pattern)) {
+    if (input.startsWith(pattern, index)) {
       return (tex: tex, length: pattern.length);
     }
   }

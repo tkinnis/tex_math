@@ -108,9 +108,13 @@ sealed class MathBox {
         depthEm: math.max(0.0, depthEm - shiftYEm),
         unitsPerEm: unitsPerEm,
       ),
-      items: List<DisplayItem>.unmodifiable(items),
+      items: items.isEmpty
+          ? const <DisplayItem>[]
+          : List<DisplayItem>.unmodifiable(items),
       source: source,
-      breakHints: List<DisplayBreakHint>.unmodifiable(breakHints),
+      breakHints: breakHints.isEmpty
+          ? const <DisplayBreakHint>[]
+          : List<DisplayBreakHint>.unmodifiable(breakHints),
     );
   }
 
@@ -576,7 +580,8 @@ final class HBox extends MathBox {
     if (children.isNotEmpty) {
       computedHeight = double.negativeInfinity;
       computedDepth = double.negativeInfinity;
-      for (final MathBox child in children) {
+      for (int i = 0; i < children.length; i++) {
+        final MathBox child = children[i];
         computedWidth += child.widthEm;
         final double childTop = child.heightEm + child.shiftYEm;
         final double childBottom = child.depthEm - child.shiftYEm;
@@ -595,7 +600,9 @@ final class HBox extends MathBox {
       }
     }
     return HBox._(
-      children: List<MathBox>.unmodifiable(children),
+      children: children.isEmpty
+          ? const <MathBox>[]
+          : List<MathBox>.unmodifiable(children),
       widthEm: widthEm ?? computedWidth,
       heightEm: heightEm ?? math.max(0.0, computedHeight),
       depthEm: depthEm ?? math.max(0.0, computedDepth),
@@ -729,7 +736,8 @@ final class VBox extends MathBox {
     if (children.isNotEmpty) {
       computedHeight = double.negativeInfinity;
       computedDepth = double.negativeInfinity;
-      for (final VBoxChild placement in children) {
+      for (int i = 0; i < children.length; i++) {
+        final VBoxChild placement = children[i];
         final double right = placement.xEm + placement.box.widthEm;
         if (right > computedWidth) {
           computedWidth = right;
@@ -752,7 +760,9 @@ final class VBox extends MathBox {
       }
     }
     return VBox._(
-      placements: List<VBoxChild>.unmodifiable(children),
+      placements: children.isEmpty
+          ? const <VBoxChild>[]
+          : List<VBoxChild>.unmodifiable(children),
       widthEm: widthEm ?? computedWidth,
       heightEm: heightEm ?? math.max(0.0, computedHeight),
       depthEm: depthEm ?? math.max(0.0, computedDepth),

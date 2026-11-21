@@ -4,7 +4,8 @@ import 'ast.dart';
 import 'error.dart';
 import 'export/mathml.dart';
 import 'export/spoken_text.dart';
-import 'font.dart';
+import 'font/outline.dart';
+import 'format_utils.dart';
 import 'options.dart';
 import 'source_span.dart';
 
@@ -446,24 +447,57 @@ final class DisplayList {
     final double viewBoxHeight = heightPx > 0 ? heightPx : 1.0;
 
     final StringBuffer buffer = StringBuffer()
-      ..write('<svg xmlns="http://www.w3.org/2000/svg"')
-      ..write(' width="${_fmt(widthPx)}"')
-      ..write(' height="${_fmt(heightPx)}"')
-      ..write(' viewBox="0 0 ${_fmt(viewBoxWidth)} ${_fmt(viewBoxHeight)}"')
-      ..write(' role="img">');
+      ..write('<svg xmlns="http://www.w3.org/2000/svg" width="');
+    writeFormattedNumber(buffer, widthPx);
+    buffer.write('" height="');
+    writeFormattedNumber(buffer, heightPx);
+    buffer.write('" viewBox="0 0 ');
+    writeFormattedNumber(buffer, viewBoxWidth);
+    buffer.writeCharCode(0x20);
+    writeFormattedNumber(buffer, viewBoxHeight);
+    buffer.write('" role="img">');
 
     if (title != null && title.isNotEmpty) {
-      buffer.write('<title>${_escapeXmlText(title)}</title>');
+      buffer.write('<title>');
+      writeEscapedXmlText(buffer, title);
+      buffer.write('</title>');
     }
 
     final double unitsScale = safeFontSize / metrics.unitsPerEm;
+    final String fgFill = _resolvedRoleAttr(
+      TexMathColorRole.foreground,
+      colors,
+    );
+    final String accentFill = _resolvedRoleAttr(
+      TexMathColorRole.accent,
+      colors,
+    );
+    final String errorFill = _resolvedRoleAttr(TexMathColorRole.error, colors);
+    final String mutedFill = _resolvedRoleAttr(TexMathColorRole.muted, colors);
+    final String customFallbackFill = _resolvedRoleAttr(
+      TexMathColorRole.custom,
+      colors,
+    );
+
+    void writeResolvedFill(TexMathColorRole role, int? customColor) {
+      if (role == TexMathColorRole.custom) {
+        if (customColor != null) {
+          writeCssHexRgb(buffer, customColor);
+        } else {
+          buffer.write(customFallbackFill);
+        }
+        return;
+      }
+      buffer.write(switch (role) {
+        TexMathColorRole.foreground => fgFill,
+        TexMathColorRole.accent => accentFill,
+        TexMathColorRole.error => errorFill,
+        TexMathColorRole.muted => mutedFill,
+        TexMathColorRole.custom => customFallbackFill,
+      });
+    }
 
     for (final DisplayItem item in items) {
-      final String fill = _resolveColor(
-        item.colorRole,
-        item.customColor,
-        colors,
-      );
       switch (item) {
         case RuleItem(
           :final double xEm,
@@ -471,6 +505,8 @@ final class DisplayList {
           :final double widthEm,
           :final double heightEm,
           :final double? strokeWidthEm,
+          :final TexMathColorRole colorRole,
+          :final int? customColor,
         ):
           final double rx = _finite(xEm * safeFontSize);
           final double ry = _finite(
@@ -478,16 +514,25 @@ final class DisplayList {
           );
           final double rw = _nonNegativeFinite(widthEm * safeFontSize);
           final double rh = _nonNegativeFinite(heightEm * safeFontSize);
-          buffer
-            ..write('<rect x="${_fmt(rx)}" y="${_fmt(ry)}"')
-            ..write(' width="${_fmt(rw)}" height="${_fmt(rh)}"');
+          buffer.write('<rect x="');
+          writeFormattedNumber(buffer, rx);
+          buffer.write('" y="');
+          writeFormattedNumber(buffer, ry);
+          buffer.write('" width="');
+          writeFormattedNumber(buffer, rw);
+          buffer.write('" height="');
+          writeFormattedNumber(buffer, rh);
           if (strokeWidthEm != null && strokeWidthEm > 0) {
             final double sw = _nonNegativeFinite(strokeWidthEm * safeFontSize);
-            buffer
-              ..write(' fill="none" stroke="${_escapeXmlAttr(fill)}"')
-              ..write(' stroke-width="${_fmt(sw)}"/>');
+            buffer.write('" fill="none" stroke="');
+            writeResolvedFill(colorRole, customColor);
+            buffer.write('" stroke-width="');
+            writeFormattedNumber(buffer, sw);
+            buffer.write('"/>');
           } else {
-            buffer.write(' fill="${_escapeXmlAttr(fill)}"/>');
+            buffer.write('" fill="');
+            writeResolvedFill(colorRole, customColor);
+            buffer.write('"/>');
           }
 
         case AnchorItem(
@@ -498,13 +543,19 @@ final class DisplayList {
         ):
           final double ax = _finite(xEm * safeFontSize);
           final double ay = _finite((metrics.baselineEm - yEm) * safeFontSize);
-          buffer
-            ..write('<g id="${_escapeXmlAttr(id)}"')
-            ..write(' data-anchor="true"');
+          buffer.write('<g id="');
+          writeEscapedXmlAttr(buffer, id);
+          buffer.write('" data-anchor="true"');
           if (label != null) {
-            buffer.write(' data-label="${_escapeXmlAttr(label)}"');
+            buffer.write(' data-label="');
+            writeEscapedXmlAttr(buffer, label);
+            buffer.writeCharCode(0x22);
           }
-          buffer.write(' transform="translate(${_fmt(ax)}, ${_fmt(ay)})"/>');
+          buffer.write(' transform="translate(');
+          writeFormattedNumber(buffer, ax);
+          buffer.write(', ');
+          writeFormattedNumber(buffer, ay);
+          buffer.write(')"/>');
 
         case GlyphItem(
           :final int glyphId,
@@ -514,44 +565,68 @@ final class DisplayList {
           :final double scaleX,
           :final double scaleY,
           :final GlyphOutline? outline,
+          :final TexMathColorRole colorRole,
+          :final int? customColor,
         ):
           final double gx = _finite(xEm * safeFontSize);
           final double gy = _finite((metrics.baselineEm - yEm) * safeFontSize);
-          final String codeHex =
-              '0x${codePoint.toRadixString(16).toUpperCase()}';
 
           if (outline != null && !outline.isEmpty) {
             final double sx = _finite(unitsScale * scaleX);
             final double sy = _finite(-unitsScale * scaleY);
+            buffer.write('<path d="');
+            writeGlyphOutlineSvgPathData(buffer, outline.commands);
+            buffer.write('" fill="');
+            writeResolvedFill(colorRole, customColor);
             buffer
-              ..write('<path d="${_escapeXmlAttr(outline.toSvgPathData())}"')
-              ..write(' fill="${_escapeXmlAttr(fill)}"')
-              ..write(' data-glyph-id="$glyphId"')
-              ..write(' data-codepoint="$codeHex"')
-              ..write(
-                ' transform="translate(${_fmt(gx)}, ${_fmt(gy)}) '
-                'scale(${_fmt(sx)}, ${_fmt(sy)})"/>',
-              );
+              ..write('" data-glyph-id="')
+              ..write(glyphId)
+              ..write('" data-codepoint="');
+            writeUpperHexCodePoint(buffer, codePoint);
+            buffer.write('" transform="translate(');
+            writeFormattedNumber(buffer, gx);
+            buffer.write(', ');
+            writeFormattedNumber(buffer, gy);
+            buffer.write(') scale(');
+            writeFormattedNumber(buffer, sx);
+            buffer.write(', ');
+            writeFormattedNumber(buffer, sy);
+            buffer.write(')"/>');
           } else if (outline == null && _isPrintableUnicodeScalar(codePoint)) {
             final String ch = String.fromCharCode(codePoint);
+            buffer.write('<text x="0" y="0" font-family="serif" font-size="');
+            writeFormattedNumber(buffer, safeFontSize);
+            buffer.write('" fill="');
+            writeResolvedFill(colorRole, customColor);
             buffer
-              ..write('<text x="0" y="0"')
-              ..write(' font-family="serif"')
-              ..write(' font-size="${_fmt(safeFontSize)}"')
-              ..write(' fill="${_escapeXmlAttr(fill)}"')
-              ..write(' data-glyph-id="$glyphId"')
-              ..write(' data-codepoint="$codeHex"')
-              ..write(
-                ' transform="translate(${_fmt(gx)}, ${_fmt(gy)}) '
-                'scale(${_fmt(scaleX)}, ${_fmt(scaleY)})"',
-              )
-              ..write('>${_escapeXmlText(ch)}</text>');
+              ..write('" data-glyph-id="')
+              ..write(glyphId)
+              ..write('" data-codepoint="');
+            writeUpperHexCodePoint(buffer, codePoint);
+            buffer.write('" transform="translate(');
+            writeFormattedNumber(buffer, gx);
+            buffer.write(', ');
+            writeFormattedNumber(buffer, gy);
+            buffer.write(') scale(');
+            writeFormattedNumber(buffer, scaleX);
+            buffer.write(', ');
+            writeFormattedNumber(buffer, scaleY);
+            buffer.write(')">');
+            writeEscapedXmlText(buffer, ch);
+            buffer.write('</text>');
           } else {
+            buffer.write('<g fill="');
+            writeResolvedFill(colorRole, customColor);
             buffer
-              ..write('<g fill="${_escapeXmlAttr(fill)}"')
-              ..write(' data-glyph-id="$glyphId"')
-              ..write(' data-codepoint="$codeHex"')
-              ..write(' transform="translate(${_fmt(gx)}, ${_fmt(gy)})"/>');
+              ..write('" data-glyph-id="')
+              ..write(glyphId)
+              ..write('" data-codepoint="');
+            writeUpperHexCodePoint(buffer, codePoint);
+            buffer.write('" transform="translate(');
+            writeFormattedNumber(buffer, gx);
+            buffer.write(', ');
+            writeFormattedNumber(buffer, gy);
+            buffer.write(')"/>');
           }
       }
     }
@@ -667,22 +742,17 @@ bool _listEquals<T>(List<T> a, List<T> b) {
   return true;
 }
 
-String _resolveColor(
+String _resolvedRoleAttr(
   TexMathColorRole role,
-  int? customColor,
   Map<TexMathColorRole, String>? overrides,
 ) {
-  if (role == TexMathColorRole.custom && customColor != null) {
-    final int rgb = customColor & 0x00FFFFFF;
-    final String hex = rgb.toRadixString(16).padLeft(6, '0').toUpperCase();
-    return '#$hex';
-  }
   final String? override = overrides?[role];
   if (override != null && override.isNotEmpty) {
-    return override;
+    return escapeXmlAttr(override);
   }
   switch (role) {
     case TexMathColorRole.foreground:
+    case TexMathColorRole.custom:
       return '#111827';
     case TexMathColorRole.accent:
       return '#2563EB';
@@ -690,8 +760,6 @@ String _resolveColor(
       return '#DC2626';
     case TexMathColorRole.muted:
       return '#6B7280';
-    case TexMathColorRole.custom:
-      return '#111827';
   }
 }
 
@@ -712,28 +780,3 @@ double _finite(double value) => value.isFinite ? value : 0.0;
 
 double _nonNegativeFinite(double value) =>
     value.isFinite && value > 0 ? value : 0.0;
-
-String _fmt(double value) {
-  final double safe = _finite(value);
-  final String fixed = safe.toStringAsFixed(4);
-  if (!fixed.contains('.')) {
-    return fixed;
-  }
-  final String trimmed = fixed
-      .replaceFirst(RegExp(r'0+$'), '')
-      .replaceFirst(RegExp(r'\.$'), '');
-  return trimmed == '-0' ? '0' : trimmed;
-}
-
-String _escapeXmlText(String value) {
-  return value
-      .replaceAll('&', '&amp;')
-      .replaceAll('<', '&lt;')
-      .replaceAll('>', '&gt;');
-}
-
-String _escapeXmlAttr(String value) {
-  return _escapeXmlText(value)
-      .replaceAll('"', '&quot;')
-      .replaceAll("'", '&#39;');
-}

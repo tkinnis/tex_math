@@ -431,15 +431,61 @@ abstract final class TexPackageRegistry {
 final class TexActivePackages {
   /// Initializes active packages and scoped package options from [options].
   TexActivePackages(TexMathOptions options)
-    : _allowlist = options.requireAllowlist.toSet(),
-      _active = <String>{} {
-    for (final String pkg in options.packages) {
-      _activateWithDependencies(pkg);
+    : _allowlistSource = options.requireAllowlist {
+    if (identical(options.packages, TexMathOptions.defaultPackages)) {
+      _active = _defaultActivePackages;
+      _ownsActive = false;
+    } else {
+      _active = <String>{};
+      _ownsActive = true;
+      for (final String pkg in options.packages) {
+        _activateWithDependencies(pkg);
+      }
     }
   }
 
-  final Set<String> _allowlist;
-  final Set<String> _active;
+  static final Set<String> _defaultActivePackages = _buildDefaultActiveSet();
+  static final Set<String> _defaultAllowlist = Set<String>.unmodifiable(
+    TexMathOptions.defaultRequireAllowlist,
+  );
+
+  static Set<String> _buildDefaultActiveSet() {
+    final Set<String> active = <String>{};
+    void addWithDeps(String name) {
+      if (!active.add(name)) {
+        return;
+      }
+      final TexPackageDescriptor? desc = TexPackageRegistry.byName[name];
+      if (desc != null) {
+        for (final String dep in desc.dependencies) {
+          addWithDeps(dep);
+        }
+      }
+    }
+
+    for (final String pkg in TexMathOptions.defaultPackages) {
+      addWithDeps(pkg);
+    }
+    return Set<String>.unmodifiable(active);
+  }
+
+  final List<String> _allowlistSource;
+  Set<String>? _allowlistCache;
+  late Set<String> _active;
+  late bool _ownsActive;
+
+  Set<String> get _allowlist {
+    final Set<String>? cached = _allowlistCache;
+    if (cached != null) {
+      return cached;
+    }
+    final Set<String> resolved =
+        identical(_allowlistSource, TexMathOptions.defaultRequireAllowlist)
+        ? _defaultAllowlist
+        : _allowlistSource.toSet();
+    _allowlistCache = resolved;
+    return resolved;
+  }
 
   /// Active `color` vs `colorv2` precedence: when `colorv2` is loaded, grouped
   /// two-argument `\color{c}{x}` overrides one-argument switch `\color{c}`.
@@ -473,7 +519,7 @@ final class TexActivePackages {
   /// registry membership and [TexMathOptions.requireAllowlist].
   void require(String packageName, {SourceSpan? span}) {
     final String name = packageName.trim();
-    if (name.isEmpty || !RegExp(r'^[_a-zA-Z0-9]+$').hasMatch(name)) {
+    if (!_isValidPackageName(name)) {
       throw TexMathSyntaxError(
         'Argument for \\require is not a valid package name: "$packageName".',
         errorClass: TexMathErrorClass.syntaxError,
@@ -495,6 +541,24 @@ final class TexActivePackages {
       );
     }
     _activateWithDependencies(name);
+  }
+
+  static bool _isValidPackageName(String name) {
+    if (name.isEmpty) {
+      return false;
+    }
+    for (int i = 0; i < name.length; i++) {
+      final int cu = name.codeUnitAt(i);
+      final bool ok =
+          cu == 0x5F || // '_'
+          (cu >= 0x30 && cu <= 0x39) ||
+          (cu >= 0x41 && cu <= 0x5A) ||
+          (cu >= 0x61 && cu <= 0x7A);
+      if (!ok) {
+        return false;
+      }
+    }
+    return true;
   }
 
   /// Attempts to autoload the owning package for command [name] when `autoload`
@@ -591,6 +655,10 @@ final class TexActivePackages {
         'Unknown TeX package "$name".',
         errorClass: TexMathErrorClass.syntaxError,
       );
+    }
+    if (!_ownsActive) {
+      _active = Set<String>.of(_active);
+      _ownsActive = true;
     }
     _active.add(name);
     for (final String dep in desc.dependencies) {

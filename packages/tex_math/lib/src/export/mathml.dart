@@ -1,4 +1,5 @@
 import '../ast.dart';
+import '../format_utils.dart';
 import '../options.dart';
 
 /// Serializes [node] into a Presentation MathML XML string.
@@ -390,8 +391,18 @@ String? _mathVariantAttr(TexMathFontVariant? variant) {
   }
 }
 
-bool _isDigitRun(String value) =>
-    value.isNotEmpty && RegExp(r'^[0-9.,]+$').hasMatch(value);
+bool _isDigitRun(String value) {
+  if (value.isEmpty) {
+    return false;
+  }
+  for (int i = 0; i < value.length; i++) {
+    final int cu = value.codeUnitAt(i);
+    if ((cu < 0x30 || cu > 0x39) && cu != 0x2E && cu != 0x2C) {
+      return false;
+    }
+  }
+  return true;
+}
 
 bool _isOperatorChar(String value) {
   const Set<String> ops = <String>{
@@ -419,21 +430,6 @@ bool _isOperatorChar(String value) {
 bool _isSymbolOperator(String value) =>
     value.length == 1 && value.codeUnitAt(0) > 0x7F;
 
-String _formatNumber(double value) {
-  final String fixed = value.toStringAsFixed(4);
-  if (!fixed.contains('.')) {
-    return fixed;
-  }
-  return fixed
-      .replaceFirst(RegExp(r'0+$'), '')
-      .replaceFirst(RegExp(r'\.$'), '');
-}
+String _formatNumber(double value) => formatTrimmedNumber(value);
 
-String _escapeXml(String text) {
-  return text
-      .replaceAll('&', '&amp;')
-      .replaceAll('<', '&lt;')
-      .replaceAll('>', '&gt;')
-      .replaceAll('"', '&quot;')
-      .replaceAll("'", '&#39;');
-}
+String _escapeXml(String text) => escapeXmlAttr(text);

@@ -66,8 +66,15 @@ final class CffIndex {
     final int dataOrigin = pos + offTableBytes - 1;
 
     final Uint32List absOffsets = Uint32List(count + 1);
+    int prevAbs = 0;
     for (int i = 0; i <= count; i++) {
-      final int relOff = _readVarOffset(reader, pos + i * offSize, offSize);
+      final int offPos = pos + i * offSize;
+      final int relOff = switch (offSize) {
+        1 => reader.readUint8Fast(offPos),
+        2 => reader.readUint16Fast(offPos),
+        3 => reader.readUint24Fast(offPos),
+        _ => reader.readUint32Fast(offPos),
+      };
       if (relOff < 1) {
         throw TexMathFontError('Invalid $context offset $relOff (< 1).');
       }
@@ -77,24 +84,16 @@ final class CffIndex {
           '$context entry offset $abs exceeds table length (${reader.length}).',
         );
       }
-      if (i > 0 && abs < absOffsets[i - 1]) {
+      if (i > 0 && abs < prevAbs) {
         throw TexMathFontError(
-          'Unsorted $context offsets at index $i ($abs < ${absOffsets[i - 1]}).',
+          'Unsorted $context offsets at index $i ($abs < $prevAbs).',
         );
       }
       absOffsets[i] = abs;
+      prevAbs = abs;
     }
 
-    return CffIndex._(reader, absOffsets, absOffsets[count]);
-  }
-
-  static int _readVarOffset(FontByteReader reader, int pos, int offSize) {
-    return switch (offSize) {
-      1 => reader.readUint8(pos, 'CFF.off1'),
-      2 => reader.readUint16(pos, 'CFF.off2'),
-      3 => reader.readUint24(pos, 'CFF.off3'),
-      _ => reader.readUint32(pos, 'CFF.off4'),
-    };
+    return CffIndex._(reader, absOffsets, prevAbs);
   }
 }
 
@@ -356,11 +355,11 @@ final class FdSelectTable {
       final Uint16List fds = Uint16List(nRanges);
       int pos = offset + 3;
       for (int i = 0; i < nRanges; i++) {
-        starts[i] = reader.readUint16(pos, 'FDSelect.first');
-        fds[i] = reader.readUint8(pos + 2, 'FDSelect.fd');
+        starts[i] = reader.readUint16Fast(pos);
+        fds[i] = reader.readUint8Fast(pos + 2);
         pos += 3;
       }
-      starts[nRanges] = reader.readUint16(pos, 'FDSelect.sentinel');
+      starts[nRanges] = reader.readUint16Fast(pos);
       return FdSelectTable._(3, Uint8List(0), starts, fds);
     }
     if (fmt == 4) {
@@ -370,11 +369,11 @@ final class FdSelectTable {
       final Uint16List fds = Uint16List(nRanges);
       int pos = offset + 5;
       for (int i = 0; i < nRanges; i++) {
-        starts[i] = reader.readUint32(pos, 'FDSelect.first');
-        fds[i] = reader.readUint16(pos + 4, 'FDSelect.fd');
+        starts[i] = reader.readUint32Fast(pos);
+        fds[i] = reader.readUint16Fast(pos + 4);
         pos += 6;
       }
-      starts[nRanges] = reader.readUint32(pos, 'FDSelect.sentinel');
+      starts[nRanges] = reader.readUint32Fast(pos);
       return FdSelectTable._(4, Uint8List(0), starts, fds);
     }
     throw TexMathFontError('Unsupported CFF FDSelect format: $fmt.');

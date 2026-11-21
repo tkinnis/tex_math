@@ -7,6 +7,7 @@ import '../font.dart';
 import '../options.dart';
 import '../source_span.dart';
 import 'box.dart';
+import 'glyph_resolve.dart';
 import 'matrix_layout.dart';
 import 'stretchy.dart';
 import 'style_spacing.dart';
@@ -281,19 +282,49 @@ class _AppendixGLayoutEngine {
       return KernBox(widthEm: 0.0, atomClass: outerClass, span: span);
     }
 
+    if (rawAtoms.length == 1 &&
+        !rawAtoms[0].isTransparent &&
+        leadingImplicitClass == null) {
+      final _RowAtom entry = rawAtoms[0];
+      if (entry.box is! KernBox) {
+        final TexMathAtomClass promotedClass = promoteAtomClass(
+          atomClass: entry.box.atomClass,
+          prevClass: null,
+          nextClass: null,
+        );
+        final BreakPoint breakHint = state.isTopLevel
+            ? _breakPointForClass(promotedClass, existing: entry.box.breakPoint)
+            : BreakPoint.none;
+        final TexMathAtomClass finalOuterClass = preserveInnerBoundaryClass
+            ? promotedClass
+            : outerClass;
+        if (entry.box.atomClass == finalOuterClass &&
+            entry.box.breakPoint == breakHint) {
+          return entry.box;
+        }
+        return entry.box.withMetadata(
+          atomClass: finalOuterClass,
+          breakPoint: breakHint,
+        );
+      }
+    }
+
     // Collect indices of non-transparent atoms for unary/binary resolution.
+    final int rawCount = rawAtoms.length;
     final List<int> atomIndices = <int>[];
-    for (int i = 0; i < rawAtoms.length; i++) {
-      if (!rawAtoms[i].isTransparent) {
+    final List<TexMathAtomClass> promoted = List<TexMathAtomClass>.filled(
+      rawCount,
+      TexMathAtomClass.ord,
+    );
+    for (int i = 0; i < rawCount; i++) {
+      final _RowAtom raw = rawAtoms[i];
+      promoted[i] = raw.box.atomClass;
+      if (!raw.isTransparent) {
         atomIndices.add(i);
       }
     }
 
     // Resolve unary/binary `+`, `-`, `\pm`, `\mp` promotions.
-    final List<TexMathAtomClass> promoted = List<TexMathAtomClass>.generate(
-      rawAtoms.length,
-      (int i) => rawAtoms[i].box.atomClass,
-    );
     for (int k = 0; k < atomIndices.length; k++) {
       final int idx = atomIndices[k];
       final TexMathAtomClass? prevClass = k > 0
@@ -361,7 +392,10 @@ class _AppendixGLayoutEngine {
         : outerClass;
 
     if (laidChildren.length == 1 && laidChildren.first is! KernBox) {
-      return laidChildren.first.withMetadata(atomClass: finalOuterClass);
+      final MathBox single = laidChildren.first;
+      return single.atomClass == finalOuterClass
+          ? single
+          : single.withMetadata(atomClass: finalOuterClass);
     }
     return HBox(children: laidChildren, atomClass: finalOuterClass, span: span);
   }
@@ -1099,20 +1133,19 @@ class _AppendixGLayoutEngine {
       }
     }
 
-    final List<int> runes = value.runes.toList();
-    if (runes.isEmpty) {
+    if (value.isEmpty) {
       return KernBox(widthEm: 0.0, atomClass: atomClass, span: node.span);
     }
 
+    final int? singleCp = singleCodePointOrNull(value);
     final MathBox symbolBox;
-    if (runes.length == 1) {
-      final int cp = resolveMathGlyphCodePoint(
-        baseCodePoint: runes.first,
+    if (singleCp != null) {
+      final (int cp, int gid) = resolveMathGlyphCodePointAndId(
+        baseCodePoint: singleCp,
         font: font,
         variant: variant,
         isTextMode: state.isTextMode,
       );
-      final int gid = font.glyphIdForCodePoint(cp);
       final GlyphBox glyph = buildGlyphBoxFromId(
         font: font,
         glyphId: gid,
@@ -1140,8 +1173,8 @@ class _AppendixGLayoutEngine {
       }
     } else {
       final List<MathBox> chars = <MathBox>[];
-      for (final int r in runes) {
-        final int cp = resolveMathGlyphCodePoint(
+      for (final int r in value.runes) {
+        final (int cp, int gid) = resolveMathGlyphCodePointAndId(
           baseCodePoint: r,
           font: font,
           variant: variant,
@@ -1150,7 +1183,7 @@ class _AppendixGLayoutEngine {
         chars.add(
           buildGlyphBoxFromId(
             font: font,
-            glyphId: font.glyphIdForCodePoint(cp),
+            glyphId: gid,
             codePoint: cp,
             scale: scale,
             scriptLevel: scriptLevel,
@@ -1179,7 +1212,7 @@ class _AppendixGLayoutEngine {
     final String name = node.operatorName;
 
     if (node.isExtensible) {
-      final int cp = name.runes.isNotEmpty ? name.runes.first : 0x2192;
+      final int cp = firstCodePointOr(name, 0x2192);
       return buildHorizontalStretchyBox(
         font: font,
         codePoint: cp,
@@ -1191,18 +1224,18 @@ class _AppendixGLayoutEngine {
     }
 
     if (node.isLarge) {
-      final List<int> runes = name.runes.toList();
-      if (runes.length == 1) {
+      final int? singleLargeCp = singleCodePointOrNull(name);
+      if (singleLargeCp != null) {
         return buildLargeOperatorBox(
           font: font,
-          codePoint: runes.first,
+          codePoint: singleLargeCp,
           style: state.style,
           scale: scale,
           span: node.span,
         );
       }
       final List<MathBox> parts = <MathBox>[];
-      for (final int r in runes) {
+      for (final int r in name.runes) {
         if (r == 0x222B || r == 0x222E || r == 0x222F) {
           parts.add(
             buildLargeOperatorBox(
@@ -1554,9 +1587,7 @@ class _AppendixGLayoutEngine {
       underBox?.widthEm ?? 0.0,
     );
     final double targetWidth = math.max(1.0 * scale, labelWidth + 0.55 * scale);
-    final int cp = arrowOp.operatorName.runes.isNotEmpty
-        ? arrowOp.operatorName.runes.first
-        : 0x2192;
+    final int cp = firstCodePointOr(arrowOp.operatorName, 0x2192);
     final MathBox arrowBox = buildHorizontalStretchyBox(
       font: font,
       codePoint: cp,
@@ -2191,9 +2222,7 @@ class _AppendixGLayoutEngine {
   }
 
   int _resolveAccentCodePoint(AccentNode node) {
-    final int rawCp = node.accent.runes.isNotEmpty
-        ? node.accent.runes.first
-        : 0x02C6;
+    final int rawCp = firstCodePointOr(node.accent, 0x02C6);
     if (node.isWide) {
       switch (rawCp) {
         case 0x005E:
@@ -2493,7 +2522,7 @@ class _AppendixGLayoutEngine {
           (constants.fractionRuleThickness / upem) * 1.675 * scale;
       strokeEm = defaultStroke;
       bool sawNone = false;
-      for (final String token in rawBorder.split(RegExp(r'\s+'))) {
+      for (final String token in rawBorder.split(_whitespacePattern)) {
         final String lower = token.trim().toLowerCase();
         if (lower.isEmpty ||
             lower == 'solid' ||
@@ -2505,7 +2534,7 @@ class _AppendixGLayoutEngine {
           sawNone = true;
           continue;
         }
-        if (RegExp(r'^\d').hasMatch(lower)) {
+        if (_startsWithAsciiDigit(lower)) {
           strokeEm = _parseCssLengthEm(lower, scale);
           continue;
         }
@@ -2639,7 +2668,7 @@ class _AppendixGLayoutEngine {
         (constants.fractionRuleThickness / upem) * 1.5 * scale;
     final String rawNotation = node.attributes['notation'] ?? '';
     final Set<String> notations = rawNotation
-        .split(RegExp(r'[\s,]+'))
+        .split(_notationSeparatorPattern)
         .where((String s) => s.isNotEmpty)
         .toSet();
 
@@ -3271,8 +3300,8 @@ class _AppendixGLayoutEngine {
   }
 
   bool _isHorizontalLimiterAccent(MathNode node) {
-    if (node is AccentNode && node.accent.runes.isNotEmpty) {
-      final int cp = node.accent.runes.first;
+    if (node is AccentNode && node.accent.isNotEmpty) {
+      final int cp = firstCodePointOr(node.accent, 0);
       return cp == 0x23DE ||
           cp == 0x23DF ||
           cp == 0x23B4 ||
@@ -3303,10 +3332,10 @@ class _AppendixGLayoutEngine {
   }
 
   bool _isIntegralOperator(OperatorNode op) {
-    if (op.operatorName.runes.isEmpty) {
+    if (op.operatorName.isEmpty) {
       return false;
     }
-    final int cp = op.operatorName.runes.first;
+    final int cp = firstCodePointOr(op.operatorName, 0);
     return (cp >= 0x222B && cp <= 0x2233) || cp == 0x2A0C;
   }
 
@@ -3380,8 +3409,7 @@ class _AppendixGLayoutEngine {
     if (raw == null || raw.isEmpty) {
       return 0.0;
     }
-    final RegExpMatch? m = RegExp(r'^(\d+(?:\.\d+)?)\s*([a-zA-Z]*)$')
-        .firstMatch(raw.trim());
+    final RegExpMatch? m = _cssLengthPattern.firstMatch(raw.trim());
     if (m == null) {
       return 0.0;
     }
@@ -3404,10 +3432,7 @@ class _AppendixGLayoutEngine {
     if (styleAttr == null || styleAttr.isEmpty) {
       return null;
     }
-    final RegExpMatch? m = RegExp(
-      r'(?:mathcolor|color)\s*[:=]\s*"?([^";\s]+)"?',
-      caseSensitive: false,
-    ).firstMatch(styleAttr);
+    final RegExpMatch? m = _encloseColorPattern.firstMatch(styleAttr);
     if (m == null) {
       return null;
     }
@@ -3447,3 +3472,19 @@ const Map<String, String> _negatedUnicode = <String, String>{
   '\u22AB': '\u22AF',
   '\u2203': '\u2204',
 };
+
+final RegExp _whitespacePattern = RegExp(r'\s+');
+final RegExp _notationSeparatorPattern = RegExp(r'[\s,]+');
+final RegExp _cssLengthPattern = RegExp(r'^(\d+(?:\.\d+)?)\s*([a-zA-Z]*)$');
+final RegExp _encloseColorPattern = RegExp(
+  r'(?:mathcolor|color)\s*[:=]\s*"?([^";\s]+)"?',
+  caseSensitive: false,
+);
+
+bool _startsWithAsciiDigit(String s) {
+  if (s.isEmpty) {
+    return false;
+  }
+  final int c = s.codeUnitAt(0);
+  return c >= 0x30 && c <= 0x39;
+}

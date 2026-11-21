@@ -150,67 +150,98 @@ final class TexScopeFrame {
   /// Whether this frame was opened by `\begingroupSandbox`.
   final bool isSandbox;
 
+  Map<String, TexMacroEntry>? _macros;
+  Map<String, TexUserEnvDef>? _environments;
+  Map<String, String>? _colors;
+
   /// Macro entries defined in this scope.
-  final Map<String, TexMacroEntry> macros = <String, TexMacroEntry>{};
+  Map<String, TexMacroEntry> get macros =>
+      _macros ??= <String, TexMacroEntry>{};
 
   /// User environment definitions in this scope.
-  final Map<String, TexUserEnvDef> environments = <String, TexUserEnvDef>{};
+  Map<String, TexUserEnvDef> get environments =>
+      _environments ??= <String, TexUserEnvDef>{};
 
   /// Custom colors defined via `\definecolor` in this scope.
-  final Map<String, String> colors = <String, String>{};
+  Map<String, String> get colors => _colors ??= <String, String>{};
 }
 
 /// Scoped immutable-lookup table storing macros, user environments, and colors.
 final class TexMacroTable {
   /// Initializes the root scope with [preconfiguredMacros].
   TexMacroTable({Map<String, String> preconfiguredMacros = const {}}) {
-    _scopes.add(TexScopeFrame());
-    for (final MapEntry<String, String> entry in preconfiguredMacros.entries) {
-      final String name = entry.key.startsWith('\\')
-          ? entry.key.substring(1)
-          : entry.key;
-      final List<TexToken> body = tokenizeTex(entry.value)
-          .map(
-            (TexToken t) => TexToken(
+    final TexScopeFrame root = TexScopeFrame();
+    _scopes.add(root);
+    if (preconfiguredMacros.isNotEmpty) {
+      final Map<String, TexMacroEntry> macros = root.macros;
+      for (final MapEntry<String, String> entry
+          in preconfiguredMacros.entries) {
+        final String name = entry.key.startsWith('\\')
+            ? entry.key.substring(1)
+            : entry.key;
+        final List<TexToken> sourceTokens = tokenizeTex(entry.value);
+        final List<TexToken> body = List<TexToken>.generate(
+          sourceTokens.length,
+          (int i) {
+            final TexToken t = sourceTokens[i];
+            return TexToken(
               kind: t.kind,
               text: t.text,
               span: SourceSpan.zero,
               catCode: t.catCode,
               isControlWord: t.isControlWord,
-            ),
-          )
-          .toList();
-      final int arity = _inferArityFromTokens(body);
-      _scopes.first.macros[name] = TexUserMacroEntry(
-        name: name,
-        paramCount: arity,
-        body: body,
-      );
+            );
+          },
+          growable: false,
+        );
+        final int arity = _inferArityFromTokens(body);
+        macros[name] = TexUserMacroEntry(
+          name: name,
+          paramCount: arity,
+          body: body,
+        );
+      }
+      _macroCount = macros.length;
     }
   }
 
   final List<TexScopeFrame> _scopes = <TexScopeFrame>[];
+  int _pendingEmptyBraces = 0;
+  int _macroCount = 0;
+  int _envCount = 0;
+  int _colorCount = 0;
 
   /// Opens a brace-local scope (`{`).
-  void pushBraceScope() => _scopes.add(TexScopeFrame());
+  void pushBraceScope() => _pendingEmptyBraces++;
 
   /// Closes a brace-local scope (`}`).
   void popBraceScope() {
+    if (_pendingEmptyBraces > 0) {
+      _pendingEmptyBraces--;
+      return;
+    }
     if (_scopes.length > 1 &&
         !_scopes.last.isBegingroup &&
         !_scopes.last.isSandbox) {
-      _scopes.removeLast();
+      _subtractFrameCounts(_scopes.removeLast());
     }
   }
 
   /// Opens a `\begingroup` scope.
-  void pushBegingroup() => _scopes.add(TexScopeFrame(isBegingroup: true));
+  void pushBegingroup() {
+    _flushPendingBraces();
+    _scopes.add(TexScopeFrame(isBegingroup: true));
+  }
 
   /// Closes scopes back through the nearest matching `\begingroup`.
   bool popBegingroup() {
     for (int i = _scopes.length - 1; i >= 1; i--) {
       if (_scopes[i].isBegingroup) {
+        for (int j = i; j < _scopes.length; j++) {
+          _subtractFrameCounts(_scopes[j]);
+        }
         _scopes.removeRange(i, _scopes.length);
+        _pendingEmptyBraces = 0;
         return true;
       }
       if (_scopes[i].isSandbox) {
@@ -221,13 +252,20 @@ final class TexMacroTable {
   }
 
   /// Opens a `\begingroupSandbox` boundary.
-  void pushSandbox() => _scopes.add(TexScopeFrame(isSandbox: true));
+  void pushSandbox() {
+    _flushPendingBraces();
+    _scopes.add(TexScopeFrame(isSandbox: true));
+  }
 
   /// Resets scopes back to and removing the nearest `\begingroupSandbox`.
   bool resetSandbox() {
     for (int i = _scopes.length - 1; i >= 1; i--) {
       if (_scopes[i].isSandbox) {
+        for (int j = i; j < _scopes.length; j++) {
+          _subtractFrameCounts(_scopes[j]);
+        }
         _scopes.removeRange(i, _scopes.length);
+        _pendingEmptyBraces = 0;
         return true;
       }
     }
@@ -236,10 +274,16 @@ final class TexMacroTable {
 
   /// Looks up a macro entry by [name] (without leading `\`).
   TexMacroEntry? lookupMacro(String name) {
+    if (_macroCount == 0) {
+      return null;
+    }
     for (int i = _scopes.length - 1; i >= 0; i--) {
-      final TexMacroEntry? entry = _scopes[i].macros[name];
-      if (entry != null) {
-        return entry;
+      final Map<String, TexMacroEntry>? macros = _scopes[i]._macros;
+      if (macros != null) {
+        final TexMacroEntry? entry = macros[name];
+        if (entry != null) {
+          return entry;
+        }
       }
     }
     return null;
@@ -247,10 +291,16 @@ final class TexMacroTable {
 
   /// Looks up a user environment definition by [name].
   TexUserEnvDef? lookupEnvironment(String name) {
+    if (_envCount == 0) {
+      return null;
+    }
     for (int i = _scopes.length - 1; i >= 0; i--) {
-      final TexUserEnvDef? env = _scopes[i].environments[name];
-      if (env != null) {
-        return env;
+      final Map<String, TexUserEnvDef>? environments = _scopes[i]._environments;
+      if (environments != null) {
+        final TexUserEnvDef? env = environments[name];
+        if (env != null) {
+          return env;
+        }
       }
     }
     return null;
@@ -258,11 +308,17 @@ final class TexMacroTable {
 
   /// Looks up a `\definecolor` binding by [name].
   String? lookupColor(String name) {
+    if (_colorCount == 0) {
+      return null;
+    }
     final String lower = name.toLowerCase();
     for (int i = _scopes.length - 1; i >= 0; i--) {
-      final String? value = _scopes[i].colors[lower];
-      if (value != null) {
-        return value;
+      final Map<String, String>? colors = _scopes[i]._colors;
+      if (colors != null) {
+        final String? value = colors[lower];
+        if (value != null) {
+          return value;
+        }
       }
     }
     return null;
@@ -270,16 +326,26 @@ final class TexMacroTable {
 
   /// Collects all visible custom colors into a lookup map.
   Map<String, String> visibleColors() {
+    if (_colorCount == 0) {
+      return const <String, String>{};
+    }
     final Map<String, String> merged = <String, String>{};
     for (final TexScopeFrame frame in _scopes) {
-      merged.addAll(frame.colors);
+      final Map<String, String>? colors = frame._colors;
+      if (colors != null) {
+        merged.addAll(colors);
+      }
     }
     return merged;
   }
 
   /// Registers a macro in the current scope or root/sandbox scope when [global].
   void defineMacro(String name, TexMacroEntry entry, {bool global = false}) {
-    _targetScope(global: global).macros[name] = entry;
+    final Map<String, TexMacroEntry> macros = _targetScope(global: global)
+        .macros;
+    final int prevLength = macros.length;
+    macros[name] = entry;
+    _macroCount += macros.length - prevLength;
   }
 
   /// Registers a user environment in the current scope or global scope.
@@ -288,16 +354,24 @@ final class TexMacroTable {
     TexUserEnvDef def, {
     bool global = false,
   }) {
-    _targetScope(global: global).environments[name] = def;
+    final Map<String, TexUserEnvDef> environments = _targetScope(global: global)
+        .environments;
+    final int prevLength = environments.length;
+    environments[name] = def;
+    _envCount += environments.length - prevLength;
   }
 
   /// Registers a custom color in the current or global scope.
   void defineColor(String name, String resolvedHex, {bool global = false}) {
-    _targetScope(global: global).colors[name.toLowerCase()] = resolvedHex;
+    final Map<String, String> colors = _targetScope(global: global).colors;
+    final int prevLength = colors.length;
+    colors[name.toLowerCase()] = resolvedHex;
+    _colorCount += colors.length - prevLength;
   }
 
   TexScopeFrame _targetScope({required bool global}) {
     if (!global) {
+      _flushPendingBraces();
       return _scopes.last;
     }
     for (int i = _scopes.length - 1; i >= 1; i--) {
@@ -306,6 +380,28 @@ final class TexMacroTable {
       }
     }
     return _scopes.first;
+  }
+
+  void _flushPendingBraces() {
+    while (_pendingEmptyBraces > 0) {
+      _scopes.add(TexScopeFrame());
+      _pendingEmptyBraces--;
+    }
+  }
+
+  void _subtractFrameCounts(TexScopeFrame frame) {
+    final Map<String, TexMacroEntry>? macros = frame._macros;
+    if (macros != null) {
+      _macroCount -= macros.length;
+    }
+    final Map<String, TexUserEnvDef>? environments = frame._environments;
+    if (environments != null) {
+      _envCount -= environments.length;
+    }
+    final Map<String, String>? colors = frame._colors;
+    if (colors != null) {
+      _colorCount -= colors.length;
+    }
   }
 }
 
@@ -441,7 +537,7 @@ final class TexTokenCursor {
     required this.source,
     required List<TexToken> initialTokens,
     required this.budgets,
-  }) : _pending = List<Object>.of(initialTokens.reversed);
+  }) : _pending = _reverseTokens(initialTokens);
 
   /// Raw UTF-16 input string (used for verbatim slicing and span validation).
   final String source;
@@ -613,4 +709,17 @@ final class TexTokenCursor {
 
 final class _EndMacroFrame {
   const _EndMacroFrame();
+}
+
+List<Object> _reverseTokens(List<TexToken> tokens) {
+  final int count = tokens.length;
+  final List<Object> reversed = List<Object>.filled(
+    count,
+    const _EndMacroFrame(),
+    growable: true,
+  );
+  for (int i = 0; i < count; i++) {
+    reversed[count - 1 - i] = tokens[i];
+  }
+  return reversed;
 }

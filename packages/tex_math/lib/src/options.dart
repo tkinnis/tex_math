@@ -274,6 +274,12 @@ final class TexMathOptions {
     );
   }
 
+  static final int _defaultPackagesHash = Object.hashAll(defaultPackages);
+  static final int _defaultAllowlistHash = Object.hashAll(
+    defaultRequireAllowlist,
+  );
+  static final int _emptyMacrosHash = Object.hashAllUnordered(const <int>[]);
+
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -289,13 +295,20 @@ final class TexMathOptions {
   @override
   int get hashCode => Object.hash(
     displayMode,
-    Object.hashAll(packages),
-    Object.hashAll(requireAllowlist),
-    Object.hashAllUnordered(
-      macros.entries.map(
-        (MapEntry<String, String> entry) => Object.hash(entry.key, entry.value),
-      ),
-    ),
+    identical(packages, defaultPackages)
+        ? _defaultPackagesHash
+        : Object.hashAll(packages),
+    identical(requireAllowlist, defaultRequireAllowlist)
+        ? _defaultAllowlistHash
+        : Object.hashAll(requireAllowlist),
+    macros.isEmpty
+        ? _emptyMacrosHash
+        : Object.hashAllUnordered(
+            macros.entries.map(
+              (MapEntry<String, String> entry) =>
+                  Object.hash(entry.key, entry.value),
+            ),
+          ),
     budgets,
     strictErrors,
     useOpticalScriptVariants,
@@ -334,6 +347,9 @@ bool _stringMapEquals(Map<String, String> a, Map<String, String> b) {
   }
   if (a.length != b.length) {
     return false;
+  }
+  if (a.isEmpty) {
+    return true;
   }
   for (final MapEntry<String, String> entry in a.entries) {
     if (!b.containsKey(entry.key) || b[entry.key] != entry.value) {
