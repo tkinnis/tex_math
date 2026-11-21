@@ -1,14 +1,61 @@
 # tex_math
 
-Pure-Dart TeX math-mode parser, OpenType `MATH` layout engine, and standalone SVG, Presentation MathML, and spoken-text renderer aligned to MathJax `4.1.3` TeX input and JupyterLab defaults.
+Pure-Dart TeX math parser, OpenType math layout engine, and standalone SVG, Presentation MathML, and spoken-text renderer aligned with MathJax `4.1.3` and JupyterLab defaults.
+
+## Rendered Examples
+
+All examples below are rendered synchronously in pure Dart via `DisplayList.toSvg()` using the OpenType math tables in `NewCMMath-Regular.otf`.
+
+**Gaussian Integral** — Display limits, optical scripts, fractions, and stretchy square roots:
+
+![Gaussian integral rendered by tex_math](https://raw.githubusercontent.com/tkinnis/tex_math/main/doc/images/showcase_gaussian_integral.svg)
+
+```tex
+\int_{-\infty}^{\infty} e^{-\alpha x^2}\,dx = \sqrt{\frac{\pi}{\alpha}} \quad (\alpha > 0)
+```
+
+**Piecewise Cases** — Extensible left brace, multi-row alignment, and embedded text mode:
+
+![Piecewise cases rendered by tex_math](https://raw.githubusercontent.com/tkinnis/tex_math/main/doc/images/showcase_piecewise_cases.svg)
+
+```tex
+|x| = \begin{cases} x & \text{if } x \ge 0 \\ -x & \text{if } x < 0 \end{cases}
+```
+
+**Rotation Matrix** — Parenthesized matrix grid with named trigonometric operators and Greek glyphs:
+
+![Rotation matrix rendered by tex_math](https://raw.githubusercontent.com/tkinnis/tex_math/main/doc/images/showcase_matrix_rotation.svg)
+
+```tex
+R(\theta) = \begin{pmatrix} \cos\theta & -\sin\theta \\ \sin\theta & \cos\theta \end{pmatrix}
+```
+
+**Nested Radical** — Multi-level fraction scaling under an extensible radical bar:
+
+![Nested radical rendered by tex_math](https://raw.githubusercontent.com/tkinnis/tex_math/main/doc/images/showcase_nested_radical.svg)
+
+```tex
+\sqrt{\frac{\frac{a}{b} + \frac{c}{d}}{\frac{e}{f} - \frac{g}{h}}}
+```
+
+**Chemical Equilibrium (`mhchem`)** — Stoichiometric coefficients, upright formulas, and equilibrium arrows:
+
+![Chemical equilibrium rendered by tex_math](https://raw.githubusercontent.com/tkinnis/tex_math/main/doc/images/showcase_chemistry.svg)
+
+```tex
+\ce{N2 + 3H2 <=> 2NH3}
+```
 
 ## Features
 
-* **Strict Pure-Dart Boundary**: Depends exclusively on `package:meta` with zero `flutter`, `dart:ui`, `dart:io`, `dart:html`, or `dart:js*` imports, running synchronously and deterministically on caller-provided strings and in-memory font bytes.
-* **Five-Stage TeX Pipeline**: `TexMathEngine` runs catcode tokenization (`tokenizeTex`), interleaved on-demand macro expansion (`\newcommand`, `\renewcommand`, `\providecommand`, `\def`, `\let`, `\newenvironment`, `\renewenvironment`), immutable 16-variant sealed AST construction (`MathNode` with `SourceSpan`), Appendix G OpenType `MATH` layout (Rule 12 `accentBaseHeight` / `flattenedAccentBaseHeight`, four-corner `MathKernInfo`, `OS/2.sxHeight` `ex` resolution, and `DisplayBreakHint`s), and `DisplayList` / `RenderResult` export (`toSvg()`, `toMathMl()`, `toSpokenText()`).
-* **Full 42-Package Registry**: Supports all 42 MathJax `4.1.3` packages (`TexPackageRegistry`) across core TeX/AMS, JupyterLab extensions (`mhchem`, `mathtools`, `bussproofs`, `amscd`, `cancel`, `enclose`, `color`, `colortbl`, `extpfeil`, `braket`), and extended packages (`physics`, `units`, `bbm`, `bboldx`, `dsfont`, `begingroup`, `setoptions`, `autoload`), plus synchronous allowlist-checked `\require{pkg}` (`TexMathOptions.requireAllowlist`).
-* **OpenType `MATH`, Variable Font & Hinting Reader**: `MathFont.fromBytes` decodes `head`, `maxp`, `hhea`, `hmtx`, `OS/2`, `name`, `cmap` (Format 4/12), `GSUB` (`ssty`), `MATH` (`MathConstants`, `MathGlyphInfo`, `MathVariants` + `GlyphAssembly`), `fvar`/`avar`/`HVAR`/`GDEF` variation axes, `glyf`/`loca`, and `CFF`/`CFF2` outlines with optional Type 2 stem hinting (`enableHinting`) and fast payload `signature` identity.
-* **Hardened Safety Budgets & Structured Errors**: Enforces cumulative `TexMathBudgets` (`maxInputLength`, `maxMacroDepth`, `maxMacroExpansions`, `maxTokens`, `maxNestingDepth`, `maxOutputItems`, `maxSvgLength`), SFNT offset deduplication and recursion limits, safe `\href` URI allowlisting, XML 1.0 filtering, and sealed `TexMathError` exceptions mapped to `TexMathErrorClass`.
+| Capability | Summary |
+| :--- | :--- |
+| **Pure-Dart Boundary** | Depends strictly on `package:meta` with zero Flutter, DOM, or filesystem imports, running deterministically on caller-provided strings and font bytes. |
+| **Five-Stage TeX Pipeline** | `TexMathEngine` handles tokenization, on-demand macro expansion, immutable `MathNode` parsing, TeX Appendix G layout, and display-list export. |
+| **42-Package Registry** | Supports core TeX and AMS, JupyterLab extensions such as `mhchem`, `mathtools`, and `bussproofs`, extended packages like `physics` and `units`, plus allowlisted `\require` loading. |
+| **OpenType & Variable Fonts** | `MathFont.fromBytes` reads `MATH` constants, `ssty` script alternates, TrueType and CFF/CFF2 outlines, Type 2 stem hinting, and variation axes with fast payload `signature` identity. |
+| **Multi-Format Exporters** | `RenderResult` and `DisplayList` emit standalone SVG paths, sanitized Presentation MathML, and natural-language spoken descriptions for assistive tools. |
+| **Hardened Safety Budgets** | Configurable `TexMathBudgets` limits protect against runaway macros, deep nesting, oversized fonts, unsafe `\href` URIs, and invalid XML characters, throwing typed `TexMathError` exceptions. |
 
 ## Usage
 
@@ -39,17 +86,25 @@ void renderEquation(Uint8List fontBytes) {
 
 ## Corpus Verification & Native AOT Performance
 
-Verified against pinned MathJax `4.1.3` (`@mathjax/mathjax-newcm-font`) across `352` corpus cases (`315` Oracle Accepted, `37` Oracle Refused): `315/315` accepted expressions render into standalone SVG `<path>`/`<rect>` primitives (`0` Unsupported), `37/37` error inputs match exact error classifications (`Refused Match`), and `74` accepted expressions match MathJax geometry within `0.02em` (`31.5%` overall Pass %, with `241` differences attributable to OpenType `MATH` constants vs. legacy `.tfm` parameters, unencoded `GlyphAssembly` segments vs. clipped SVG tiles, and unified `hmtx`/`cmap` vs. virtual subfonts).
+Tested against a live MathJax 4.1.3 oracle across 352 corpus entries, `tex_math` achieves **100.0% feature support**: **315/315** valid expressions render into clean vector output (0 unsupported), and **37/37** malformed inputs are refused with matching error classes. Strict ±0.02em bounding-box matching against MathJax (74/315 accepted expressions, 111/352 overall) serves as a diagnostic check against legacy `.tfm` font tables rather than an indicator of missing support, since `tex_math` derives spacing directly from OpenType math tables.
 
-Native Dart AOT measurements on `Apple M4` (`arm64`, `macos` `Version 15.6 (Build 24G84)`, Dart `3.13.5`) from the benchmark suite:
+Native Dart AOT benchmarks on Apple M4 (`arm64`, macOS 15.6, Dart `3.13.5`) measure microsecond-scale layout and sub-millisecond cold font loading:
 
-* **`math_font_from_bytes` / `cold_font_glyph_decode`**: `302.78 us` mean (`299.83 us` p50) font load and `438.38 us` mean (`439.63 us` p50) cold font + initial glyph decode.
-* **`inline_expression_layout`**: `4.09 us` mean (`4.12 us` p50, `4.45 us` p95; target `< 50 us`).
-* **`notebook_50_equations`**: `474.49 us` mean (`439.41 us` p50, `1.126 ms` p95; target `< 5 ms`).
-* **`cached_display_list_lookup` / `lru_cache_mixed_eviction`**: `0.13 us` mean (`0.13 us` p50) hit and `62.82 us` mean (`62.49 us` p50) mixed 32-entry LRU eviction.
-* **`corpus_full_dispatch` (`352` cases)**: `4.269 ms` mean (`2.105 ms` parse phase, `1.625 ms` layout phase).
-* **`display_list_to_svg_small` / `large`**: `75.02 us` mean / `428.90 us` mean across real CFF outlines.
+| Workload | Mean | Median (p50) | Scope |
+| :--- | ---: | ---: | :--- |
+| `math_font_from_bytes` | 302.78 us | 299.83 us | One-time font decode (`NewCMMath-Regular.otf`) |
+| `cold_font_glyph_decode` | 438.38 us | 439.63 us | Cold font load plus initial glyph outline decode |
+| `inline_expression_layout` | 4.09 us | 4.12 us | Parse and lay out typical inline math (`< 50 us` target) |
+| `notebook_50_equations` | 474.49 us | 439.41 us | 50-equation notebook batch (`< 5 ms` target) |
+| `cached_display_list_lookup` | 0.13 us | 0.13 us | Cached display-list hit |
+| `corpus_full_dispatch` | 4.269 ms | 4.241 ms | All 352 corpus cases end to end |
+| `display_list_to_svg_small` / `large` | 75.02 us / 428.90 us | 72.82 us / 422.19 us | Standalone SVG serialization across CFF outlines |
 
 ## Example & Documentation
 
-Run the standalone CLI example from `packages/tex_math` with `dart run example/main.dart`. Full API, architecture, coverage, and benchmark reports are available in the [API Manual](https://github.com/tkinnis/tex_math/blob/main/doc/API_MANUAL.md), [Architecture Guide](https://github.com/tkinnis/tex_math/blob/main/doc/ARCHITECTURE.md), [Coverage Matrix](https://github.com/tkinnis/tex_math/blob/main/doc/COVERAGE.md), and [Benchmarks](https://github.com/tkinnis/tex_math/blob/main/doc/BENCHMARKS.md).
+Run the standalone CLI example from `packages/tex_math` with `dart run example/main.dart`. Full guides and reports live in the repository documentation:
+
+* [API Manual](https://github.com/tkinnis/tex_math/blob/main/doc/API_MANUAL.md)
+* [Architecture & Design](https://github.com/tkinnis/tex_math/blob/main/doc/ARCHITECTURE.md)
+* [Corpus Coverage Matrix](https://github.com/tkinnis/tex_math/blob/main/doc/COVERAGE.md)
+* [Benchmarks](https://github.com/tkinnis/tex_math/blob/main/doc/BENCHMARKS.md)

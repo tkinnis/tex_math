@@ -1,15 +1,44 @@
 # tex_math_flutter
 
-Flutter widgets, Material `ColorScheme` theming, bundled `NewCMMath-Regular.otf` (`8.1.1`) OpenType `MATH` font assets, cached vector glyph `Path` painting, baseline-aligned `WidgetSpan` integration, `"copy as LaTeX"` sub-expression selection, and persistent background isolate layout for `tex_math`.
+Flutter rendering widgets, Material `ColorScheme` theming, bundled `NewCMMath-Regular.otf` (`8.1.1`) font assets, cached vector glyph painting, baseline-aligned inline spans, copy-as-LaTeX selection, and persistent background isolate layout for `tex_math`.
 
-## Features
+## Rendered Examples
 
-* **Single-Import Convenience**: `package:tex_math_flutter/tex_math_flutter.dart` re-exports core `tex_math` public types (`TexMathDisplayMode`, `TexMathOptions`, `TexMathBudgets`, `TexMathEngine`, `MathFont`, `DisplayList`, `RenderResult`, `TexMathError`, etc.) alongside the Flutter rendering API.
-* **`TexMath` & `TexMathSpan`**: Display, inline, and `TexMath.displayList` widgets plus `WidgetSpan` (`PlaceholderAlignment.baseline`, `TextBaseline.alphabetic` and `ideographic` support, proportional `scaleToFit` baseline scaling, and `textStyle > TexMathTheme > DefaultTextStyle > fallback` font-size precedence). Auto-loads and decodes `NewCMMath-Regular.otf` off the UI thread (`TexMathFontBundle.loadMathFont()`) once per lifecycle without double-parsing, enforces `TexMathOverflow` policies (`scroll`, `scaleToFit`, `clip`, `visible`), exposes cached spoken-text `Semantics`, and supports lazy `"copy as LaTeX"` sub-expression selection (`TexMathSelectionUtils`).
-* **`TexMathDisplayPainter` & `TexMathPathCache`**: Bounded LRU `dart:ui.Path` cache (`TexMathPathCache.shared`) keyed by `(fontSignature, glyphId, ppemBucket?)` (with `GlyphOutline` fallback) plus bounded fallback `TextPainter` caching so `TexMathTheme` color updates and isolate-laid-out expressions repaint without re-running TeX layout or rebuilding glyph paths.
-* **`TexMathTheme` & `TexMathThemeData`**: Inherited theming mapping `TexMathColorRole` values (`foreground`, `accent`, `error`, `muted`, `custom`) to Material `ColorScheme`s.
-* **`TexMathIsolateLayouter`**: Persistent background `Isolate` worker (`withBundledFont`, `warmUp`, `dispose`) with single-transfer font initialization, worker-side font caching by `signature`, in-flight deduplication across custom fonts, bounded 256-entry LRU caching keyed by `TexMathLayoutCacheKey(source, options, fontId, fontSignature)`, and `onExit`/`onError` crash recovery.
-* **`TexMathErrorWidget`**: Monospace diagnostic fallback displaying the original TeX source alongside structured `TexMathError` messages with accessible semantics (`excludeSemantics: true`) and `SelectionContainer.disabled` respect when `selectable` is `false`.
+`TexMath` and `TexMathSpan` paint the exact pure-Dart vector layouts below onto Flutter's canvas using cached glyph paths and OpenType math typography.
+
+**Gaussian Integral** — Display limits, optical scripts, fractions, and stretchy square roots:
+
+![Gaussian integral rendered by tex_math](https://raw.githubusercontent.com/tkinnis/tex_math/main/doc/images/showcase_gaussian_integral.svg)
+
+**Piecewise Cases** — Extensible left brace, multi-row alignment, and embedded text mode:
+
+![Piecewise cases rendered by tex_math](https://raw.githubusercontent.com/tkinnis/tex_math/main/doc/images/showcase_piecewise_cases.svg)
+
+**Rotation Matrix** — Parenthesized matrix grid with named trigonometric operators and Greek symbols:
+
+![Rotation matrix rendered by tex_math](https://raw.githubusercontent.com/tkinnis/tex_math/main/doc/images/showcase_matrix_rotation.svg)
+
+**Nested Radical** — Multi-level fraction scaling under an extensible radical bar:
+
+![Nested radical rendered by tex_math](https://raw.githubusercontent.com/tkinnis/tex_math/main/doc/images/showcase_nested_radical.svg)
+
+**Chemical Equilibrium (`mhchem`)** — Stoichiometric coefficients, upright formulas, and equilibrium arrows:
+
+![Chemical equilibrium rendered by tex_math](https://raw.githubusercontent.com/tkinnis/tex_math/main/doc/images/showcase_chemistry.svg)
+
+## Features & API Overview
+
+Import `package:tex_math_flutter/tex_math_flutter.dart` to access both the Flutter rendering suite and core `tex_math` configuration, engine, font, and error types from one barrel file.
+
+| Component | Role |
+| :--- | :--- |
+| `TexMath` | Renders block or inline equations (or a pre-computed display list) with configurable `TexMathOverflow` policies, spoken-text accessibility semantics, and `"copy as LaTeX"` selection support. |
+| `TexMathSpan` | Baseline-aligned `WidgetSpan` for embedding inline TeX inside `Text.rich` and `RichText` with proportional scaling when `scaleToFit` is active. |
+| `TexMathTheme` & `TexMathThemeData` | Inherited theme mapping semantic color roles to a Material `ColorScheme`, supporting zero-relayout light/dark repaints. |
+| `TexMathPathCache` | Bounded LRU cache for Flutter `Path` glyph geometry keyed by font signature and glyph ID, keeping isolate-laid-out repaints fast. |
+| `TexMathFontBundle` | Loads and decodes the bundled `NewCMMath-Regular.otf` asset once per lifecycle off the UI thread. |
+| `TexMathIsolateLayouter` | Persistent background worker isolate featuring single-transfer font initialization, in-flight deduplication, bounded 256-entry LRU caching, and automatic crash recovery. |
+| `TexMathErrorWidget` | Monospace fallback widget displaying the original TeX input alongside structured error diagnostics with accessible semantics. |
 
 ## Usage
 
@@ -49,7 +78,11 @@ Widget buildMathShowcase(BuildContext context) {
 
 ## Corpus Coverage & Performance
 
-`tex_math_flutter` renders output from the `tex_math` pure-Dart engine, verified across `352` corpus cases (`315/315` accepted expressions rendered into vector primitives with `0` Unsupported and `37/37` error-class refusals matched against MathJax `4.1.3`). On `Apple M4` native Dart AOT, core engine workloads measure `4.09 us` mean (`4.45 us` p95) for inline expressions (`< 50 us` target), `474.49 us` mean (`1.126 ms` p95) for 50-equation notebook batches (`< 5 ms` target), `0.13 us` mean (`0.16 us` p95) for cached expression lookups, and `302.78 us` mean for one-time `NewCMMath-Regular.otf` decoding, paired with zero-relayout theme repaints via `TexMathPathCache` and off-thread rendering via `TexMathIsolateLayouter`. Full documentation is available in the [API Manual](https://github.com/tkinnis/tex_math/blob/main/doc/API_MANUAL.md), [Architecture Guide](https://github.com/tkinnis/tex_math/blob/main/doc/ARCHITECTURE.md), and [Benchmarks](https://github.com/tkinnis/tex_math/blob/main/doc/BENCHMARKS.md).
+`tex_math_flutter` paints layouts generated by `tex_math`, which achieves **100.0% feature support** across all 42 MathJax `4.1.3` packages (**315/315** valid corpus expressions rendered with `0` unsupported, and **37/37** error refusals matched).
+
+On Apple M4 native Dart AOT, the underlying engine measures 4.09 us mean (4.45 us p95) for inline expressions, 474.49 us mean (1.126 ms p95) for 50-equation notebooks, 0.13 us mean for cached lookups, and 302.78 us mean for one-time font decoding. Combined with `TexMathPathCache` and `TexMathIsolateLayouter`, Flutter UI frames remain smooth even across large equation-heavy documents.
+
+Full documentation is available in the [API Manual](https://github.com/tkinnis/tex_math/blob/main/doc/API_MANUAL.md), [Architecture Guide](https://github.com/tkinnis/tex_math/blob/main/doc/ARCHITECTURE.md), and [Benchmarks](https://github.com/tkinnis/tex_math/blob/main/doc/BENCHMARKS.md).
 
 ## License
 

@@ -1,8 +1,8 @@
 # Benchmarks (Native AOT Baseline)
 
-These timings are measured from a self-compiled native AOT executable built with `dart compile exe tool/benchmark_suite.dart` against the `tex_math` OpenType `MATH` font reader, TeX parser and macro expander, Appendix G layout engine, and `DisplayList.toSvg()` pipeline across 352 corpus cases.
+These timings come from a self-compiled native AOT binary built with `dart compile exe tool/benchmark_suite.dart` and exercised against the pure-Dart engine across all 352 corpus cases.
 
-Measurements cover one-time OpenType font decoding (`MathFont.fromBytes` on `NewCMMath-Regular.otf`), cold font plus initial glyph decoding, representative inline expression layout, tier-stratified 50-equation notebook batch layout, warm and mixed-eviction `(source, TexMathOptions, fontSignature)` LRU cache lookups, phase-split corpus parse and layout timings, real CFF `DisplayList.toSvg()` serialization, `TexMathBudgets` input-guard enforcement, and `ProcessInfo.currentRss` memory telemetry.
+Measurements cover one-time OpenType font decoding, cold font plus initial glyph decoding, inline expression layout, 50-equation notebook batch layout, warm and mixed-eviction LRU cache lookups, phase-split parse and layout timings, real CFF SVG serialization, `TexMathBudgets` input checks, and process RSS memory telemetry.
 
 ## Host Environment
 
@@ -45,7 +45,7 @@ xychart-beta
 
 ## Target vs Measured Performance
 
-The table below compares target performance budgets against live native AOT measurements across parsing, OpenType `MATH` layout, and cached expression retrieval. Flutter `TexMathPathCache` + `TexMathTheme` zero-relayout repaint and `TexMathIsolateLayouter` background caching are also verified by `packages/tex_math_flutter` widget tests.
+The table below compares target performance budgets against live native AOT measurements across parsing, OpenType math layout, and cached expression retrieval. Zero-relayout theme repaints via `TexMathPathCache` and background isolate caching via `TexMathIsolateLayouter` are also verified by the `packages/tex_math_flutter` widget test suite.
 
 | Workload | Target | Measured (p50 / p95) | Scope | Status |
 | :--- | :--- | ---: | :--- | :--- |
