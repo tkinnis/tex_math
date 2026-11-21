@@ -132,8 +132,8 @@ When comparing exact bounding boxes against MathJax 4.1.3, `Strict ±0.02em` act
 | Tier | Rendered | Refused Match | Unsupported | Total | Supported | Strict ±0.02em* |
 | :--- | ---: | ---: | ---: | ---: | ---: | ---: |
 | Tier 1 (Core TeX, AMS, Macros, Textmacros, Tag/ConfigMacros) | 125 | 0 | 0 | 125 | 100.0% | 38 / 125 (30.4%) |
-| Tier 2 (JupyterLab Standard Extensions) | 105 | 0 | 0 | 105 | 100.0% | 26 / 105 (24.8%) |
-| Tier 3 (Remaining MathJax 4 Extensions) | 35 | 0 | 0 | 35 | 100.0% | 7 / 35 (20.0%) |
+| Tier 2 (JupyterLab Standard Extensions) | 105 | 0 | 0 | 105 | 100.0% | 27 / 105 (25.7%) |
+| Tier 3 (Remaining MathJax 4 Extensions) | 35 | 0 | 0 | 35 | 100.0% | 6 / 35 (17.1%) |
 | Stretchy (Delimiters, Radicals, Braces, Wide Accents) | 25 | 0 | 0 | 25 | 100.0% | 3 / 25 (12.0%) |
 | Notebooks (Physics, Calculus, Linear Algebra, ML, Chemistry) | 25 | 0 | 0 | 25 | 100.0% | 0 / 25 (0.0%) |
 | Errors (Malformed Inputs & Macro/Delimiter Violations) | 0 | 37 | 0 | 37 | 100.0% | — |

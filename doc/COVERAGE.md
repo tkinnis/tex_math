@@ -31,8 +31,8 @@ MathJax `4.1.3` is used as a differential test oracle, and `Strict ±0.02em` tra
 | Tier | Rendered | Refused Match | Unsupported | Total | Supported | Strict ±0.02em* |
 | :--- | ---: | ---: | ---: | ---: | ---: | ---: |
 | Tier 1 | 125 | 0 | 0 | 125 | 100.0% | 38 / 125 (30.4%) |
-| Tier 2 | 105 | 0 | 0 | 105 | 100.0% | 26 / 105 (24.8%) |
-| Tier 3 | 35 | 0 | 0 | 35 | 100.0% | 7 / 35 (20.0%) |
+| Tier 2 | 105 | 0 | 0 | 105 | 100.0% | 27 / 105 (25.7%) |
+| Tier 3 | 35 | 0 | 0 | 35 | 100.0% | 6 / 35 (17.1%) |
 | Stretchy | 25 | 0 | 0 | 25 | 100.0% | 3 / 25 (12.0%) |
 | Notebooks | 25 | 0 | 0 | 25 | 100.0% | 0 / 25 (0.0%) |
 | Errors | 0 | 37 | 0 | 37 | 100.0% | — |
@@ -50,10 +50,10 @@ MathJax `4.1.3` is used as a differential test oracle, and `Strict ±0.02em` tra
 | `autoload` | Tier 3 | 2 | 0 | 0 | 2 | 100.0% | 0 / 2 (0.0%) |
 | `base` | Tier 1, Stretchy, Notebooks, Errors | 102 | 25 | 0 | 127 | 100.0% | 17 / 102 (16.7%) |
 | `bbm` | Tier 3 | 3 | 0 | 0 | 3 | 100.0% | 0 / 3 (0.0%) |
-| `bboldx` | Tier 3 | 3 | 0 | 0 | 3 | 100.0% | 2 / 3 (66.7%) |
+| `bboldx` | Tier 3 | 3 | 0 | 0 | 3 | 100.0% | 1 / 3 (33.3%) |
 | `bbox` | Tier 2 | 4 | 0 | 0 | 4 | 100.0% | 2 / 4 (50.0%) |
 | `begingroup` | Tier 3 | 3 | 0 | 0 | 3 | 100.0% | 3 / 3 (100.0%) |
-| `boldsymbol` | Tier 2 | 4 | 0 | 0 | 4 | 100.0% | 0 / 4 (0.0%) |
+| `boldsymbol` | Tier 2 | 4 | 0 | 0 | 4 | 100.0% | 1 / 4 (25.0%) |
 | `braket` | Tier 2 | 5 | 0 | 0 | 5 | 100.0% | 1 / 5 (20.0%) |
 | `bussproofs` | Tier 2 | 4 | 0 | 0 | 4 | 100.0% | 0 / 4 (0.0%) |
 | `cancel` | Tier 2 | 4 | 0 | 0 | 4 | 100.0% | 0 / 4 (0.0%) |
@@ -133,7 +133,7 @@ MathJax `4.1.3` is used as a differential test oracle, and `Strict ±0.02em` tra
 | Tier 2 | `action` | `interactive` | 4 | 0 | 0 | 4 | 100.0% | 3 / 4 (75.0%) |
 | Tier 2 | `amscd` | `commutative_diagram` | 4 | 0 | 0 | 4 | 100.0% | 0 / 4 (0.0%) |
 | Tier 2 | `bbox` | `boxing` | 4 | 0 | 0 | 4 | 100.0% | 2 / 4 (50.0%) |
-| Tier 2 | `boldsymbol` | `bold_math` | 4 | 0 | 0 | 4 | 100.0% | 0 / 4 (0.0%) |
+| Tier 2 | `boldsymbol` | `bold_math` | 4 | 0 | 0 | 4 | 100.0% | 1 / 4 (25.0%) |
 | Tier 2 | `braket` | `dirac_notation` | 4 | 0 | 0 | 4 | 100.0% | 1 / 4 (25.0%) |
 | Tier 2 | `braket` | `set_notation` | 1 | 0 | 0 | 1 | 100.0% | 0 / 1 (0.0%) |
 | Tier 2 | `bussproofs` | `proof_trees` | 4 | 0 | 0 | 4 | 100.0% | 0 / 4 (0.0%) |
@@ -170,7 +170,7 @@ MathJax `4.1.3` is used as a differential test oracle, and `Strict ±0.02em` tra
 | Tier 2 | `verb` | `verbatim` | 3 | 0 | 0 | 3 | 100.0% | 0 / 3 (0.0%) |
 | Tier 3 | `autoload` | `autoloading` | 2 | 0 | 0 | 2 | 100.0% | 0 / 2 (0.0%) |
 | Tier 3 | `bbm` | `blackboard_fonts` | 3 | 0 | 0 | 3 | 100.0% | 0 / 3 (0.0%) |
-| Tier 3 | `bboldx` | `blackboard_fonts` | 3 | 0 | 0 | 3 | 100.0% | 2 / 3 (66.7%) |
+| Tier 3 | `bboldx` | `blackboard_fonts` | 3 | 0 | 0 | 3 | 100.0% | 1 / 3 (33.3%) |
 | Tier 3 | `begingroup` | `scoped_macros` | 3 | 0 | 0 | 3 | 100.0% | 3 / 3 (100.0%) |
 | Tier 3 | `colorv2` | `coloring` | 3 | 0 | 0 | 3 | 100.0% | 2 / 3 (66.7%) |
 | Tier 3 | `dsfont` | `blackboard_fonts` | 3 | 0 | 0 | 3 | 100.0% | 0 / 3 (0.0%) |

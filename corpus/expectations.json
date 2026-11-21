@@ -24138,7 +24138,7 @@
       "display": true,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "differs",
+      "texMathStatus": "pass",
       "box": {
         "width": 4.9046,
         "height": 0.683,
@@ -32151,7 +32151,7 @@
       ],
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "pass",
+      "texMathStatus": "differs",
       "box": {
         "width": 1.79,
         "height": 0.716,
