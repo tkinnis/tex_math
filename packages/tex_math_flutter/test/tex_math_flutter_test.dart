@@ -34,7 +34,9 @@ void main() {
         expect(firstAsset.familyName, 'NewComputerModernMath');
         expect(firstAsset.licenseText, contains('GUST Font License'));
 
-        final MathFont firstFont = await TexMathFontBundle.loadMathFont();
+        final MathFont firstFont = (await tester.runAsync(
+          TexMathFontBundle.loadMathFont,
+        ))!;
         final MathFont secondFont = await TexMathFontBundle.loadMathFont();
 
         expect(identical(firstFont, secondFont), isTrue);
@@ -346,6 +348,7 @@ void main() {
         final TexMathIsolateLayouter layouter = await tester.runAsync(
           () => TexMathIsolateLayouter.withBundledFont(maxCacheEntries: 8),
         ) as TexMathIsolateLayouter;
+        addTearDown(layouter.dispose);
 
         await tester.runAsync(() => layouter.warmUp());
         expect(layouter.isWorkerRunning, isTrue);

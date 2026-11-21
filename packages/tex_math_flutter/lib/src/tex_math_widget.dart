@@ -183,6 +183,8 @@ final class TexMath extends StatefulWidget {
 final class _TexMathState extends State<TexMath> {
   MathFont? _bundledFont;
   RenderResult? _renderResult;
+  RenderResult? _spokenLabelSource;
+  String? _cachedSpokenLabel;
   TexMathError? _error;
   bool _isLoading = false;
   int _layoutToken = 0;
@@ -206,13 +208,16 @@ final class _TexMathState extends State<TexMath> {
   @override
   void didUpdateWidget(TexMath oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (widget.semanticsLabel != oldWidget.semanticsLabel) {
+      _spokenLabelSource = null;
+      _cachedSpokenLabel = null;
+    }
     final bool layoutInputsChanged =
         widget.displayList != oldWidget.displayList ||
         widget.source != oldWidget.source ||
         widget.displayMode != oldWidget.displayMode ||
         widget.options != oldWidget.options ||
-        widget.engine.defaultOptions != oldWidget.engine.defaultOptions ||
-        widget.engine.font != oldWidget.engine.font ||
+        widget.engine != oldWidget.engine ||
         widget.font != oldWidget.font ||
         !identical(widget.layouter, oldWidget.layouter);
 
@@ -221,11 +226,19 @@ final class _TexMathState extends State<TexMath> {
     }
   }
 
+  void _setRenderResult(RenderResult? result) {
+    _renderResult = result;
+    if (!identical(_spokenLabelSource, result)) {
+      _spokenLabelSource = null;
+      _cachedSpokenLabel = null;
+    }
+  }
+
   void _prepareLayout() {
     final int token = ++_layoutToken;
 
     if (widget.displayList != null) {
-      _renderResult = null;
+      _setRenderResult(null);
       _error = null;
       _isLoading = false;
       return;
@@ -235,17 +248,21 @@ final class _TexMathState extends State<TexMath> {
     final TexMathIsolateLayouter? layouter = widget.layouter;
 
     if (layouter != null) {
+      final MathFont? explicitFont = _explicitFont;
+      final MathFont? cacheLookupFont =
+          explicitFont ?? (!layouter.hasFontBytes ? _resolvedFont : null);
       final RenderResult? cached = layouter.getCached(
         widget.source,
         options: effectiveOptions,
+        font: cacheLookupFont,
       );
       if (cached != null) {
-        _renderResult = cached;
+        _setRenderResult(cached);
         _error = null;
         _isLoading = false;
         return;
       }
-      _renderResult = null;
+      _setRenderResult(null);
       _error = null;
       _isLoading = true;
       unawaited(
@@ -253,6 +270,7 @@ final class _TexMathState extends State<TexMath> {
           token: token,
           layouter: layouter,
           options: effectiveOptions,
+          explicitFont: explicitFont,
         ),
       );
       return;
@@ -264,19 +282,29 @@ final class _TexMathState extends State<TexMath> {
       return;
     }
 
+    final MathNode parsedTree;
     try {
-      widget.engine.parse(widget.source, options: effectiveOptions);
+      parsedTree = widget.engine.parse(
+        widget.source,
+        options: effectiveOptions,
+      );
     } on TexMathError catch (error) {
-      _renderResult = null;
+      _setRenderResult(null);
       _error = error;
       _isLoading = false;
       return;
     }
 
-    _renderResult = null;
+    _setRenderResult(null);
     _error = null;
     _isLoading = true;
-    unawaited(_loadFontAndLayout(token: token, options: effectiveOptions));
+    unawaited(
+      _loadFontAndLayout(
+        token: token,
+        syntaxTree: parsedTree,
+        options: effectiveOptions,
+      ),
+    );
   }
 
   void _runSyncLayout({
@@ -285,15 +313,41 @@ final class _TexMathState extends State<TexMath> {
   }) {
     try {
       widget.debugOnLayout?.call();
-      _renderResult = widget.engine.render(
-        widget.source,
-        options: options,
-        font: font,
+      _setRenderResult(
+        widget.engine.render(widget.source, options: options, font: font),
       );
       _error = null;
       _isLoading = false;
     } on TexMathError catch (error) {
-      _renderResult = null;
+      _setRenderResult(null);
+      _error = error;
+      _isLoading = false;
+    }
+  }
+
+  void _runLayoutFromTree({
+    required MathNode syntaxTree,
+    required MathFont font,
+    required TexMathOptions options,
+  }) {
+    try {
+      widget.debugOnLayout?.call();
+      final DisplayList displayList = widget.engine.layout(
+        syntaxTree,
+        options: options,
+        font: font,
+      );
+      _setRenderResult(
+        RenderResult(
+          displayList: displayList,
+          syntaxTree: syntaxTree,
+          source: widget.source,
+        ),
+      );
+      _error = null;
+      _isLoading = false;
+    } on TexMathError catch (error) {
+      _setRenderResult(null);
       _error = error;
       _isLoading = false;
     }
@@ -301,6 +355,7 @@ final class _TexMathState extends State<TexMath> {
 
   Future<void> _loadFontAndLayout({
     required int token,
+    required MathNode syntaxTree,
     required TexMathOptions options,
   }) async {
     try {
@@ -310,14 +365,18 @@ final class _TexMathState extends State<TexMath> {
       }
       setState(() {
         _bundledFont = loadedFont;
-        _runSyncLayout(font: loadedFont, options: options);
+        _runLayoutFromTree(
+          syntaxTree: syntaxTree,
+          font: loadedFont,
+          options: options,
+        );
       });
     } on TexMathError catch (error) {
       if (!mounted || token != _layoutToken) {
         return;
       }
       setState(() {
-        _renderResult = null;
+        _setRenderResult(null);
         _error = error;
         _isLoading = false;
       });
@@ -326,7 +385,7 @@ final class _TexMathState extends State<TexMath> {
         return;
       }
       setState(() {
-        _renderResult = null;
+        _setRenderResult(null);
         _error = TexMathFontError('Unable to load bundled math font: $error');
         _isLoading = false;
       });
@@ -337,29 +396,35 @@ final class _TexMathState extends State<TexMath> {
     required int token,
     required TexMathIsolateLayouter layouter,
     required TexMathOptions options,
+    required MathFont? explicitFont,
   }) async {
     try {
-      TexMathEngine effectiveEngine = widget.engine;
-      if (!layouter.hasFontBytes && effectiveEngine.font == null) {
-        final MathFont font =
-            _resolvedFont ?? await TexMathFontBundle.loadMathFont();
-        _bundledFont ??= font;
-        effectiveEngine = TexMathEngine(
-          defaultOptions: widget.engine.defaultOptions,
-          font: font,
-        );
+      MathFont? effectiveFont = explicitFont;
+      if (!layouter.hasFontBytes && effectiveFont == null) {
+        final MathFont? resolved = _resolvedFont;
+        if (resolved != null) {
+          effectiveFont = resolved;
+        } else {
+          final MathFont loadedFont = await TexMathFontBundle.loadMathFont();
+          if (!mounted || token != _layoutToken) {
+            return;
+          }
+          _bundledFont = loadedFont;
+          effectiveFont = loadedFont;
+        }
       }
       widget.debugOnLayout?.call();
       final RenderResult result = await layouter.renderInBackground(
         widget.source,
         options: options,
-        engine: effectiveEngine,
+        engine: widget.engine,
+        font: effectiveFont,
       );
       if (!mounted || token != _layoutToken) {
         return;
       }
       setState(() {
-        _renderResult = result;
+        _setRenderResult(result);
         _error = null;
         _isLoading = false;
       });
@@ -368,7 +433,7 @@ final class _TexMathState extends State<TexMath> {
         return;
       }
       setState(() {
-        _renderResult = null;
+        _setRenderResult(null);
         _error = error;
         _isLoading = false;
       });
@@ -377,7 +442,7 @@ final class _TexMathState extends State<TexMath> {
         return;
       }
       setState(() {
-        _renderResult = null;
+        _setRenderResult(null);
         _error = TexMathFontError('Background layout failed: $error');
         _isLoading = false;
       });
@@ -386,12 +451,29 @@ final class _TexMathState extends State<TexMath> {
 
   @override
   Widget build(BuildContext context) {
-    final TexMathThemeData theme = TexMathTheme.of(context);
-    final TextStyle mergedStyle = DefaultTextStyle.of(context).style
-        .merge(widget.textStyle);
-    final double baseSize = mergedStyle.fontSize ?? theme.fontSize;
-    final double scaledFontSize = MediaQuery.textScalerOf(context)
+    final TexMathThemeData? inheritedTheme = TexMathTheme.maybeOf(context);
+    final TexMathThemeData baseTheme =
+        inheritedTheme ??
+        TexMathThemeData.fromColorScheme(Theme.of(context).colorScheme);
+    final Color? textStyleColor = widget.textStyle?.color;
+    final TexMathThemeData theme = textStyleColor != null
+        ? baseTheme.copyWith(foreground: textStyleColor)
+        : baseTheme;
+    final double candidateSize =
+        widget.textStyle?.fontSize ??
+        inheritedTheme?.fontSize ??
+        DefaultTextStyle.of(context).style.fontSize ??
+        theme.fontSize;
+    final double baseSize = resolveSafeTexMathFontSize(
+      candidateSize,
+      theme: theme,
+    );
+    final double rawScaledFontSize = MediaQuery.textScalerOf(context)
         .scale(baseSize);
+    final double scaledFontSize = resolveSafeTexMathFontSize(
+      rawScaledFontSize,
+      theme: theme,
+    );
 
     final TexMathError? activeError = _error;
     if (activeError != null) {
@@ -504,6 +586,7 @@ final class _TexMathState extends State<TexMath> {
     required TexMathPathCache pathCache,
     required SelectionRegistrar? registrar,
   }) {
+    final TexMathOverflow overflowPolicy = widget.effectiveOverflow;
     final Widget leaf = TexMathRenderLeaf(
       displayList: list,
       syntaxTree: syntaxTree,
@@ -514,6 +597,7 @@ final class _TexMathState extends State<TexMath> {
       font: font,
       pathCache: pathCache,
       registrar: registrar,
+      allowVisualOverflow: overflowPolicy == TexMathOverflow.visible,
     );
 
     final Widget baselineAligned = Baseline(
@@ -522,7 +606,7 @@ final class _TexMathState extends State<TexMath> {
       child: leaf,
     );
 
-    switch (widget.effectiveOverflow) {
+    switch (overflowPolicy) {
       case TexMathOverflow.scroll:
         return TexMathBaselineProxy(
           baseline: baseline,
@@ -559,8 +643,12 @@ final class _TexMathState extends State<TexMath> {
       return explicit;
     }
     if (result != null) {
-      final String spoken = result.toSpokenText().trim();
-      if (spoken.isNotEmpty) {
+      if (!identical(_spokenLabelSource, result)) {
+        _spokenLabelSource = result;
+        _cachedSpokenLabel = result.toSpokenText().trim();
+      }
+      final String? spoken = _cachedSpokenLabel;
+      if (spoken != null && spoken.isNotEmpty) {
         return spoken;
       }
     }

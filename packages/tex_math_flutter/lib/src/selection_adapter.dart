@@ -300,10 +300,15 @@ final class TexMathBaselineProxy extends SingleChildRenderObjectWidget {
 }
 
 /// Proxy render box forwarding [baseline] across scrollable or scaled wrappers.
+///
+/// For [TextBaseline.alphabetic], reports [baseline] (scaled down proportionally
+/// when wrapping a [RenderFittedBox]). For [TextBaseline.ideographic], reports
+/// the bottom of the scaled or unscaled math bounding box.
 final class RenderTexMathBaselineProxy extends RenderProxyBox {
-  /// Creates a baseline proxy reporting [_baseline].
+  /// Creates a baseline proxy reporting [baseline].
   RenderTexMathBaselineProxy(this._baseline);
 
+  /// Alphabetic baseline offset from the top of the unscaled child box.
   double get baseline => _baseline;
   double _baseline;
   set baseline(double value) {
@@ -316,7 +321,27 @@ final class RenderTexMathBaselineProxy extends RenderProxyBox {
 
   @override
   double? computeDistanceToActualBaseline(TextBaseline baseline) {
-    return this.baseline;
+    final RenderBox? child = this.child;
+    if (child is RenderFittedBox) {
+      final RenderBox? innerChild = child.child;
+      if (innerChild != null && child.hasSize && innerChild.hasSize) {
+        final double rawBaseline = baseline == TextBaseline.alphabetic
+            ? this.baseline
+            : (innerChild.getDistanceToActualBaseline(baseline) ??
+                  innerChild.size.height);
+        return _computeFittedBaseline(
+          fittedBox: child,
+          childSize: innerChild.size,
+          boxSize: child.size,
+          rawBaseline: rawBaseline,
+        );
+      }
+    }
+    if (baseline == TextBaseline.alphabetic) {
+      return this.baseline;
+    }
+    return child?.getDistanceToActualBaseline(baseline) ??
+        (hasSize ? size.height : this.baseline);
   }
 
   @override
@@ -324,7 +349,58 @@ final class RenderTexMathBaselineProxy extends RenderProxyBox {
     covariant BoxConstraints constraints,
     TextBaseline baseline,
   ) {
-    return this.baseline;
+    final RenderBox? child = this.child;
+    if (child is RenderFittedBox) {
+      final RenderBox? innerChild = child.child;
+      if (innerChild != null) {
+        final Size childSize = innerChild.getDryLayout(const BoxConstraints());
+        final Size boxSize = child.getDryLayout(constraints);
+        final double rawBaseline = baseline == TextBaseline.alphabetic
+            ? this.baseline
+            : (innerChild.getDryBaseline(const BoxConstraints(), baseline) ??
+                  childSize.height);
+        return _computeFittedBaseline(
+          fittedBox: child,
+          childSize: childSize,
+          boxSize: boxSize,
+          rawBaseline: rawBaseline,
+        );
+      }
+    }
+    if (baseline == TextBaseline.alphabetic) {
+      return this.baseline;
+    }
+    return child?.getDryBaseline(constraints, baseline) ??
+        child?.getDryLayout(constraints).height ??
+        this.baseline;
+  }
+
+  static double _computeFittedBaseline({
+    required RenderFittedBox fittedBox,
+    required Size childSize,
+    required Size boxSize,
+    required double rawBaseline,
+  }) {
+    if (childSize.isEmpty || boxSize.isEmpty) {
+      return 0.0;
+    }
+    final FittedSizes fitted = applyBoxFit(fittedBox.fit, childSize, boxSize);
+    if (fitted.source.isEmpty || fitted.destination.isEmpty) {
+      return 0.0;
+    }
+    final double scaleY = fitted.destination.height / fitted.source.height;
+    final Alignment resolvedAlignment = fittedBox.alignment.resolve(
+      fittedBox.textDirection ?? TextDirection.ltr,
+    );
+    final Rect sourceRect = resolvedAlignment.inscribe(
+      fitted.source,
+      Offset.zero & childSize,
+    );
+    final Rect destRect = resolvedAlignment.inscribe(
+      fitted.destination,
+      Offset.zero & boxSize,
+    );
+    return destRect.top + (rawBaseline - sourceRect.top) * scaleY;
   }
 }
 
@@ -343,6 +419,7 @@ final class TexMathRenderLeaf extends LeafRenderObjectWidget {
     required this.font,
     required this.pathCache,
     required this.registrar,
+    this.allowVisualOverflow = false,
   });
 
   /// Laid-out display list to paint.
@@ -372,6 +449,10 @@ final class TexMathRenderLeaf extends LeafRenderObjectWidget {
   /// Active selection registrar when selectable, or `null`.
   final SelectionRegistrar? registrar;
 
+  /// Whether painted glyphs may extend beyond the layout box (`TexMathOverflow.visible`),
+  /// expanding hit-testing and selection [boundingBoxes] to the visual bounds.
+  final bool allowVisualOverflow;
+
   @override
   RenderObject createRenderObject(BuildContext context) {
     return RenderTexMath(
@@ -384,6 +465,7 @@ final class TexMathRenderLeaf extends LeafRenderObjectWidget {
       font,
       pathCache,
       registrar: registrar,
+      allowVisualOverflow: allowVisualOverflow,
     );
   }
 
@@ -401,6 +483,7 @@ final class TexMathRenderLeaf extends LeafRenderObjectWidget {
       ..baseline = baseline
       ..font = font
       ..pathCache = pathCache
+      ..allowVisualOverflow = allowVisualOverflow
       ..registrar = registrar;
   }
 }
@@ -418,8 +501,10 @@ final class _SelectableAtom {
 }
 
 /// Custom [RenderBox] painting [DisplayList] items via [TexMathDisplayPainter],
-/// exposing exact alphabetic baseline metrics, and implementing [Selectable]
-/// with AST-expanded `"copy as LaTeX"` sub-expression selection.
+/// exposing baseline metrics ([TextBaseline.alphabetic] for the math baseline
+/// and [TextBaseline.ideographic] for the bottom of the bounding box), and
+/// implementing [Selectable] with AST-expanded `"copy as LaTeX"` sub-expression
+/// selection.
 final class RenderTexMath extends RenderBox
     with Selectable, SelectionRegistrant {
   /// Creates a math render box.
@@ -433,8 +518,9 @@ final class RenderTexMath extends RenderBox
     this._font,
     this._pathCache, {
     required SelectionRegistrar? registrar,
-  }) {
-    _rebuildAtoms();
+    bool allowVisualOverflow = false,
+    // ignore: prefer_initializing_formals
+  }) : _allowVisualOverflow = allowVisualOverflow {
     _selectionGeometry = _buildSelectionGeometry();
     this.registrar = registrar;
   }
@@ -449,8 +535,12 @@ final class RenderTexMath extends RenderBox
   double _baseline;
   MathFont? _font;
   TexMathPathCache _pathCache;
+  bool _allowVisualOverflow;
 
   List<_SelectableAtom> _atoms = const <_SelectableAtom>[];
+  bool _atomsDirty = true;
+  int _debugAtomBuildCount = 0;
+
   bool _isAllSelected = false;
   Offset? _startAnchor;
   Offset? _endAnchor;
@@ -460,11 +550,17 @@ final class RenderTexMath extends RenderBox
   bool _endOutsideNext = false;
   SourceSpan? _explicitSpan;
   int? _cursorSourceOffset;
+  int? _rawSelectionStart;
+  int? _rawSelectionEnd;
 
   LayerLink? _startHandleLayerLink;
   LayerLink? _endHandleLayerLink;
 
   late SelectionGeometry _selectionGeometry;
+
+  /// Number of times selectable atom bounds have been rebuilt (for tests).
+  @visibleForTesting
+  int get debugAtomBuildCount => _debugAtomBuildCount;
 
   /// Laid-out display list rendered by this box.
   DisplayList get displayList => _displayList;
@@ -474,7 +570,7 @@ final class RenderTexMath extends RenderBox
     }
     _displayList = value;
     _clearSelectionState(notify: false);
-    _rebuildAtoms();
+    _invalidateAtoms();
     markNeedsLayout();
     _updateSelectionGeometry();
   }
@@ -519,7 +615,7 @@ final class RenderTexMath extends RenderBox
       return;
     }
     _fontSize = value;
-    _rebuildAtoms();
+    _invalidateAtoms();
     markNeedsLayout();
     _updateSelectionGeometry();
   }
@@ -534,15 +630,16 @@ final class RenderTexMath extends RenderBox
     markNeedsLayout();
   }
 
-  /// Active math font used for glyph path lookup.
+  /// Active math font used for glyph path and metric lookup.
   MathFont? get font => _font;
   set font(MathFont? value) {
     if (_font == value) {
       return;
     }
     _font = value;
-    _rebuildAtoms();
+    _invalidateAtoms();
     markNeedsPaint();
+    _updateSelectionGeometry();
   }
 
   /// Cache used for glyph [Path] construction.
@@ -552,20 +649,66 @@ final class RenderTexMath extends RenderBox
       return;
     }
     _pathCache = value;
-    _rebuildAtoms();
+    _invalidateAtoms();
     markNeedsPaint();
+    _updateSelectionGeometry();
+  }
+
+  /// Whether visual overflow is permitted beyond [size] (`TexMathOverflow.visible`),
+  /// aligning [boundingBoxes] and hit-testing with the overflowing paint box.
+  bool get allowVisualOverflow => _allowVisualOverflow;
+  set allowVisualOverflow(bool value) {
+    if (_allowVisualOverflow == value) {
+      return;
+    }
+    _allowVisualOverflow = value;
+    markNeedsPaint();
+    _updateSelectionGeometry();
   }
 
   String get _effectiveSource =>
       _source.isNotEmpty ? _source : (_displayList.source ?? '');
 
+  double get _effectiveFontSize =>
+      resolveSafeTexMathFontSize(_fontSize, theme: _theme);
+
   double get _naturalWidth =>
-      (_displayList.metrics.widthEm * _fontSize).clamp(0.0, 1e6);
+      (_displayList.metrics.widthEm * _effectiveFontSize).clamp(0.0, 1e6);
 
   double get _naturalHeight =>
-      (_displayList.metrics.totalHeightEm * _fontSize).clamp(0.0, 1e6);
+      (_displayList.metrics.totalHeightEm * _effectiveFontSize).clamp(0.0, 1e6);
 
-  double get _clampedBaseline => _baseline.clamp(0.0, _naturalHeight);
+  double get _clampedBaseline {
+    final bool hasPositiveInputFontSize = _fontSize.isFinite && _fontSize > 0.0;
+    if (hasPositiveInputFontSize) {
+      return _baseline.isFinite ? _baseline.clamp(0.0, _naturalHeight) : 0.0;
+    }
+    if (_baseline.isFinite && _baseline > 0.0) {
+      return _baseline.clamp(0.0, _naturalHeight);
+    }
+    return (_displayList.metrics.baselineEm * _effectiveFontSize).clamp(
+      0.0,
+      _naturalHeight,
+    );
+  }
+
+  Rect get _selectionBounds {
+    final Size boxSize = hasSize ? size : Size(_naturalWidth, _naturalHeight);
+    if (!_allowVisualOverflow) {
+      return Offset.zero & boxSize;
+    }
+    return Rect.fromLTWH(
+      0.0,
+      0.0,
+      math.max(boxSize.width, _naturalWidth),
+      math.max(boxSize.height, _naturalHeight),
+    );
+  }
+
+  void _invalidateAtoms() {
+    _atomsDirty = true;
+    _atoms = const <_SelectableAtom>[];
+  }
 
   @override
   SelectionGeometry get value => _selectionGeometry;
@@ -574,7 +717,7 @@ final class RenderTexMath extends RenderBox
   int get contentLength => _effectiveSource.length;
 
   @override
-  List<Rect> get boundingBoxes => <Rect>[Offset.zero & size];
+  List<Rect> get boundingBoxes => <Rect>[_selectionBounds];
 
   @override
   void addListener(VoidCallback listener) {
@@ -611,6 +754,18 @@ final class RenderTexMath extends RenderBox
   }
 
   @override
+  bool hitTest(BoxHitTestResult result, {required Offset position}) {
+    final Rect hitBounds = _allowVisualOverflow
+        ? _selectionBounds
+        : (Offset.zero & size);
+    if (hitBounds.contains(position) && hitTestSelf(position)) {
+      result.add(BoxHitTestEntry(this, position));
+      return true;
+    }
+    return false;
+  }
+
+  @override
   bool hitTestSelf(Offset position) => registrar != null && contentLength > 0;
 
   @override
@@ -623,17 +778,24 @@ final class RenderTexMath extends RenderBox
     covariant BoxConstraints constraints,
     TextBaseline baseline,
   ) {
-    return _clampedBaseline;
+    if (baseline == TextBaseline.alphabetic) {
+      return _clampedBaseline;
+    }
+    return computeDryLayout(constraints).height;
   }
 
   @override
   double? computeDistanceToActualBaseline(TextBaseline baseline) {
-    return _clampedBaseline;
+    if (baseline == TextBaseline.alphabetic) {
+      return _clampedBaseline;
+    }
+    return hasSize ? size.height : _naturalHeight;
   }
 
   @override
   void performLayout() {
     size = constraints.constrain(Size(_naturalWidth, _naturalHeight));
+    _updateSelectionGeometry();
   }
 
   @override
@@ -641,18 +803,18 @@ final class RenderTexMath extends RenderBox
     final List<Rect> highlightRects = _selectionGeometry.hasSelection
         ? _selectionGeometry.selectionRects
         : const <Rect>[];
-    final TexMathDisplayPainter painter = TexMathDisplayPainter(
+    context.canvas
+      ..save()
+      ..translate(offset.dx, offset.dy);
+    TexMathDisplayPainter.paintDisplayList(
+      context.canvas,
       displayList: _displayList,
       theme: _theme,
-      fontSize: _fontSize,
+      fontSize: _effectiveFontSize,
       font: _font,
       pathCache: _pathCache,
       selectionRects: highlightRects,
     );
-    context.canvas
-      ..save()
-      ..translate(offset.dx, offset.dy);
-    painter.paint(context.canvas, size);
     context.canvas.restore();
 
     if (_selectionGeometry.hasSelection) {
@@ -734,6 +896,8 @@ final class RenderTexMath extends RenderBox
   @override
   SelectionResult dispatchSelectionEvent(SelectionEvent event) {
     final SelectedContentRange? before = getSelection();
+    final int? beforeRawStart = _rawSelectionStart;
+    final int? beforeRawEnd = _rawSelectionEnd;
     late final SelectionResult result;
 
     switch (event.type) {
@@ -763,7 +927,7 @@ final class RenderTexMath extends RenderBox
           result = SelectionResult.next;
         } else {
           final Offset localPos = _globalToLocal(paraEvent.globalPosition);
-          final Rect bounds = Offset.zero & size;
+          final Rect bounds = _selectionBounds;
           if (bounds.contains(localPos)) {
             _selectAll();
             result = SelectionResult.none;
@@ -783,27 +947,40 @@ final class RenderTexMath extends RenderBox
 
     final SelectedContentRange? after = getSelection();
     if (before != after ||
+        beforeRawStart != _rawSelectionStart ||
+        beforeRawEnd != _rawSelectionEnd ||
         event.type == SelectionEventType.clear ||
         event.type == SelectionEventType.selectAll ||
         event.type == SelectionEventType.startEdgeUpdate ||
-        event.type == SelectionEventType.endEdgeUpdate) {
+        event.type == SelectionEventType.endEdgeUpdate ||
+        event.type == SelectionEventType.granularlyExtendSelection ||
+        event.type == SelectionEventType.directionallyExtendSelection) {
       markNeedsPaint();
       _updateSelectionGeometry();
     }
     return result;
   }
 
+  bool get _bothOutsideSameSide =>
+      (_startOutsidePrev && _endOutsidePrev) ||
+      (_startOutsideNext && _endOutsideNext);
+
   bool get _hasActiveSelection =>
-      _isAllSelected ||
-      _explicitSpan != null ||
-      (_startAnchor != null && _endAnchor != null);
+      !_bothOutsideSameSide &&
+      (_isAllSelected ||
+          _explicitSpan != null ||
+          (_rawSelectionStart != null && _rawSelectionEnd != null) ||
+          (_startAnchor != null && _endAnchor != null));
 
   void _selectAll() {
+    final Rect bounds = _selectionBounds;
     _isAllSelected = _effectiveSource.isNotEmpty;
     _explicitSpan = null;
     _cursorSourceOffset = null;
-    _startAnchor = Offset.zero;
-    _endAnchor = Offset(size.width, size.height);
+    _rawSelectionStart = null;
+    _rawSelectionEnd = null;
+    _startAnchor = bounds.topLeft;
+    _endAnchor = bounds.bottomRight;
     _startOutsidePrev = true;
     _startOutsideNext = false;
     _endOutsidePrev = false;
@@ -814,6 +991,8 @@ final class RenderTexMath extends RenderBox
     _isAllSelected = false;
     _explicitSpan = null;
     _cursorSourceOffset = null;
+    _rawSelectionStart = null;
+    _rawSelectionEnd = null;
     _startAnchor = null;
     _endAnchor = null;
     _startOutsidePrev = false;
@@ -831,7 +1010,7 @@ final class RenderTexMath extends RenderBox
     required bool isEnd,
   }) {
     final Offset localPos = _globalToLocal(globalPosition);
-    final Rect bounds = Offset.zero & size;
+    final Rect bounds = _selectionBounds;
     final SelectionResult result = SelectionUtils.getResultBasedOnRect(
       bounds,
       localPos,
@@ -840,6 +1019,8 @@ final class RenderTexMath extends RenderBox
 
     _isAllSelected = false;
     _explicitSpan = null;
+    _rawSelectionStart = null;
+    _rawSelectionEnd = null;
     if (isEnd) {
       _endAnchor = adjusted;
       _endOutsidePrev = result == SelectionResult.previous;
@@ -853,11 +1034,9 @@ final class RenderTexMath extends RenderBox
     if ((_startOutsidePrev && _endOutsideNext) ||
         (_endOutsidePrev && _startOutsideNext)) {
       _isAllSelected = _effectiveSource.isNotEmpty;
-    } else if ((_startOutsidePrev && _endOutsidePrev) ||
-        (_startOutsideNext && _endOutsideNext)) {
-      _cursorSourceOffset = (_startOutsidePrev && _endOutsidePrev)
-          ? 0
-          : _effectiveSource.length;
+      _cursorSourceOffset = null;
+    } else if (_bothOutsideSameSide) {
+      _cursorSourceOffset = null;
     } else {
       _cursorSourceOffset = _nearestSourceOffset(adjusted);
     }
@@ -867,7 +1046,7 @@ final class RenderTexMath extends RenderBox
 
   SelectionResult _handleSelectWord(Offset globalPosition) {
     final Offset localPos = _globalToLocal(globalPosition);
-    final Rect bounds = Offset.zero & size;
+    final Rect bounds = _selectionBounds;
     if (!bounds.contains(localPos)) {
       return SelectionUtils.getResultBasedOnRect(bounds, localPos);
     }
@@ -877,6 +1056,9 @@ final class RenderTexMath extends RenderBox
       return SelectionResult.end;
     }
     _isAllSelected = false;
+    _cursorSourceOffset = null;
+    _rawSelectionStart = null;
+    _rawSelectionEnd = null;
     _startAnchor = hit.rect.topLeft;
     _endAnchor = hit.rect.bottomRight;
     _startOutsidePrev = false;
@@ -903,33 +1085,59 @@ final class RenderTexMath extends RenderBox
       return SelectionResult.none;
     }
 
-    final SelectedContentRange current =
-        getSelection() ??
-        const SelectedContentRange(startOffset: 0, endOffset: 0);
-    int start = current.startOffset;
-    int end = current.endOffset;
-    final int delta = event.forward ? 1 : -1;
+    int start;
+    int end;
+    if (_rawSelectionStart != null && _rawSelectionEnd != null) {
+      start = _rawSelectionStart!;
+      end = _rawSelectionEnd!;
+    } else {
+      final SelectedContentRange? current = getSelection();
+      if (current != null) {
+        start = current.startOffset;
+        end = current.endOffset;
+      } else if (_cursorSourceOffset != null) {
+        start = _cursorSourceOffset!;
+        end = _cursorSourceOffset!;
+      } else {
+        start = 0;
+        end = 0;
+      }
+    }
 
+    final int delta = event.forward ? 1 : -1;
     if (event.isEnd) {
       end = (end + delta).clamp(0, len);
     } else {
       start = (start + delta).clamp(0, len);
     }
+
+    _rawSelectionStart = start;
+    _rawSelectionEnd = end;
+    _startAnchor = null;
+    _endAnchor = null;
+    _startOutsidePrev = false;
+    _startOutsideNext = false;
+    _endOutsidePrev = false;
+    _endOutsideNext = false;
+
     final int lo = math.min(start, end);
     final int hi = math.max(start, end);
     _isAllSelected = lo == 0 && hi == len;
-    if (!_isAllSelected) {
-      if (lo == hi) {
-        _explicitSpan = null;
-        _cursorSourceOffset = lo;
-      } else {
-        _explicitSpan = TexMathSelectionUtils.expandSpanToMinimalNode(
-          _syntaxTree,
-          SourceSpan(lo, hi),
-          _effectiveSource,
-        );
-      }
+    if (_isAllSelected) {
+      _explicitSpan = null;
+      _cursorSourceOffset = null;
+    } else if (lo == hi) {
+      _explicitSpan = null;
+      _cursorSourceOffset = lo;
+    } else {
+      _cursorSourceOffset = null;
+      _explicitSpan = TexMathSelectionUtils.expandSpanToMinimalNode(
+        _syntaxTree,
+        SourceSpan(lo, hi),
+        _effectiveSource,
+      );
     }
+
     if (event.forward && hi >= len) {
       return SelectionResult.next;
     }
@@ -942,7 +1150,7 @@ final class RenderTexMath extends RenderBox
   SelectionResult _handleDirectionallyExtend(
     DirectionallyExtendSelectionEvent event,
   ) {
-    final Rect bounds = Offset.zero & size;
+    final Rect bounds = _selectionBounds;
     final Offset localPos = _globalToLocal(Offset(event.dx, 0.0));
     final double clampedX = localPos.dx.clamp(bounds.left, bounds.right);
     final Offset targetPoint = switch (event.direction) {
@@ -966,6 +1174,12 @@ final class RenderTexMath extends RenderBox
     }
     _isAllSelected = false;
     _explicitSpan = null;
+    _rawSelectionStart = null;
+    _rawSelectionEnd = null;
+    _startOutsidePrev = false;
+    _startOutsideNext = false;
+    _endOutsidePrev = false;
+    _endOutsideNext = false;
     _cursorSourceOffset = _nearestSourceOffset(targetPoint);
     return SelectionResult.end;
   }
@@ -974,7 +1188,7 @@ final class RenderTexMath extends RenderBox
   bool get hasSelection => _hasSelection;
 
   SourceSpan? _resolvedSelectedSpan() {
-    if (_effectiveSource.isEmpty) {
+    if (_effectiveSource.isEmpty || _bothOutsideSameSide) {
       return null;
     }
     if (_isAllSelected) {
@@ -982,6 +1196,11 @@ final class RenderTexMath extends RenderBox
     }
     if (_explicitSpan != null) {
       return _explicitSpan;
+    }
+    if (_rawSelectionStart != null &&
+        _rawSelectionEnd != null &&
+        _rawSelectionStart == _rawSelectionEnd) {
+      return null;
     }
     if (_startAnchor == null || _endAnchor == null) {
       return null;
@@ -1017,14 +1236,15 @@ final class RenderTexMath extends RenderBox
   }
 
   List<_SelectableAtom> _atomsInDragRange(Offset p1, Offset p2) {
-    if (_atoms.isEmpty) {
+    final List<_SelectableAtom> atoms = _ensureAtoms();
+    if (atoms.isEmpty) {
       return const <_SelectableAtom>[];
     }
     final double minX = math.min(p1.dx, p2.dx);
     final double maxX = math.max(p1.dx, p2.dx);
     final double rawMinY = math.min(p1.dy, p2.dy);
     final double rawMaxY = math.max(p1.dy, p2.dy);
-    final double padY = _fontSize * 0.35;
+    final double padY = _effectiveFontSize * 0.35;
     final Rect searchRect = Rect.fromLTRB(
       minX - 1.0,
       rawMinY - padY,
@@ -1034,7 +1254,7 @@ final class RenderTexMath extends RenderBox
 
     final double midY = (rawMinY + rawMaxY) * 0.5;
     final List<double> blockingBarsY = <double>[];
-    for (final _SelectableAtom atom in _atoms) {
+    for (final _SelectableAtom atom in atoms) {
       if (!atom.isHorizontalRule) {
         continue;
       }
@@ -1047,7 +1267,7 @@ final class RenderTexMath extends RenderBox
     }
 
     final List<_SelectableAtom> hits = <_SelectableAtom>[];
-    for (final _SelectableAtom atom in _atoms) {
+    for (final _SelectableAtom atom in atoms) {
       if (!atom.rect.overlaps(searchRect)) {
         continue;
       }
@@ -1068,9 +1288,10 @@ final class RenderTexMath extends RenderBox
   }
 
   _SelectableAtom? _closestAtom(Offset localPos) {
+    final List<_SelectableAtom> atoms = _ensureAtoms();
     _SelectableAtom? best;
     double bestDist = double.infinity;
-    for (final _SelectableAtom atom in _atoms) {
+    for (final _SelectableAtom atom in atoms) {
       if (atom.rect.contains(localPos)) {
         return atom;
       }
@@ -1088,7 +1309,8 @@ final class RenderTexMath extends RenderBox
   int _nearestSourceOffset(Offset localPos) {
     final _SelectableAtom? atom = _closestAtom(localPos);
     if (atom == null || atom.span == null) {
-      return localPos.dx >= size.width * 0.5 ? _effectiveSource.length : 0;
+      final double width = _selectionBounds.width;
+      return localPos.dx >= width * 0.5 ? _effectiveSource.length : 0;
     }
     final int clampedStart = atom.span!.start.clamp(0, _effectiveSource.length);
     final int clampedEnd = atom.span!.end.clamp(0, _effectiveSource.length);
@@ -1096,18 +1318,29 @@ final class RenderTexMath extends RenderBox
   }
 
   Offset _globalToLocal(Offset globalPosition) {
-    final Matrix4 transform = getTransformTo(null);
-    transform.invert();
-    return MatrixUtils.transformPoint(transform, globalPosition);
+    if (!attached) {
+      return globalPosition;
+    }
+    return globalToLocal(globalPosition);
+  }
+
+  List<_SelectableAtom> _ensureAtoms() {
+    if (!_atomsDirty) {
+      return _atoms;
+    }
+    _rebuildAtoms();
+    return _atoms;
   }
 
   void _rebuildAtoms() {
+    _atomsDirty = false;
+    _debugAtomBuildCount++;
     final DisplayMetrics metrics = _displayList.metrics;
-    final double safeFontSize = _fontSize.isFinite && _fontSize > 0
-        ? _fontSize
-        : _theme.fontSize;
+    final double safeFontSize = _effectiveFontSize;
     final double unitsScale = safeFontSize / metrics.unitsPerEm;
     final List<_SelectableAtom> built = <_SelectableAtom>[];
+    final MathFont? activeFont = _font;
+    final bool hasRealFont = activeFont != null && activeFont.numGlyphs > 0;
 
     for (final DisplayItem item in _displayList.items) {
       switch (item) {
@@ -1145,26 +1378,45 @@ final class RenderTexMath extends RenderBox
         ):
           final double dx = xEm * safeFontSize;
           final double dy = (metrics.baselineEm - yEm) * safeFontSize;
-          final Path? cachedPath = (outline != null || _font != null)
-              ? _pathCache.resolvePath(
-                  glyphId: glyphId,
-                  font: _font,
-                  outline: outline,
-                )
-              : null;
+
+          double? minX;
+          double? minY;
+          double? maxX;
+          double? maxY;
+          if (hasRealFont) {
+            final GlyphMetrics gm = activeFont.metricsForGlyph(glyphId);
+            if (gm.xMax > gm.xMin || gm.yMax > gm.yMin) {
+              minX = gm.xMin;
+              minY = gm.yMin;
+              maxX = gm.xMax;
+              maxY = gm.yMax;
+            }
+          }
+          if (minX == null && outline != null && !outline.isEmpty) {
+            final ({double minX, double minY, double maxX, double maxY})?
+            outlineBounds = _computeOutlineBounds(outline.commands);
+            if (outlineBounds != null) {
+              minX = outlineBounds.minX;
+              minY = outlineBounds.minY;
+              maxX = outlineBounds.maxX;
+              maxY = outlineBounds.maxY;
+            }
+          }
+
           late final Rect rect;
-          if (cachedPath != null) {
-            final Rect pathBounds = cachedPath.getBounds();
-            final double left = math.min(
-              dx,
-              dx + pathBounds.left * unitsScale * scaleX,
-            );
+          if (minX != null && minY != null && maxX != null && maxY != null) {
+            final double left = math.min(dx, dx + minX * unitsScale * scaleX);
             final double right = math.max(
               dx + advanceEm * safeFontSize,
-              dx + pathBounds.right * unitsScale * scaleX,
+              dx + maxX * unitsScale * scaleX,
             );
-            double top = dy - pathBounds.bottom * unitsScale * scaleY;
-            double bottom = dy - pathBounds.top * unitsScale * scaleY;
+            double top = dy - maxY * unitsScale * scaleY;
+            double bottom = dy - minY * unitsScale * scaleY;
+            if (bottom < top) {
+              final double tmp = top;
+              top = bottom;
+              bottom = tmp;
+            }
             final double minHeight = safeFontSize * 0.25;
             if (bottom - top < minHeight) {
               final double mid = (top + bottom) * 0.5;
@@ -1196,6 +1448,57 @@ final class RenderTexMath extends RenderBox
     _atoms = List<_SelectableAtom>.unmodifiable(built);
   }
 
+  static ({double minX, double minY, double maxX, double maxY})?
+  _computeOutlineBounds(List<PathCommand> commands) {
+    if (commands.isEmpty) {
+      return null;
+    }
+    double minX = double.infinity;
+    double minY = double.infinity;
+    double maxX = -double.infinity;
+    double maxY = -double.infinity;
+
+    void include(double x, double y) {
+      if (x < minX) minX = x;
+      if (x > maxX) maxX = x;
+      if (y < minY) minY = y;
+      if (y > maxY) maxY = y;
+    }
+
+    for (final PathCommand command in commands) {
+      switch (command) {
+        case MoveTo(:final double x, :final double y):
+        case LineTo(:final double x, :final double y):
+          include(x, y);
+        case QuadTo(
+          :final double controlX,
+          :final double controlY,
+          :final double x,
+          :final double y,
+        ):
+          include(controlX, controlY);
+          include(x, y);
+        case CubicTo(
+          :final double control1X,
+          :final double control1Y,
+          :final double control2X,
+          :final double control2Y,
+          :final double x,
+          :final double y,
+        ):
+          include(control1X, control1Y);
+          include(control2X, control2Y);
+          include(x, y);
+        case ClosePath():
+          break;
+      }
+    }
+    if (!minX.isFinite || !minY.isFinite) {
+      return null;
+    }
+    return (minX: minX, minY: minY, maxX: maxX, maxY: maxY);
+  }
+
   void _updateSelectionGeometry() {
     final SelectionGeometry next = _buildSelectionGeometry();
     if (_selectionGeometry == next) {
@@ -1203,6 +1506,35 @@ final class RenderTexMath extends RenderBox
     }
     _selectionGeometry = next;
     _notifyListeners();
+  }
+
+  Offset _caretPositionForOffset(int offset, Rect fullBox) {
+    final int len = _effectiveSource.length;
+    if (len <= 0 || offset <= 0) {
+      return fullBox.bottomLeft;
+    }
+    if (offset >= len) {
+      return fullBox.bottomRight;
+    }
+    for (final _SelectableAtom atom in _ensureAtoms()) {
+      final SourceSpan? span = atom.span;
+      if (span == null || span.isEmpty) {
+        continue;
+      }
+      if (offset <= span.start) {
+        return Offset(
+          atom.rect.left.clamp(fullBox.left, fullBox.right),
+          fullBox.bottom,
+        );
+      }
+      if (offset < span.end) {
+        final double t = (offset - span.start) / (span.end - span.start);
+        final double x = atom.rect.left + atom.rect.width * t;
+        return Offset(x.clamp(fullBox.left, fullBox.right), fullBox.bottom);
+      }
+    }
+    final double x = fullBox.left + fullBox.width * (offset / len);
+    return Offset(x.clamp(fullBox.left, fullBox.right), fullBox.bottom);
   }
 
   SelectionGeometry _buildSelectionGeometry() {
@@ -1214,8 +1546,7 @@ final class RenderTexMath extends RenderBox
       );
     }
 
-    final Rect fullBox =
-        Offset.zero & (hasSize ? size : Size(_naturalWidth, _naturalHeight));
+    final Rect fullBox = _selectionBounds;
     if (_isAllSelected) {
       return SelectionGeometry(
         startSelectionPoint: SelectionPoint(
@@ -1236,7 +1567,12 @@ final class RenderTexMath extends RenderBox
 
     final SourceSpan? resolved = _resolvedSelectedSpan();
     if (resolved == null || resolved.isEmpty) {
-      final Offset cursor = _startAnchor ?? _endAnchor ?? fullBox.bottomLeft;
+      final Offset cursor =
+          _startAnchor ??
+          _endAnchor ??
+          (_cursorSourceOffset != null
+              ? _caretPositionForOffset(_cursorSourceOffset!, fullBox)
+              : fullBox.bottomLeft);
       final Offset handlePos = Offset(
         cursor.dx.clamp(fullBox.left, fullBox.right),
         fullBox.bottom,
@@ -1258,7 +1594,7 @@ final class RenderTexMath extends RenderBox
     }
 
     Rect? unionRect;
-    for (final _SelectableAtom atom in _atoms) {
+    for (final _SelectableAtom atom in _ensureAtoms()) {
       final SourceSpan? atomSpan = atom.span;
       if (atomSpan != null &&
           !atomSpan.isEmpty &&

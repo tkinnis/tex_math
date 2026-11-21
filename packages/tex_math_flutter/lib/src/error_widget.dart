@@ -75,14 +75,23 @@ final class TexMathErrorWidget extends StatelessWidget {
       ),
     );
 
-    final Widget maybeSelectable =
-        selectable && SelectionContainer.maybeOf(context) == null
-        ? SelectionArea(child: content)
-        : content;
+    final bool hasAncestorSelection =
+        SelectionContainer.maybeOf(context) != null;
+    final Widget maybeSelectable;
+    if (selectable) {
+      maybeSelectable = hasAncestorSelection
+          ? content
+          : SelectionArea(child: content);
+    } else {
+      maybeSelectable = hasAncestorSelection
+          ? SelectionContainer.disabled(child: content)
+          : content;
+    }
 
     return Semantics(
       label: 'TeX error for $source: $resolvedMessage',
       readOnly: true,
+      excludeSemantics: true,
       child: maybeSelectable,
     );
   }

@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:tex_math_flutter/tex_math_flutter.dart';
 
 /// Entry point for the `tex_math_flutter` example application.
@@ -80,6 +81,7 @@ final class _ExampleHomePageState extends State<ExampleHomePage> {
   TexMathIsolateLayouter? _notebookLayouter;
   String? _notebookError;
   int _showcaseLayoutCount = 0;
+  bool _showcaseRefreshScheduled = false;
 
   static final List<String> _notebookEquations = List<String>.generate(
     50,
@@ -142,6 +144,17 @@ final class _ExampleHomePageState extends State<ExampleHomePage> {
 
   void _recordShowcaseLayout() {
     _showcaseLayoutCount++;
+    if (!mounted || _showcaseRefreshScheduled) {
+      return;
+    }
+    _showcaseRefreshScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _showcaseRefreshScheduled = false;
+      if (mounted) {
+        setState(() {});
+      }
+    });
+    SchedulerBinding.instance.ensureVisualUpdate();
   }
 
   @override

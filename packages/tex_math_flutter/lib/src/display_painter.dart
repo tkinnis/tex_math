@@ -1,155 +1,286 @@
+import 'dart:math' as math;
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/rendering.dart';
 import 'package:tex_math/tex_math.dart';
 
 import 'theme.dart';
 
-/// Cache mapping `(MathFont, glyphId)` pairs (and standalone [GlyphOutline]
-/// records when no [MathFont] is attached) to reusable Flutter [Path] geometry.
+/// Cache mapping `(fontSignature, glyphId)` pairs (and standalone
+/// [GlyphOutline] records when no font or signature is attached) to reusable
+/// Flutter [Path] geometry, plus a bounded LRU cache of fallback [TextPainter]s.
 ///
-/// Caching paths per `(font, glyphId)` allows theme color updates and repeated
-/// expressions to repaint directly on the GPU without rebuilding outlines or
-/// invoking [TexMathEngine.render].
+/// Caching paths per `(fontSignature, glyphId)` allows theme color updates and
+/// repeated expressions (including isolate-laid-out display lists) to repaint
+/// directly on the GPU without rebuilding outlines or invoking
+/// [TexMathEngine.render].
 final class TexMathPathCache {
-  /// Creates a glyph path cache retaining at most [maxEntries] entries.
-  TexMathPathCache({this.maxEntries = defaultMaxEntries})
-    : assert(maxEntries >= 0, 'maxEntries must be non-negative');
+  /// Creates a glyph path cache retaining at most [maxEntries] path entries and
+  /// [maxTextPainterEntries] fallback [TextPainter] entries.
+  TexMathPathCache({
+    this.maxEntries = defaultMaxEntries,
+    int? maxTextPainterEntries,
+  }) : assert(maxEntries >= 0, 'maxEntries must be non-negative'),
+       assert(
+         maxTextPainterEntries == null || maxTextPainterEntries >= 0,
+         'maxTextPainterEntries must be non-negative',
+       ),
+       maxTextPainterEntries =
+           maxTextPainterEntries ??
+           (maxEntries == 0
+               ? 0
+               : math.min(maxEntries, _defaultMaxTextPainters));
 
   /// Default maximum number of cached glyph paths retained in memory.
   static const int defaultMaxEntries = 4096;
+
+  static const int _defaultMaxTextPainters = 256;
+
+  /// Sentinel stored for empty glyphs (such as spaces) so cache hits are
+  /// tracked in a single map lookup without returning invalid paths.
+  static final Path _emptyPathSentinel = Path();
 
   /// Process-wide shared cache reused across [TexMathDisplayPainter] and
   /// [TexMath] instances when no explicit cache is provided.
   static final TexMathPathCache shared = TexMathPathCache();
 
-  /// Maximum number of cached entries retained across font and outline keys.
+  /// Maximum number of cached path entries retained across font and outline
+  /// keys.
   final int maxEntries;
 
-  final Map<_FontGlyphKey, Path?> _fontCache = <_FontGlyphKey, Path?>{};
-  final Map<GlyphOutline, Path> _outlineCache = <GlyphOutline, Path>{};
+  /// Maximum number of fallback [TextPainter] instances retained in memory.
+  final int maxTextPainterEntries;
+
+  final Map<Object, Path> _entries = <Object, Path>{};
+  final Map<_FallbackTextKey, TextPainter> _textPainterCache =
+      <_FallbackTextKey, TextPainter>{};
+
+  final Paint _highlightPaint = Paint()..style = PaintingStyle.fill;
+  final Paint _fillPaint = Paint()..style = PaintingStyle.fill;
+  final Paint _strokePaint = Paint()..style = PaintingStyle.stroke;
 
   int _hitCount = 0;
   int _buildCount = 0;
+  int _textPainterHitCount = 0;
+  int _textPainterBuildCount = 0;
+  int _textPainterDisposedCount = 0;
 
-  /// Number of entries currently stored in this cache.
-  int get length => _fontCache.length + _outlineCache.length;
+  /// Number of glyph path entries currently stored in this cache.
+  int get length => _entries.length;
 
-  /// Number of cache lookups satisfied without constructing a new [Path].
+  /// Number of glyph path cache lookups satisfied without constructing a new
+  /// [Path].
   int get hitCount => _hitCount;
 
   /// Number of [Path] instances constructed by this cache.
   int get buildCount => _buildCount;
 
+  /// Number of fallback [TextPainter] entries currently stored in this cache.
+  @visibleForTesting
+  int get textPainterLength => _textPainterCache.length;
+
+  /// Number of fallback [TextPainter] lookups satisfied from the LRU cache.
+  @visibleForTesting
+  int get textPainterHitCount => _textPainterHitCount;
+
+  /// Number of fallback [TextPainter] instances constructed by this cache.
+  @visibleForTesting
+  int get textPainterBuildCount => _textPainterBuildCount;
+
+  /// Number of fallback [TextPainter] instances disposed on eviction or [clear].
+  @visibleForTesting
+  int get textPainterDisposedCount => _textPainterDisposedCount;
+
   /// Returns a cached [Path] for `(font, glyphId)` or builds and caches one
   /// from [outline] or `font.outlineForGlyph(glyphId)`.
   ///
   /// Returns `null` when the glyph has no outline contours (such as spaces).
-  Path? pathForGlyph(MathFont font, int glyphId, {GlyphOutline? outline}) {
-    return resolvePath(glyphId: glyphId, font: font, outline: outline);
+  Path? pathForGlyph(
+    MathFont font,
+    int glyphId, {
+    GlyphOutline? outline,
+    int? ppemBucket,
+  }) {
+    return resolvePath(
+      glyphId: glyphId,
+      font: font,
+      outline: outline,
+      ppemBucket: ppemBucket,
+    );
   }
 
-  /// Resolves a cached [Path] for [glyphId] using [font] when a decoded font
-  /// is available, or [outline] directly for standalone display lists.
+  /// Resolves a cached [Path] for [glyphId] using [font] or [fontSignature]
+  /// when available, or [outline] directly for standalone display lists.
   Path? resolvePath({
     required int glyphId,
     MathFont? font,
     GlyphOutline? outline,
+    int? fontSignature,
+    int? ppemBucket,
   }) {
-    if (font != null && font.numGlyphs > 0) {
-      if (outline != null && outline.isEmpty) {
-        return null;
-      }
-      final _FontGlyphKey key = _FontGlyphKey(font, glyphId);
-      if (maxEntries > 0 && _fontCache.containsKey(key)) {
-        final Path? cached = _fontCache.remove(key);
-        _fontCache[key] = cached;
-        _hitCount++;
-        return cached;
+    final bool hasRealFont = font != null && font.numGlyphs > 0;
+    final int? effectiveSignature = hasRealFont
+        ? font.signature
+        : fontSignature;
+
+    if (effectiveSignature != null) {
+      final _FontGlyphKey key = _FontGlyphKey(
+        effectiveSignature,
+        glyphId,
+        ppemBucket,
+      );
+      if (maxEntries > 0) {
+        final Path? cached = _entries.remove(key);
+        if (cached != null) {
+          _entries[key] = cached;
+          _hitCount++;
+          return identical(cached, _emptyPathSentinel) ? null : cached;
+        }
       }
       final GlyphOutline? effectiveOutline =
-          outline ?? font.outlineForGlyph(glyphId);
+          outline ?? (hasRealFont ? font.outlineForGlyph(glyphId) : null);
       if (effectiveOutline == null || effectiveOutline.isEmpty) {
-        _insertFontEntry(key, null);
+        _insertEntry(key, _emptyPathSentinel);
         return null;
       }
       final Path built = TexMathDisplayPainter.buildPathFromCommands(
         effectiveOutline.commands,
       );
       _buildCount++;
-      _insertFontEntry(key, built);
+      _insertEntry(key, built);
       return built;
     }
 
     if (outline == null || outline.isEmpty) {
       return null;
     }
-    if (maxEntries > 0 && _outlineCache.containsKey(outline)) {
-      final Path cached = _outlineCache.remove(outline)!;
-      _outlineCache[outline] = cached;
-      _hitCount++;
-      return cached;
+    if (maxEntries > 0) {
+      final Path? cached = _entries.remove(outline);
+      if (cached != null) {
+        _entries[outline] = cached;
+        _hitCount++;
+        return cached;
+      }
     }
     final Path built = TexMathDisplayPainter.buildPathFromCommands(
       outline.commands,
     );
     _buildCount++;
-    _insertOutlineEntry(outline, built);
+    _insertEntry(outline, built);
     return built;
   }
 
-  /// Removes all cached [Path] entries and resets cache counters.
-  void clear() {
-    _fontCache.clear();
-    _outlineCache.clear();
-    _hitCount = 0;
-    _buildCount = 0;
-  }
-
-  void _insertFontEntry(_FontGlyphKey key, Path? path) {
-    if (maxEntries == 0) {
-      return;
+  TextPainter _resolveFallbackTextPainter({
+    required int codePoint,
+    required Color color,
+    required double fontSize,
+    required double scaleY,
+  }) {
+    final int argb = color.toARGB32();
+    final _FallbackTextKey key = _FallbackTextKey(
+      codePoint,
+      argb,
+      fontSize,
+      scaleY,
+    );
+    final TextPainter? cached = _textPainterCache.remove(key);
+    if (cached != null) {
+      _textPainterCache[key] = cached;
+      _textPainterHitCount++;
+      return cached;
     }
-    _evictIfFull();
-    _fontCache[key] = path;
-  }
 
-  void _insertOutlineEntry(GlyphOutline outline, Path path) {
-    if (maxEntries == 0) {
-      return;
-    }
-    _evictIfFull();
-    _outlineCache[outline] = path;
-  }
+    final TextPainter painter = TextPainter(
+      text: TextSpan(
+        text: String.fromCharCode(codePoint),
+        style: TextStyle(color: color, fontSize: fontSize * scaleY),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    _textPainterBuildCount++;
 
-  void _evictIfFull() {
-    while (length >= maxEntries) {
-      if (_fontCache.isNotEmpty) {
-        _fontCache.remove(_fontCache.keys.first);
-      } else if (_outlineCache.isNotEmpty) {
-        _outlineCache.remove(_outlineCache.keys.first);
-      } else {
-        break;
+    while (_textPainterCache.length >= maxTextPainterEntries) {
+      final _FallbackTextKey oldestKey = _textPainterCache.keys.first;
+      final TextPainter? evicted = _textPainterCache.remove(oldestKey);
+      if (evicted != null) {
+        _disposeTextPainter(evicted);
       }
     }
+    _textPainterCache[key] = painter;
+    return painter;
+  }
+
+  void _disposeTextPainter(TextPainter painter) {
+    painter.dispose();
+    assert(painter.debugDisposed);
+    _textPainterDisposedCount++;
+  }
+
+  /// Removes all cached [Path] and [TextPainter] entries (disposing any cached
+  /// [TextPainter] resources) and resets cache counters.
+  void clear() {
+    _entries.clear();
+    for (final TextPainter painter in _textPainterCache.values) {
+      _disposeTextPainter(painter);
+    }
+    _textPainterCache.clear();
+    _hitCount = 0;
+    _buildCount = 0;
+    _textPainterHitCount = 0;
+    _textPainterBuildCount = 0;
+  }
+
+  void _insertEntry(Object key, Path path) {
+    if (maxEntries == 0) {
+      return;
+    }
+    while (_entries.length >= maxEntries) {
+      _entries.remove(_entries.keys.first);
+    }
+    _entries[key] = path;
   }
 }
 
 @immutable
 final class _FontGlyphKey {
-  const _FontGlyphKey(this.font, this.glyphId);
+  const _FontGlyphKey(this.fontSignature, this.glyphId, [this.ppemBucket]);
 
-  final MathFont font;
+  final int fontSignature;
   final int glyphId;
+  final int? ppemBucket;
 
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
       other is _FontGlyphKey &&
+          fontSignature == other.fontSignature &&
           glyphId == other.glyphId &&
-          (identical(font, other.font) || font == other.font);
+          ppemBucket == other.ppemBucket;
 
   @override
-  int get hashCode => Object.hash(font, glyphId);
+  int get hashCode => Object.hash(fontSignature, glyphId, ppemBucket);
+}
+
+@immutable
+final class _FallbackTextKey {
+  const _FallbackTextKey(this.codePoint, this.argb, this.fontSize, this.scaleY);
+
+  final int codePoint;
+  final int argb;
+  final double fontSize;
+  final double scaleY;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is _FallbackTextKey &&
+          codePoint == other.codePoint &&
+          argb == other.argb &&
+          fontSize == other.fontSize &&
+          scaleY == other.scaleY;
+
+  @override
+  int get hashCode => Object.hash(codePoint, argb, fontSize, scaleY);
 }
 
 /// Paints a laid-out [DisplayList] onto a Flutter [Canvas] using theme colors
@@ -175,8 +306,8 @@ final class TexMathDisplayPainter extends CustomPainter {
   /// Logical pixel size corresponding to `1.0` em.
   final double fontSize;
 
-  /// Optional active [MathFont] used for `(font, glyphId)` path caching and
-  /// outline lookup.
+  /// Optional active [MathFont] used for `(fontSignature, glyphId)` path
+  /// caching and outline lookup.
   final MathFont? font;
 
   /// Optional glyph path cache overriding [TexMathPathCache.shared].
@@ -220,11 +351,23 @@ final class TexMathDisplayPainter extends CustomPainter {
     return path;
   }
 
-  @override
-  void paint(Canvas canvas, Size size) {
+  /// Paints [displayList] directly onto [canvas] without allocating a
+  /// [TexMathDisplayPainter] wrapper.
+  static void paintDisplayList(
+    Canvas canvas, {
+    required DisplayList displayList,
+    required TexMathThemeData theme,
+    required double fontSize,
+    MathFont? font,
+    TexMathPathCache? pathCache,
+    List<Rect> selectionRects = const <Rect>[],
+    Color? selectionColor,
+  }) {
+    final TexMathPathCache effectiveCache =
+        pathCache ?? TexMathPathCache.shared;
+
     if (selectionRects.isNotEmpty) {
-      final Paint highlightPaint = Paint()
-        ..style = PaintingStyle.fill
+      final Paint highlightPaint = effectiveCache._highlightPaint
         ..color = selectionColor ?? theme.accent.withValues(alpha: 0.28);
       for (final Rect rect in selectionRects) {
         canvas.drawRect(rect, highlightPaint);
@@ -232,14 +375,14 @@ final class TexMathDisplayPainter extends CustomPainter {
     }
 
     final DisplayMetrics metrics = displayList.metrics;
-    final double safeFontSize = fontSize.isFinite && fontSize > 0
-        ? fontSize
-        : theme.fontSize;
+    final double safeFontSize = resolveSafeTexMathFontSize(
+      fontSize,
+      theme: theme,
+    );
     final double unitsScale = safeFontSize / metrics.unitsPerEm;
-    final TexMathPathCache effectiveCache =
-        pathCache ?? TexMathPathCache.shared;
-    final Paint fillPaint = Paint()..style = PaintingStyle.fill;
-    final Paint strokePaint = Paint()..style = PaintingStyle.stroke;
+    final Paint fillPaint = effectiveCache._fillPaint;
+    final Paint strokePaint = effectiveCache._strokePaint;
+    final int? displayFontSignature = displayList.fontSignature;
 
     for (final DisplayItem item in displayList.items) {
       final Color resolvedColor = theme.colorForRole(
@@ -287,6 +430,7 @@ final class TexMathDisplayPainter extends CustomPainter {
               glyphId: glyphId,
               font: font,
               outline: outline,
+              fontSignature: displayFontSignature,
             );
             if (path != null) {
               fillPaint.color = resolvedColor;
@@ -298,26 +442,51 @@ final class TexMathDisplayPainter extends CustomPainter {
                 ..restore();
             }
           } else if (_isPrintableFallbackCodePoint(codePoint)) {
-            final TextPainter textPainter = TextPainter(
-              text: TextSpan(
-                text: String.fromCharCode(codePoint),
-                style: TextStyle(
-                  color: resolvedColor,
-                  fontSize: safeFontSize * scaleY,
+            if (effectiveCache.maxTextPainterEntries == 0) {
+              final TextPainter textPainter = TextPainter(
+                text: TextSpan(
+                  text: String.fromCharCode(codePoint),
+                  style: TextStyle(
+                    color: resolvedColor,
+                    fontSize: safeFontSize * scaleY,
+                  ),
                 ),
-              ),
-              textDirection: TextDirection.ltr,
-            )..layout();
-            textPainter.paint(
-              canvas,
-              Offset(
-                dx,
-                dy -
-                    textPainter.computeDistanceToActualBaseline(
-                      TextBaseline.alphabetic,
-                    ),
-              ),
-            );
+                textDirection: TextDirection.ltr,
+              )..layout();
+              effectiveCache._textPainterBuildCount++;
+              try {
+                textPainter.paint(
+                  canvas,
+                  Offset(
+                    dx,
+                    dy -
+                        textPainter.computeDistanceToActualBaseline(
+                          TextBaseline.alphabetic,
+                        ),
+                  ),
+                );
+              } finally {
+                effectiveCache._disposeTextPainter(textPainter);
+              }
+            } else {
+              final TextPainter textPainter = effectiveCache
+                  ._resolveFallbackTextPainter(
+                    codePoint: codePoint,
+                    color: resolvedColor,
+                    fontSize: safeFontSize,
+                    scaleY: scaleY,
+                  );
+              textPainter.paint(
+                canvas,
+                Offset(
+                  dx,
+                  dy -
+                      textPainter.computeDistanceToActualBaseline(
+                        TextBaseline.alphabetic,
+                      ),
+                ),
+              );
+            }
           }
 
         case AnchorItem():
@@ -328,14 +497,30 @@ final class TexMathDisplayPainter extends CustomPainter {
   }
 
   @override
+  void paint(Canvas canvas, Size size) {
+    paintDisplayList(
+      canvas,
+      displayList: displayList,
+      theme: theme,
+      fontSize: fontSize,
+      font: font,
+      pathCache: pathCache,
+      selectionRects: selectionRects,
+      selectionColor: selectionColor,
+    );
+  }
+
+  @override
   bool shouldRepaint(TexMathDisplayPainter oldDelegate) {
-    return displayList != oldDelegate.displayList ||
-        theme != oldDelegate.theme ||
-        fontSize != oldDelegate.fontSize ||
-        font != oldDelegate.font ||
+    return fontSize != oldDelegate.fontSize ||
         !identical(pathCache, oldDelegate.pathCache) ||
         selectionColor != oldDelegate.selectionColor ||
-        !listEquals(selectionRects, oldDelegate.selectionRects);
+        theme != oldDelegate.theme ||
+        (!identical(font, oldDelegate.font) && font != oldDelegate.font) ||
+        (!identical(selectionRects, oldDelegate.selectionRects) &&
+            !listEquals(selectionRects, oldDelegate.selectionRects)) ||
+        (!identical(displayList, oldDelegate.displayList) &&
+            displayList != oldDelegate.displayList);
   }
 
   static bool _isPrintableFallbackCodePoint(int codePoint) {

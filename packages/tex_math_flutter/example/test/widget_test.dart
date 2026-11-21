@@ -8,6 +8,7 @@ void main() {
     'Example app renders showcase, toggles theme without re-layout, and loads notebook',
     (WidgetTester tester) async {
       await tester.pumpWidget(const TexMathExampleApp());
+      await tester.runAsync(TexMathFontBundle.loadMathFont);
       await tester.pumpAndSettle();
 
       expect(find.text('tex_math_flutter Example'), findsOneWidget);
@@ -62,6 +63,36 @@ void main() {
       );
       expect(find.text('[1]'), findsOneWidget);
       expect(find.byType(TexMath), findsWidgets);
+
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.runAsync(() async {
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+      });
+      await tester.pumpAndSettle();
+    },
+  );
+
+  testWidgets(
+    'Example app reactively updates Quadratic layout count on warm-font initial build',
+    (WidgetTester tester) async {
+      await tester.runAsync(TexMathFontBundle.loadMathFont);
+      await tester.pumpWidget(const TexMathExampleApp());
+      await tester.pumpAndSettle();
+
+      final Finder showcaseScrollable = find.descendant(
+        of: find.byKey(const Key('showcase-list')),
+        matching: find.byWidgetPredicate(
+          (Widget widget) =>
+              widget is Scrollable &&
+              widget.axisDirection == AxisDirection.down,
+        ),
+      );
+      await tester.scrollUntilVisible(
+        find.textContaining('Quadratic layout runs: 1'),
+        200.0,
+        scrollable: showcaseScrollable,
+      );
+      expect(find.textContaining('Quadratic layout runs: 1'), findsOneWidget);
 
       await tester.pumpWidget(const SizedBox.shrink());
       await tester.runAsync(() async {

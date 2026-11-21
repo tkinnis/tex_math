@@ -161,3 +161,16 @@ final class TexMathTheme extends InheritedTheme {
   @override
   bool updateShouldNotify(TexMathTheme oldWidget) => data != oldWidget.data;
 }
+
+/// Validates [fontSize] as a positive finite logical pixel size, falling back
+/// to [theme]'s font size and finally [TexMathThemeData.fallback].
+double resolveSafeTexMathFontSize(double? fontSize, {TexMathThemeData? theme}) {
+  if (fontSize != null && fontSize.isFinite && fontSize > 0.0) {
+    return fontSize;
+  }
+  final double? themeSize = theme?.fontSize;
+  if (themeSize != null && themeSize.isFinite && themeSize > 0.0) {
+    return themeSize;
+  }
+  return TexMathThemeData.fallback.fontSize;
+}
