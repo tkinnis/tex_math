@@ -576,6 +576,20 @@ window.MathJax = {
     }
   },
   options: {
+    enableMenu: false,
+    enableEnrichment: false,
+    enableComplexity: false,
+    enableSpeech: false,
+    enableBraille: false,
+    enableExplorer: false,
+    menuOptions: {
+      settings: {
+        enrich: false,
+        speech: false,
+        braille: false,
+        collapsible: false
+      }
+    },
     safeOptions: {
       allow: {
         URLs: 'safe',

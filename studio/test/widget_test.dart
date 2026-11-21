@@ -683,6 +683,15 @@ void main() {
         expect(html, contains('reportStartupError'));
         expect(html, contains("type: 'startupError'"));
         expect(html, contains('unhandledrejection'));
+        expect(html, contains('enableMenu: false'));
+        expect(html, contains('enableEnrichment: false'));
+        expect(html, contains('enableComplexity: false'));
+        expect(html, contains('enableSpeech: false'));
+        expect(html, contains('enableBraille: false'));
+        expect(html, contains('enableExplorer: false'));
+        expect(html, contains('menuOptions:'));
+        expect(html, contains('enrich: false'));
+        expect(html, contains('speech: false'));
         expect(
           html,
           contains(
