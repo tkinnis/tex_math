@@ -15,7 +15,7 @@
       "display": true,
       "oracleAccepted": false,
       "oracleErrorClass": "misplacedNewline",
-      "texMathStatus": "unsupported",
+      "texMathStatus": "refused_match",
       "box": null,
       "glyphs": [],
       "rules": []
@@ -29,7 +29,7 @@
       "display": true,
       "oracleAccepted": false,
       "oracleErrorClass": "doubleScript",
-      "texMathStatus": "unsupported",
+      "texMathStatus": "refused_match",
       "box": null,
       "glyphs": [],
       "rules": []
@@ -43,7 +43,7 @@
       "display": true,
       "oracleAccepted": false,
       "oracleErrorClass": "doubleScript",
-      "texMathStatus": "unsupported",
+      "texMathStatus": "refused_match",
       "box": null,
       "glyphs": [],
       "rules": []
@@ -57,7 +57,7 @@
       "display": true,
       "oracleAccepted": false,
       "oracleErrorClass": "doubleScript",
-      "texMathStatus": "unsupported",
+      "texMathStatus": "refused_match",
       "box": null,
       "glyphs": [],
       "rules": []
@@ -71,7 +71,7 @@
       "display": true,
       "oracleAccepted": false,
       "oracleErrorClass": "extraBrace",
-      "texMathStatus": "unsupported",
+      "texMathStatus": "refused_match",
       "box": null,
       "glyphs": [],
       "rules": []
@@ -85,7 +85,7 @@
       "display": true,
       "oracleAccepted": false,
       "oracleErrorClass": "extraBrace",
-      "texMathStatus": "unsupported",
+      "texMathStatus": "refused_match",
       "box": null,
       "glyphs": [],
       "rules": []
@@ -99,7 +99,7 @@
       "display": true,
       "oracleAccepted": false,
       "oracleErrorClass": "extraBrace",
-      "texMathStatus": "unsupported",
+      "texMathStatus": "refused_match",
       "box": null,
       "glyphs": [],
       "rules": []
@@ -113,7 +113,7 @@
       "display": true,
       "oracleAccepted": false,
       "oracleErrorClass": "mismatchedEnvironment",
-      "texMathStatus": "unsupported",
+      "texMathStatus": "refused_match",
       "box": null,
       "glyphs": [],
       "rules": []
@@ -127,7 +127,7 @@
       "display": true,
       "oracleAccepted": false,
       "oracleErrorClass": "extraDelimiter",
-      "texMathStatus": "unsupported",
+      "texMathStatus": "refused_match",
       "box": null,
       "glyphs": [],
       "rules": []
@@ -141,7 +141,7 @@
       "display": true,
       "oracleAccepted": false,
       "oracleErrorClass": "extraDelimiter",
-      "texMathStatus": "unsupported",
+      "texMathStatus": "refused_match",
       "box": null,
       "glyphs": [],
       "rules": []
@@ -155,7 +155,7 @@
       "display": true,
       "oracleAccepted": false,
       "oracleErrorClass": "extraDelimiter",
-      "texMathStatus": "unsupported",
+      "texMathStatus": "refused_match",
       "box": null,
       "glyphs": [],
       "rules": []
@@ -169,7 +169,7 @@
       "display": true,
       "oracleAccepted": false,
       "oracleErrorClass": "invalidMacroDefinition",
-      "texMathStatus": "unsupported",
+      "texMathStatus": "refused_match",
       "box": null,
       "glyphs": [],
       "rules": []
@@ -183,7 +183,7 @@
       "display": true,
       "oracleAccepted": false,
       "oracleErrorClass": "invalidMacroDefinition",
-      "texMathStatus": "unsupported",
+      "texMathStatus": "refused_match",
       "box": null,
       "glyphs": [],
       "rules": []
@@ -197,7 +197,7 @@
       "display": true,
       "oracleAccepted": false,
       "oracleErrorClass": "invalidMacroDefinition",
-      "texMathStatus": "unsupported",
+      "texMathStatus": "refused_match",
       "box": null,
       "glyphs": [],
       "rules": []
@@ -211,7 +211,7 @@
       "display": true,
       "oracleAccepted": false,
       "oracleErrorClass": "budgetExceeded",
-      "texMathStatus": "unsupported",
+      "texMathStatus": "refused_match",
       "box": null,
       "glyphs": [],
       "rules": []
@@ -225,7 +225,7 @@
       "display": true,
       "oracleAccepted": false,
       "oracleErrorClass": "mismatchedEnvironment",
-      "texMathStatus": "unsupported",
+      "texMathStatus": "refused_match",
       "box": null,
       "glyphs": [],
       "rules": []
@@ -239,7 +239,7 @@
       "display": true,
       "oracleAccepted": false,
       "oracleErrorClass": "misplacedAlignmentTab",
-      "texMathStatus": "unsupported",
+      "texMathStatus": "refused_match",
       "box": null,
       "glyphs": [],
       "rules": []
@@ -253,7 +253,7 @@
       "display": true,
       "oracleAccepted": false,
       "oracleErrorClass": "misplacedAlignmentTab",
-      "texMathStatus": "unsupported",
+      "texMathStatus": "refused_match",
       "box": null,
       "glyphs": [],
       "rules": []
@@ -267,7 +267,7 @@
       "display": true,
       "oracleAccepted": false,
       "oracleErrorClass": "misplacedAlignmentTab",
-      "texMathStatus": "unsupported",
+      "texMathStatus": "refused_match",
       "box": null,
       "glyphs": [],
       "rules": []
@@ -281,7 +281,7 @@
       "display": true,
       "oracleAccepted": false,
       "oracleErrorClass": "misplacedNewline",
-      "texMathStatus": "unsupported",
+      "texMathStatus": "refused_match",
       "box": null,
       "glyphs": [],
       "rules": []
@@ -295,7 +295,7 @@
       "display": true,
       "oracleAccepted": false,
       "oracleErrorClass": "misplacedNewline",
-      "texMathStatus": "unsupported",
+      "texMathStatus": "refused_match",
       "box": null,
       "glyphs": [],
       "rules": []
@@ -309,7 +309,7 @@
       "display": true,
       "oracleAccepted": false,
       "oracleErrorClass": "missingArgument",
-      "texMathStatus": "unsupported",
+      "texMathStatus": "refused_match",
       "box": null,
       "glyphs": [],
       "rules": []
@@ -323,7 +323,7 @@
       "display": true,
       "oracleAccepted": false,
       "oracleErrorClass": "missingArgument",
-      "texMathStatus": "unsupported",
+      "texMathStatus": "refused_match",
       "box": null,
       "glyphs": [],
       "rules": []
@@ -337,7 +337,7 @@
       "display": true,
       "oracleAccepted": false,
       "oracleErrorClass": "missingArgument",
-      "texMathStatus": "unsupported",
+      "texMathStatus": "refused_match",
       "box": null,
       "glyphs": [],
       "rules": []
@@ -351,7 +351,7 @@
       "display": true,
       "oracleAccepted": false,
       "oracleErrorClass": "missingBrace",
-      "texMathStatus": "unsupported",
+      "texMathStatus": "refused_match",
       "box": null,
       "glyphs": [],
       "rules": []
@@ -365,7 +365,7 @@
       "display": true,
       "oracleAccepted": false,
       "oracleErrorClass": "missingBrace",
-      "texMathStatus": "unsupported",
+      "texMathStatus": "refused_match",
       "box": null,
       "glyphs": [],
       "rules": []
@@ -379,7 +379,7 @@
       "display": true,
       "oracleAccepted": false,
       "oracleErrorClass": "missingBrace",
-      "texMathStatus": "unsupported",
+      "texMathStatus": "refused_match",
       "box": null,
       "glyphs": [],
       "rules": []
@@ -393,7 +393,7 @@
       "display": true,
       "oracleAccepted": false,
       "oracleErrorClass": "mismatchedEnvironment",
-      "texMathStatus": "unsupported",
+      "texMathStatus": "refused_match",
       "box": null,
       "glyphs": [],
       "rules": []
@@ -407,7 +407,7 @@
       "display": true,
       "oracleAccepted": false,
       "oracleErrorClass": "missingDelimiter",
-      "texMathStatus": "unsupported",
+      "texMathStatus": "refused_match",
       "box": null,
       "glyphs": [],
       "rules": []
@@ -421,7 +421,7 @@
       "display": true,
       "oracleAccepted": false,
       "oracleErrorClass": "missingDelimiter",
-      "texMathStatus": "unsupported",
+      "texMathStatus": "refused_match",
       "box": null,
       "glyphs": [],
       "rules": []
@@ -435,7 +435,7 @@
       "display": true,
       "oracleAccepted": false,
       "oracleErrorClass": "syntaxError",
-      "texMathStatus": "unsupported",
+      "texMathStatus": "refused_match",
       "box": null,
       "glyphs": [],
       "rules": []
@@ -449,7 +449,7 @@
       "display": true,
       "oracleAccepted": false,
       "oracleErrorClass": "undefinedControlSequence",
-      "texMathStatus": "unsupported",
+      "texMathStatus": "refused_match",
       "box": null,
       "glyphs": [],
       "rules": []
@@ -463,7 +463,7 @@
       "display": true,
       "oracleAccepted": false,
       "oracleErrorClass": "undefinedControlSequence",
-      "texMathStatus": "unsupported",
+      "texMathStatus": "refused_match",
       "box": null,
       "glyphs": [],
       "rules": []
@@ -477,7 +477,7 @@
       "display": true,
       "oracleAccepted": false,
       "oracleErrorClass": "undefinedControlSequence",
-      "texMathStatus": "unsupported",
+      "texMathStatus": "refused_match",
       "box": null,
       "glyphs": [],
       "rules": []
@@ -491,7 +491,7 @@
       "display": true,
       "oracleAccepted": false,
       "oracleErrorClass": "unknownEnvironment",
-      "texMathStatus": "unsupported",
+      "texMathStatus": "refused_match",
       "box": null,
       "glyphs": [],
       "rules": []
@@ -505,7 +505,7 @@
       "display": true,
       "oracleAccepted": false,
       "oracleErrorClass": "unknownEnvironment",
-      "texMathStatus": "unsupported",
+      "texMathStatus": "refused_match",
       "box": null,
       "glyphs": [],
       "rules": []
@@ -519,7 +519,7 @@
       "display": true,
       "oracleAccepted": false,
       "oracleErrorClass": "missingDelimiter",
-      "texMathStatus": "unsupported",
+      "texMathStatus": "refused_match",
       "box": null,
       "glyphs": [],
       "rules": []

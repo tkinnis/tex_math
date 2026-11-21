@@ -1,6 +1,40 @@
+import 'dart:io';
+import 'dart:typed_data';
+
 import 'package:tex_math/tex_math.dart';
 
 import 'corpus.dart';
+
+/// Repository-relative path to the bundled default OpenType math font.
+const String defaultMathFontPath =
+    'packages/tex_math_flutter/assets/fonts/NewCMMath-Regular.otf';
+
+TexMathEngine? _cachedDefaultEngine;
+
+/// Reads the raw SFNT bytes for the bundled `NewCMMath-Regular.otf` font.
+Uint8List loadDefaultMathFontBytes() {
+  final File fontFile = File(defaultMathFontPath);
+  if (!fontFile.existsSync()) {
+    throw StateError('Missing default math font: $defaultMathFontPath');
+  }
+  return fontFile.readAsBytesSync();
+}
+
+/// Decodes the bundled `NewCMMath-Regular.otf` font via [MathFont.fromBytes].
+MathFont loadDefaultMathFont() =>
+    MathFont.fromBytes(loadDefaultMathFontBytes());
+
+/// Loads the bundled `NewCMMath-Regular.otf` font once and returns a cached
+/// [TexMathEngine] configured with it.
+TexMathEngine defaultVerificationEngine() {
+  final TexMathEngine? cached = _cachedDefaultEngine;
+  if (cached != null) {
+    return cached;
+  }
+  final TexMathEngine engine = TexMathEngine(font: loadDefaultMathFont());
+  _cachedDefaultEngine = engine;
+  return engine;
+}
 
 /// Outcome of running [TexMathEngine] on a single corpus test case.
 enum EngineOutcome {
@@ -59,8 +93,9 @@ EngineEvaluation evaluateEngineAgainstOracle({
   List<Object?>? oracleGlyphs,
   List<Object?>? oracleRules,
   double toleranceEm = 0.02,
-  TexMathEngine engine = const TexMathEngine(),
+  TexMathEngine? engine,
 }) {
+  final TexMathEngine resolvedEngine = engine ?? defaultVerificationEngine();
   final TexMathOptions options = TexMathOptions(
     displayMode: corpusCase.display
         ? TexMathDisplayMode.display
@@ -69,7 +104,10 @@ EngineEvaluation evaluateEngineAgainstOracle({
   );
 
   try {
-    final RenderResult result = engine.render(corpusCase.tex, options: options);
+    final RenderResult result = resolvedEngine.render(
+      corpusCase.tex,
+      options: options,
+    );
     if (!oracleAccepted) {
       return EngineEvaluation(
         outcome: EngineOutcome.differs,

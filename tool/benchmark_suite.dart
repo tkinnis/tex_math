@@ -1,10 +1,12 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:tex_math/tex_math.dart';
 
 import 'src/cli_args.dart';
 import 'src/corpus.dart';
+import 'src/engine_check.dart';
 
 const String _baselinePath = 'tool/benchmark_baseline.json';
 const String _docsPath = 'doc/BENCHMARKS.md';
@@ -86,7 +88,7 @@ int _runAotBenchmarks(List<String> args) {
   if (updateBaseline) {
     final Map<String, Object?> baselineJson = <String, Object?>{
       'schemaVersion': 1,
-      'phase': 'Phase 1',
+      'phase': 'Phases 2-3',
       'toleranceMultiplier': toleranceOverride ?? _defaultToleranceMultiplier,
       'corpusCaseCount': corpus.length,
       'hardware': hardware.toJson(),
@@ -170,7 +172,7 @@ int _runAotBenchmarks(List<String> args) {
 
   if (jsonOutput) {
     final Map<String, Object?> payload = <String, Object?>{
-      'phase': 'Phase 1',
+      'phase': 'Phases 2-3',
       'corpusCaseCount': corpus.length,
       'hardware': hardware.toJson(),
       'benchmarks': results.map((_BenchmarkResult r) => r.toJson()).toList(),
@@ -209,9 +211,11 @@ int _runAotBenchmarks(List<String> args) {
 }
 
 List<_BenchmarkResult> _executeBenchmarks(List<CorpusCase> corpus) {
+  final Uint8List fontBytes = loadDefaultMathFontBytes();
+  final MathFont font = MathFont.fromBytes(fontBytes);
   final DisplayList smallList = _buildSyntheticDisplayList(itemCount: 12);
   final DisplayList largeList = _buildSyntheticDisplayList(itemCount: 250);
-  const TexMathEngine engine = TexMathEngine();
+  final TexMathEngine engine = TexMathEngine(font: font);
   const String sampleTex = r'\frac{-b \pm \sqrt{b^2 - 4ac}}{2a}';
   final String oversizedTex = 'x' * (TexMathBudgets.defaultMaxInputLength + 1);
   final List<TexMathOptions> corpusOptions = corpus
@@ -226,6 +230,18 @@ List<_BenchmarkResult> _executeBenchmarks(List<CorpusCase> corpus) {
       .toList();
 
   int sink = 0;
+
+  final _BenchmarkResult fontLoad = _measure(
+    id: 'math_font_from_bytes',
+    description: 'Decode NewCMMath-Regular.otf SFNT, MATH, cmap, GSUB, and CFF tables via MathFont.fromBytes',
+    warmupSamples: 2,
+    samples: 10,
+    batchIterations: 5,
+    body: () {
+      final MathFont decoded = MathFont.fromBytes(fontBytes);
+      sink ^= decoded.numGlyphs;
+    },
+  );
 
   final _BenchmarkResult smallSvg = _measure(
     id: 'display_list_to_svg_small',
@@ -253,14 +269,14 @@ List<_BenchmarkResult> _executeBenchmarks(List<CorpusCase> corpus) {
 
   final _BenchmarkResult budgetOk = _measure(
     id: 'budget_input_check_valid',
-    description:
-        'Validate input budgets and dispatch Phase 1 TexMathEngine.render stub',
+    description: 'Validate input budgets, parse quadratic formula, and dispatch TexMathEngine.render',
     warmupSamples: 4,
     samples: 20,
     batchIterations: 1500,
     body: () {
       try {
-        engine.render(sampleTex);
+        final RenderResult result = engine.render(sampleTex);
+        sink ^= result.displayList.items.length;
       } on TexMathUnsupportedError catch (err) {
         sink ^= err.message.length;
       }
@@ -286,14 +302,18 @@ List<_BenchmarkResult> _executeBenchmarks(List<CorpusCase> corpus) {
   final _BenchmarkResult corpusBatch = _measure(
     id: 'corpus_full_dispatch',
     description:
-        'Dispatch all ${corpus.length} corpus cases through Phase 1 TexMathEngine.render',
+        'Dispatch all ${corpus.length} corpus cases through TexMathEngine.render',
     warmupSamples: 3,
     samples: 20,
     batchIterations: 25,
     body: () {
       for (int i = 0; i < corpus.length; i++) {
         try {
-          engine.render(corpus[i].tex, options: corpusOptions[i]);
+          final RenderResult result = engine.render(
+            corpus[i].tex,
+            options: corpusOptions[i],
+          );
+          sink ^= result.displayList.items.length;
         } on TexMathError catch (err) {
           sink ^= err.errorClass.index;
         }
@@ -306,6 +326,7 @@ List<_BenchmarkResult> _executeBenchmarks(List<CorpusCase> corpus) {
   }
 
   return <_BenchmarkResult>[
+    fontLoad,
     smallSvg,
     largeSvg,
     budgetOk,
@@ -508,21 +529,21 @@ String _renderBenchmarksMarkdown({
   required double toleranceMultiplier,
 }) {
   final StringBuffer out = StringBuffer()
-    ..writeln('# Benchmarks (Phase 1 Native AOT Baseline)')
+    ..writeln('# Benchmarks (Native AOT Baseline)')
     ..writeln()
     ..writeln(
       'These timings are measured from a self-compiled native AOT executable '
       'built with `dart compile exe tool/benchmark_suite.dart` against the '
-      'Phase 1 `tex_math` engine and `DisplayList.toSvg()` pipeline across '
-      '$corpusCaseCount corpus cases.',
+      '`tex_math` OpenType `MATH` font reader, TeX parser and macro expander, '
+      'and `DisplayList.toSvg()` pipeline across $corpusCaseCount corpus cases.',
     )
     ..writeln()
     ..writeln(
-      'Phase 1 measurements cover display-list SVG serialization, '
-      '`TexMathBudgets` input-guard enforcement, and full-corpus dispatch. Full '
-      'TeX tokenizer, macro expander, and Appendix G OpenType `MATH` layout '
-      'benchmarks activate in Phases 2–6 against target inline and display '
-      'latency thresholds.',
+      'Measurements cover OpenType font decoding (`MathFont.fromBytes` on '
+      '`NewCMMath-Regular.otf`), display-list SVG serialization, '
+      '`TexMathBudgets` input-guard enforcement, and full-corpus parse and '
+      'error-parity dispatch. Appendix G OpenType `MATH` layout and Flutter '
+      'paint benchmarks activate alongside layout and rendering stages.',
     )
     ..writeln()
     ..writeln('## Host Environment')
@@ -540,7 +561,7 @@ String _renderBenchmarksMarkdown({
       '| Regression Threshold | `${toleranceMultiplier.toStringAsFixed(1)}x` baseline mean |',
     )
     ..writeln()
-    ..writeln('## Measured Phase 1 AOT Timings')
+    ..writeln('## Measured Native AOT Timings')
     ..writeln()
     ..writeln(
       '| Benchmark | Description | Samples x Batch | Mean | Median (p50) | p95 | Min | Max |',
@@ -573,36 +594,34 @@ String _renderBenchmarksMarkdown({
     ..writeln()
     ..writeln('```mermaid')
     ..writeln('xychart-beta')
-    ..writeln('    title "Phase 1 Native AOT Mean Timings"')
+    ..writeln('    title "Native AOT Mean Timings"')
     ..writeln('    x-axis [$xLabels]')
     ..writeln('    y-axis "Mean Microseconds" 0 --> $yAxisMax')
     ..writeln('    bar [$barValues]')
     ..writeln('```')
     ..writeln()
-    ..writeln(
-      '## Target Performance Thresholds (Phases 2–6 — Not Yet Measured)',
-    )
+    ..writeln('## Target Performance Thresholds')
     ..writeln()
     ..writeln(
       'The table below lists target end-to-end performance goals for full '
-      'TeX parsing, OpenType `MATH` layout, and Flutter rendering in Phases '
-      '2–6. These workloads are not yet implemented in Phase 1 and remain '
-      'unmeasured until their respective phases land.',
+      'TeX parsing, OpenType `MATH` layout, and Flutter rendering. Layout and '
+      'paint workloads remain pending until Appendix G layout and Flutter '
+      'rendering stages land.',
     )
     ..writeln()
     ..writeln('| Workload | Target Threshold | Scope | Status |')
     ..writeln('| :--- | :--- | :--- | :--- |')
     ..writeln(
-      '| Typical inline expression | `< 50 us` | Full parse, layout, and display list build | Pending (Phase 2-6) |',
+      '| Typical inline expression | `< 50 us` | Full parse, layout, and display list build | Pending (layout) |',
     )
     ..writeln(
-      '| 50-equation notebook page | `< 5 ms` | Full page layout batch across 50 expressions | Pending (Phase 2-6) |',
+      '| 50-equation notebook page | `< 5 ms` | Full page layout batch across 50 expressions | Pending (layout) |',
     )
     ..writeln(
-      '| Cached first paint | Paint-only cost | Cached display list and theme color update without re-layout | Pending (Phase 2-6) |',
+      '| Cached first paint | Paint-only cost | Cached display list and theme color update without re-layout | Pending (rendering) |',
     )
     ..writeln(
-      '| OpenType `MATH` font parse | Once per font | SFNT and `MATH` table decode per `MathFont` load | Pending (Phase 2-6) |',
+      '| OpenType `MATH` font parse | Once per font | SFNT and `MATH` table decode per `MathFont` load | Measured (`math_font_from_bytes`) |',
     )
     ..writeln()
     ..writeln('## Running Locally')
@@ -619,6 +638,8 @@ String _renderBenchmarksMarkdown({
 
 String _chartLabel(String id) {
   switch (id) {
+    case 'math_font_from_bytes':
+      return 'font load';
     case 'display_list_to_svg_small':
       return 'toSvg small';
     case 'display_list_to_svg_large':

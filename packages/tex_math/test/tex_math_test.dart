@@ -25,7 +25,7 @@ void main() {
   });
 
   group('TexMathBudgets and TexMathOptions', () {
-    test('provides documented Phase 1 defaults', () {
+    test('provides documented defaults and requireAllowlist', () {
       const TexMathBudgets budgets = TexMathBudgets();
       expect(budgets.maxInputLength, 50000);
       expect(budgets.maxMacroDepth, 64);
@@ -40,8 +40,11 @@ void main() {
       expect(options.packages, contains('ams'));
       expect(options.packages, isNot(contains('noerrors')));
       expect(options.packages, isNot(contains('noundefined')));
+      expect(options.requireAllowlist, contains('physics'));
+      expect(options.requireAllowlist, isNot(contains('setoptions')));
       expect(options.macros, isEmpty);
       expect(options.strictErrors, isTrue);
+      expect(TexPackageRegistry.all, hasLength(42));
     });
   });
 
@@ -61,7 +64,7 @@ void main() {
           actual: 12,
         ),
         TexMathFontError('Empty font'),
-        TexMathUnsupportedError('Unimplemented in Phase 1'),
+        TexMathUnsupportedError('Layout stage pending'),
       ];
 
       final List<String> tags = errors.map((TexMathError error) {
@@ -224,7 +227,7 @@ void main() {
             0,
           ]),
         ),
-        throwsA(isA<TexMathUnsupportedError>()),
+        throwsA(isA<TexMathFontError>()),
       );
 
       const GlyphOutline outline = GlyphOutline(
@@ -245,8 +248,8 @@ void main() {
     });
   });
 
-  group('DisplayList and DisplayMetrics', () {
-    test('computes unit metrics and serializes standalone SVG XML', () {
+  group('DisplayList, RenderResult, and DisplayMetrics', () {
+    test('computes unit metrics, SVG XML, MathML, and spoken text', () {
       const DisplayMetrics metrics = DisplayMetrics(
         widthEm: 2.0,
         heightEm: 1.0,
@@ -314,53 +317,59 @@ void main() {
         () => list.toSvg(maxOutputItems: 2),
         throwsA(isA<TexMathBudgetError>()),
       );
+
+      final MathNode tree = parseTex(r'\frac{x}{y}');
+      final RenderResult renderResult = RenderResult(
+        displayList: list,
+        syntaxTree: tree,
+        source: r'\frac{x}{y}',
+      );
+      expect(renderResult.toMathMl(), contains('<mfrac>'));
+      expect(renderResult.toSpokenText(), 'x over y');
     });
   });
 
-  group('TexMathEngine and top-level Phase 1 stubs', () {
-    test(
-      'enforces maxInputLength budget before throwing unsupported error',
-      () {
-        const TexMathOptions tinyBudget = TexMathOptions(
-          budgets: TexMathBudgets(maxInputLength: 5),
-        );
-        const TexMathEngine engine = TexMathEngine(defaultOptions: tinyBudget);
+  group('TexMathEngine budgets and Wave 1 layout boundary', () {
+    test('enforces maxInputLength and parses/exports while layout throws', () {
+      const TexMathOptions tinyBudget = TexMathOptions(
+        budgets: TexMathBudgets(maxInputLength: 5),
+      );
+      const TexMathEngine engine = TexMathEngine(defaultOptions: tinyBudget);
 
-        expect(
-          () => engine.parse('123456'),
-          throwsA(
-            isA<TexMathBudgetError>().having(
-              (TexMathBudgetError e) => e.errorClass,
-              'errorClass',
-              TexMathErrorClass.budgetExceeded,
-            ),
+      expect(
+        () => engine.parse('123456'),
+        throwsA(
+          isA<TexMathBudgetError>().having(
+            (TexMathBudgetError e) => e.errorClass,
+            'errorClass',
+            TexMathErrorClass.budgetExceeded,
           ),
-        );
-        expect(
-          () => engine.render('123456'),
-          throwsA(isA<TexMathBudgetError>()),
-        );
-        expect(
-          () => engine.renderToSvg('123456'),
-          throwsA(isA<TexMathBudgetError>()),
-        );
-        expect(
-          () => engine.toMathMl('123456'),
-          throwsA(isA<TexMathBudgetError>()),
-        );
-        expect(
-          () => engine.toSpokenText('123456'),
-          throwsA(isA<TexMathBudgetError>()),
-        );
+        ),
+      );
+      expect(() => engine.render('123456'), throwsA(isA<TexMathBudgetError>()));
+      expect(
+        () => engine.renderToSvg('123456'),
+        throwsA(isA<TexMathBudgetError>()),
+      );
+      expect(
+        () => engine.toMathMl('123456'),
+        throwsA(isA<TexMathBudgetError>()),
+      );
+      expect(
+        () => engine.toSpokenText('123456'),
+        throwsA(isA<TexMathBudgetError>()),
+      );
 
-        expect(() => parseTex(r'x'), throwsA(isA<TexMathUnsupportedError>()));
-        expect(() => renderTex(r'x'), throwsA(isA<TexMathUnsupportedError>()));
-        expect(
-          () => renderTexToSvg(r'x'),
-          throwsA(isA<TexMathUnsupportedError>()),
-        );
-      },
-    );
+      final MathNode parsed = parseTex(r'x');
+      expect(parsed, isA<MathRootNode>());
+      expect(const TexMathEngine().toMathMl(r'x'), contains('<mi>x</mi>'));
+      expect(const TexMathEngine().toSpokenText(r'x'), 'x');
+      expect(() => renderTex(r'x'), throwsA(isA<TexMathUnsupportedError>()));
+      expect(
+        () => renderTexToSvg(r'x'),
+        throwsA(isA<TexMathUnsupportedError>()),
+      );
+    });
 
     test('enforces maxNestingDepth on layout input trees', () {
       const TexMathEngine engine = TexMathEngine(

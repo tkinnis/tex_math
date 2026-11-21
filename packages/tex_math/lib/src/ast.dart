@@ -31,6 +31,87 @@ enum TexMathStyle {
   crampedScriptScript,
 }
 
+/// TeX Appendix G mathematical atom classification.
+enum TexMathAtomClass {
+  /// Ordinary atom (`\mathord`, letters, digits).
+  ord,
+
+  /// Large or named operator atom (`\mathop`, `\sum`, `\sin`).
+  op,
+
+  /// Binary operator atom (`\mathbin`, `+`, `-`, `\times`).
+  bin,
+
+  /// Relational operator atom (`\mathrel`, `=`, `<`, `\to`).
+  rel,
+
+  /// Opening delimiter atom (`\mathopen`, `(`, `[`).
+  open,
+
+  /// Closing delimiter atom (`\mathclose`, `)`, `]`).
+  close,
+
+  /// Punctuation atom (`\mathpunct`, `,`, `;`, `\colon`).
+  punct,
+
+  /// Inner subformula atom (`\mathinner`, fractions, `\left...\right`).
+  inner,
+}
+
+/// Mathematical alphabet and font style variants.
+enum TexMathFontVariant {
+  /// Upright roman math text (`\mathrm`).
+  normal,
+
+  /// Upright bold (`\mathbf`).
+  bold,
+
+  /// Mathematical italic (`\mathit`).
+  italic,
+
+  /// Bold italic (`\boldsymbol`, `\mathbfit`).
+  boldItalic,
+
+  /// Calligraphic or script (`\mathcal`, `\mathscr`).
+  script,
+
+  /// Bold calligraphic or script.
+  boldScript,
+
+  /// Fraktur (`\mathfrak`).
+  fraktur,
+
+  /// Bold Fraktur.
+  boldFraktur,
+
+  /// Sans-serif (`\mathsf`).
+  sansSerif,
+
+  /// Bold sans-serif.
+  boldSansSerif,
+
+  /// Sans-serif italic.
+  sansSerifItalic,
+
+  /// Bold sans-serif italic.
+  sansSerifBoldItalic,
+
+  /// Monospace typewriter (`\mathtt`).
+  monospace,
+
+  /// Blackboard bold / double-struck (`\mathbb`, `\mathds`, `\mathbbm`).
+  doubleStruck,
+
+  /// Bold blackboard bold (`\mathbfbb`, bold `\mathbbm`).
+  doubleStruckBold,
+
+  /// Sans-serif double-struck (`\mathbbmss`, sans `\mathds`).
+  doubleStruckSans,
+
+  /// Monospace double-struck (`\mathbbmtt`).
+  doubleStruckMonospace,
+}
+
 /// Base sealed node of the typed TeX math syntax tree.
 ///
 /// Every AST node preserves its UTF-16 [span] within the input source for
@@ -47,11 +128,12 @@ sealed class MathNode {
 /// Root node of a parsed TeX mathematical expression.
 @immutable
 final class MathRootNode extends MathNode {
-  /// Creates a root node with [children] and [displayMode].
+  /// Creates a root node with [children], [displayMode], and optional [labels].
   const MathRootNode({
     required super.span,
     required this.children,
     this.displayMode = TexMathDisplayMode.display,
+    this.labels = const <String, String>{},
   });
 
   /// Ordered top-level child nodes.
@@ -60,16 +142,25 @@ final class MathRootNode extends MathNode {
   /// Effective display mode for this expression.
   final TexMathDisplayMode displayMode;
 
+  /// Label-to-tag bindings collected via `\label` and `\tag` within this tree.
+  final Map<String, String> labels;
+
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
       other is MathRootNode &&
           span == other.span &&
           displayMode == other.displayMode &&
-          _nodeListEquals(children, other.children);
+          _listEquals(children, other.children) &&
+          _mapEquals(labels, other.labels);
 
   @override
-  int get hashCode => Object.hash(span, displayMode, Object.hashAll(children));
+  int get hashCode => Object.hash(
+    span,
+    displayMode,
+    Object.hashAll(children),
+    _mapHash(labels),
+  );
 
   @override
   String toString() =>
@@ -77,7 +168,7 @@ final class MathRootNode extends MathNode {
       'children: ${children.length})';
 }
 
-/// Brace-delimited or implicit mathematical sub-group `{...}`.
+/// Brace-delimited, implicit, or annotated mathematical sub-group `{...}`.
 @immutable
 final class MathGroupNode extends MathNode {
   /// Creates a group node wrapping [children].
@@ -85,6 +176,10 @@ final class MathGroupNode extends MathNode {
     required super.span,
     required this.children,
     this.isExplicitGroup = true,
+    this.atomClass,
+    this.fontVariant,
+    this.role,
+    this.attributes = const <String, String>{},
   });
 
   /// Ordered child nodes inside the group.
@@ -93,29 +188,61 @@ final class MathGroupNode extends MathNode {
   /// Whether the group came from explicit `{...}` braces.
   final bool isExplicitGroup;
 
+  /// Optional TeX atom class override (e.g. from `\mathbin`, `\mathrel`).
+  final TexMathAtomClass? atomClass;
+
+  /// Optional math alphabet font variant scoped to this group.
+  final TexMathFontVariant? fontVariant;
+
+  /// Optional structural role identifier (e.g. `phantom`, `boxed`, `bbox`,
+  /// `cancel`, `enclose`, `substack`, `sideset`, `prooftree`, `href`).
+  final String? role;
+
+  /// Additional immutable metadata attributes associated with [role].
+  final Map<String, String> attributes;
+
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
       other is MathGroupNode &&
           span == other.span &&
           isExplicitGroup == other.isExplicitGroup &&
-          _nodeListEquals(children, other.children);
+          atomClass == other.atomClass &&
+          fontVariant == other.fontVariant &&
+          role == other.role &&
+          _listEquals(children, other.children) &&
+          _mapEquals(attributes, other.attributes);
 
   @override
-  int get hashCode =>
-      Object.hash(span, isExplicitGroup, Object.hashAll(children));
+  int get hashCode => Object.hash(
+    span,
+    isExplicitGroup,
+    atomClass,
+    fontVariant,
+    role,
+    Object.hashAll(children),
+    _mapHash(attributes),
+  );
 
   @override
   String toString() =>
       'MathGroupNode(span: $span, isExplicitGroup: $isExplicitGroup, '
-      'children: ${children.length})';
+      'role: $role, children: ${children.length})';
 }
 
 /// Leaf symbol node such as an identifier, numeral, relation, or punctuation.
 @immutable
 final class SymbolNode extends MathNode {
   /// Creates a symbol node for [value].
-  const SymbolNode({required super.span, required this.value, this.command});
+  const SymbolNode({
+    required super.span,
+    required this.value,
+    this.command,
+    this.atomClass,
+    this.fontVariant,
+    this.isNegated = false,
+    this.isStretchy = false,
+  });
 
   /// Unicode symbol text represented by this node.
   final String value;
@@ -123,16 +250,40 @@ final class SymbolNode extends MathNode {
   /// Original TeX control sequence name if produced from a command.
   final String? command;
 
+  /// Optional explicit TeX atom class override.
+  final TexMathAtomClass? atomClass;
+
+  /// Optional math alphabet variant active on this symbol.
+  final TexMathFontVariant? fontVariant;
+
+  /// Whether this symbol is negated (e.g. via `\not` or `\centernot`).
+  final bool isNegated;
+
+  /// Whether this symbol participates in stretchy delimiter or arrow sizing.
+  final bool isStretchy;
+
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
       other is SymbolNode &&
           span == other.span &&
           value == other.value &&
-          command == other.command;
+          command == other.command &&
+          atomClass == other.atomClass &&
+          fontVariant == other.fontVariant &&
+          isNegated == other.isNegated &&
+          isStretchy == other.isStretchy;
 
   @override
-  int get hashCode => Object.hash(span, value, command);
+  int get hashCode => Object.hash(
+    span,
+    value,
+    command,
+    atomClass,
+    fontVariant,
+    isNegated,
+    isStretchy,
+  );
 
   @override
   String toString() =>
@@ -148,6 +299,9 @@ final class OperatorNode extends MathNode {
     required this.operatorName,
     this.hasLimits = false,
     this.isLarge = false,
+    this.command,
+    this.isDeclared = false,
+    this.isExtensible = false,
   });
 
   /// Operator text or control sequence name.
@@ -159,6 +313,16 @@ final class OperatorNode extends MathNode {
   /// Whether this operator uses display-size glyph variants.
   final bool isLarge;
 
+  /// Original TeX command name if produced from a control sequence.
+  final String? command;
+
+  /// Whether this operator was produced by `\operatorname` or
+  /// `\DeclareMathOperator`.
+  final bool isDeclared;
+
+  /// Whether this operator stretches horizontally to accommodate labels.
+  final bool isExtensible;
+
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -166,10 +330,21 @@ final class OperatorNode extends MathNode {
           span == other.span &&
           operatorName == other.operatorName &&
           hasLimits == other.hasLimits &&
-          isLarge == other.isLarge;
+          isLarge == other.isLarge &&
+          command == other.command &&
+          isDeclared == other.isDeclared &&
+          isExtensible == other.isExtensible;
 
   @override
-  int get hashCode => Object.hash(span, operatorName, hasLimits, isLarge);
+  int get hashCode => Object.hash(
+    span,
+    operatorName,
+    hasLimits,
+    isLarge,
+    command,
+    isDeclared,
+    isExtensible,
+  );
 
   @override
   String toString() =>
@@ -188,6 +363,8 @@ final class FractionNode extends MathNode {
     this.ruleThicknessEm,
     this.leftDelimiter,
     this.rightDelimiter,
+    this.styleOverride,
+    this.isBevelled = false,
   });
 
   /// Upper numerator subtree.
@@ -205,6 +382,12 @@ final class FractionNode extends MathNode {
   /// Optional right enclosing delimiter (e.g. `)` for `\binom`).
   final String? rightDelimiter;
 
+  /// Optional forced math style override (e.g. `\dfrac`, `\tfrac`, `\cfrac`).
+  final TexMathStyle? styleOverride;
+
+  /// Whether the fraction uses a bevelled diagonal slash (e.g. `\nicefrac`).
+  final bool isBevelled;
+
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -214,7 +397,9 @@ final class FractionNode extends MathNode {
           denominator == other.denominator &&
           ruleThicknessEm == other.ruleThicknessEm &&
           leftDelimiter == other.leftDelimiter &&
-          rightDelimiter == other.rightDelimiter;
+          rightDelimiter == other.rightDelimiter &&
+          styleOverride == other.styleOverride &&
+          isBevelled == other.isBevelled;
 
   @override
   int get hashCode => Object.hash(
@@ -224,6 +409,8 @@ final class FractionNode extends MathNode {
     ruleThicknessEm,
     leftDelimiter,
     rightDelimiter,
+    styleOverride,
+    isBevelled,
   );
 
   @override
@@ -231,7 +418,7 @@ final class FractionNode extends MathNode {
       'FractionNode(span: $span, ruleThicknessEm: $ruleThicknessEm)';
 }
 
-/// Subscript and/or superscript attachment around a [base] node.
+/// Subscript, superscript, and optional prescript attachment around a [base].
 @immutable
 final class ScriptNode extends MathNode {
   /// Creates a script node attached to [base].
@@ -241,6 +428,8 @@ final class ScriptNode extends MathNode {
     this.subscript,
     this.superscript,
     this.limitsAboveBelow = false,
+    this.presubscript,
+    this.presuperscript,
   });
 
   /// Base expression receiving the scripts.
@@ -255,6 +444,12 @@ final class ScriptNode extends MathNode {
   /// Whether scripts should be stacked as limits above and below [base].
   final bool limitsAboveBelow;
 
+  /// Optional leading presubscript expression (e.g. `\prescript`).
+  final MathNode? presubscript;
+
+  /// Optional leading presuperscript expression (e.g. `\prescript`).
+  final MathNode? presuperscript;
+
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -263,11 +458,20 @@ final class ScriptNode extends MathNode {
           base == other.base &&
           subscript == other.subscript &&
           superscript == other.superscript &&
-          limitsAboveBelow == other.limitsAboveBelow;
+          limitsAboveBelow == other.limitsAboveBelow &&
+          presubscript == other.presubscript &&
+          presuperscript == other.presuperscript;
 
   @override
-  int get hashCode =>
-      Object.hash(span, base, subscript, superscript, limitsAboveBelow);
+  int get hashCode => Object.hash(
+    span,
+    base,
+    subscript,
+    superscript,
+    limitsAboveBelow,
+    presubscript,
+    presuperscript,
+  );
 
   @override
   String toString() =>
@@ -376,7 +580,7 @@ final class DelimiterNode extends MathNode {
           leftDelimiter == other.leftDelimiter &&
           rightDelimiter == other.rightDelimiter &&
           fixedSizeEm == other.fixedSizeEm &&
-          _nodeListEquals(children, other.children);
+          _listEquals(children, other.children);
 
   @override
   int get hashCode => Object.hash(
@@ -402,6 +606,13 @@ final class MatrixNode extends MathNode {
     required this.rows,
     required this.environment,
     this.columnAlignments = const <String>[],
+    this.verticalAlignment,
+    this.leftDelimiter,
+    this.rightDelimiter,
+    this.isNumbered = false,
+    this.rowLines = const <int, String>{},
+    this.columnSeparators = const <int, String>{},
+    this.rowTags = const <int, TagNode>{},
   });
 
   /// Two-dimensional list of cell nodes arranged by row then column.
@@ -413,21 +624,56 @@ final class MatrixNode extends MathNode {
   /// Optional column alignment specifiers (`l`, `c`, `r`).
   final List<String> columnAlignments;
 
+  /// Optional vertical table alignment (`t`, `b`, `c`).
+  final String? verticalAlignment;
+
+  /// Optional left enclosing delimiter (e.g. `(` for `pmatrix`).
+  final String? leftDelimiter;
+
+  /// Optional right enclosing delimiter (e.g. `)` for `pmatrix`).
+  final String? rightDelimiter;
+
+  /// Whether rows carry equation numbers by default.
+  final bool isNumbered;
+
+  /// Horizontal rule styles keyed by row boundary index (`0` = top border).
+  final Map<int, String> rowLines;
+
+  /// Vertical rule or separator specs keyed by column boundary index.
+  final Map<int, String> columnSeparators;
+
+  /// Explicit equation tags keyed by zero-based row index.
+  final Map<int, TagNode> rowTags;
+
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
       other is MatrixNode &&
           span == other.span &&
           environment == other.environment &&
-          _stringListEquals(columnAlignments, other.columnAlignments) &&
-          _matrixRowsEquals(rows, other.rows);
+          verticalAlignment == other.verticalAlignment &&
+          leftDelimiter == other.leftDelimiter &&
+          rightDelimiter == other.rightDelimiter &&
+          isNumbered == other.isNumbered &&
+          _listEquals(columnAlignments, other.columnAlignments) &&
+          _matrixRowsEquals(rows, other.rows) &&
+          _mapEquals(rowLines, other.rowLines) &&
+          _mapEquals(columnSeparators, other.columnSeparators) &&
+          _mapEquals(rowTags, other.rowTags);
 
   @override
   int get hashCode => Object.hash(
     span,
     environment,
+    verticalAlignment,
+    leftDelimiter,
+    rightDelimiter,
+    isNumbered,
     Object.hashAll(columnAlignments),
     Object.hashAll(rows.map(Object.hashAll)),
+    _mapHash(rowLines),
+    _mapHash(columnSeparators),
+    _mapHash(rowTags),
   );
 
   @override
@@ -439,8 +685,13 @@ final class MatrixNode extends MathNode {
 /// Text-mode run embedded inside math mode (`\text`, `\mathrm`, `\textbf`).
 @immutable
 final class TextNode extends MathNode {
-  /// Creates a text-mode node for [text].
-  const TextNode({required super.span, required this.text, this.styleCommand});
+  /// Creates a text-mode node for [text] and optional structured [children].
+  const TextNode({
+    required super.span,
+    required this.text,
+    this.styleCommand,
+    this.children = const <MathNode>[],
+  });
 
   /// Plain text payload.
   final String text;
@@ -448,16 +699,21 @@ final class TextNode extends MathNode {
   /// Optional TeX font or text wrapper command (e.g. `text`, `textbf`).
   final String? styleCommand;
 
+  /// Optional nested text and inline math fragments inside rich text runs.
+  final List<MathNode> children;
+
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
       other is TextNode &&
           span == other.span &&
           text == other.text &&
-          styleCommand == other.styleCommand;
+          styleCommand == other.styleCommand &&
+          _listEquals(children, other.children);
 
   @override
-  int get hashCode => Object.hash(span, text, styleCommand);
+  int get hashCode =>
+      Object.hash(span, text, styleCommand, Object.hashAll(children));
 
   @override
   String toString() =>
@@ -492,7 +748,7 @@ final class SpaceNode extends MathNode {
       'SpaceNode(span: $span, widthEm: $widthEm, command: $command)';
 }
 
-/// Style override node (`\displaystyle`, `\textstyle`, `\scriptstyle`).
+/// Style or size override node (`\displaystyle`, `\textstyle`, `\Large`).
 @immutable
 final class StyleNode extends MathNode {
   /// Creates a style node switching [children] to [style].
@@ -500,6 +756,7 @@ final class StyleNode extends MathNode {
     required super.span,
     required this.style,
     required this.children,
+    this.scaleEm,
   });
 
   /// Target Appendix G math layout style.
@@ -508,23 +765,28 @@ final class StyleNode extends MathNode {
   /// Subtree nodes laid out under [style].
   final List<MathNode> children;
 
+  /// Optional relative font-size scale factor (e.g. `1.44` for `\Large`).
+  final double? scaleEm;
+
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
       other is StyleNode &&
           span == other.span &&
           style == other.style &&
-          _nodeListEquals(children, other.children);
+          scaleEm == other.scaleEm &&
+          _listEquals(children, other.children);
 
   @override
-  int get hashCode => Object.hash(span, style, Object.hashAll(children));
+  int get hashCode =>
+      Object.hash(span, style, scaleEm, Object.hashAll(children));
 
   @override
   String toString() =>
       'StyleNode(span: $span, style: $style, children: ${children.length})';
 }
 
-/// Color scope node (`\color`, `\textcolor`, or semantic role override).
+/// Color scope node (`\color`, `\textcolor`, `\colorbox`, `\fcolorbox`).
 @immutable
 final class ColorNode extends MathNode {
   /// Creates a color scope node around [children].
@@ -533,6 +795,8 @@ final class ColorNode extends MathNode {
     required this.role,
     required this.children,
     this.colorValue,
+    this.backgroundColor,
+    this.borderColor,
   });
 
   /// Semantic color role for this subtree.
@@ -545,6 +809,12 @@ final class ColorNode extends MathNode {
   /// Colored child nodes.
   final List<MathNode> children;
 
+  /// Optional background color string (e.g. `\colorbox`, `\cellcolor`).
+  final String? backgroundColor;
+
+  /// Optional frame border color string (e.g. `\fcolorbox`).
+  final String? borderColor;
+
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -552,18 +822,26 @@ final class ColorNode extends MathNode {
           span == other.span &&
           role == other.role &&
           colorValue == other.colorValue &&
-          _nodeListEquals(children, other.children);
+          backgroundColor == other.backgroundColor &&
+          borderColor == other.borderColor &&
+          _listEquals(children, other.children);
 
   @override
-  int get hashCode =>
-      Object.hash(span, role, colorValue, Object.hashAll(children));
+  int get hashCode => Object.hash(
+    span,
+    role,
+    colorValue,
+    backgroundColor,
+    borderColor,
+    Object.hashAll(children),
+  );
 
   @override
   String toString() =>
       'ColorNode(span: $span, role: $role, colorValue: $colorValue)';
 }
 
-/// Equation tag or label annotation (`\tag`, `\tag*`, `\label`).
+/// Equation tag, label, or reference annotation (`\tag`, `\label`, `\eqref`).
 @immutable
 final class TagNode extends MathNode {
   /// Creates an equation tag node with [label].
@@ -572,16 +850,24 @@ final class TagNode extends MathNode {
     required this.label,
     this.isStarred = false,
     this.body,
+    this.isReference = false,
+    this.isLabelDefinition = false,
   });
 
   /// Tag text or label identifier.
   final String label;
 
-  /// Whether `\tag*` suppressed automatic enclosing parentheses.
+  /// Whether `\tag*` or `\ref` suppressed enclosing parentheses.
   final bool isStarred;
 
   /// Optional tagged body expression.
   final MathNode? body;
+
+  /// Whether this node represents a `\ref` or `\eqref` cross-reference.
+  final bool isReference;
+
+  /// Whether this node represents a `\label` definition.
+  final bool isLabelDefinition;
 
   @override
   bool operator ==(Object other) =>
@@ -590,17 +876,21 @@ final class TagNode extends MathNode {
           span == other.span &&
           label == other.label &&
           isStarred == other.isStarred &&
-          body == other.body;
+          body == other.body &&
+          isReference == other.isReference &&
+          isLabelDefinition == other.isLabelDefinition;
 
   @override
-  int get hashCode => Object.hash(span, label, isStarred, body);
+  int get hashCode =>
+      Object.hash(span, label, isStarred, body, isReference, isLabelDefinition);
 
   @override
   String toString() =>
       'TagNode(span: $span, label: $label, isStarred: $isStarred)';
 }
 
-/// Non-fatal diagnostic AST node emitted when `strictErrors` is `false`.
+/// Non-fatal diagnostic AST node emitted when `strictErrors` is `false` or
+/// `noerrors` is enabled.
 @immutable
 final class ErrorNode extends MathNode {
   /// Creates an error AST node recording [error] and [rawSource].
@@ -631,7 +921,7 @@ final class ErrorNode extends MathNode {
   String toString() => 'ErrorNode(span: $span, error: $error)';
 }
 
-bool _nodeListEquals(List<MathNode> a, List<MathNode> b) {
+bool _listEquals<T>(List<T> a, List<T> b) {
   if (identical(a, b)) {
     return true;
   }
@@ -646,20 +936,26 @@ bool _nodeListEquals(List<MathNode> a, List<MathNode> b) {
   return true;
 }
 
-bool _stringListEquals(List<String> a, List<String> b) {
+bool _mapEquals<K, V>(Map<K, V> a, Map<K, V> b) {
   if (identical(a, b)) {
     return true;
   }
   if (a.length != b.length) {
     return false;
   }
-  for (int i = 0; i < a.length; i++) {
-    if (a[i] != b[i]) {
+  for (final MapEntry<K, V> entry in a.entries) {
+    if (!b.containsKey(entry.key) || b[entry.key] != entry.value) {
       return false;
     }
   }
   return true;
 }
+
+int _mapHash<K, V>(Map<K, V> map) => Object.hashAllUnordered(
+  map.entries.map(
+    (MapEntry<K, V> entry) => Object.hash(entry.key, entry.value),
+  ),
+);
 
 bool _matrixRowsEquals(List<List<MathNode>> a, List<List<MathNode>> b) {
   if (identical(a, b)) {
@@ -669,7 +965,7 @@ bool _matrixRowsEquals(List<List<MathNode>> a, List<List<MathNode>> b) {
     return false;
   }
   for (int i = 0; i < a.length; i++) {
-    if (!_nodeListEquals(a[i], b[i])) {
+    if (!_listEquals(a[i], b[i])) {
       return false;
     }
   }

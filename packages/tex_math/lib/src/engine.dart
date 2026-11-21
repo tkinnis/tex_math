@@ -3,8 +3,11 @@ import 'package:meta/meta.dart';
 import 'ast.dart';
 import 'display_list.dart';
 import 'error.dart';
+import 'export/mathml.dart';
+import 'export/spoken_text.dart';
 import 'font.dart';
 import 'options.dart';
+import 'parser/parser.dart';
 import 'source_span.dart';
 
 /// Stateless TeX math parsing, Appendix G layout, and rendering entry point.
@@ -24,21 +27,18 @@ final class TexMathEngine {
 
   /// Parses [source] into a typed [MathNode] syntax tree.
   ///
-  /// Enforces [TexMathBudgets.maxInputLength] before parsing and throws
-  /// [TexMathUnsupportedError] in Phase 1.
+  /// Enforces [TexMathBudgets.maxInputLength], [TexMathBudgets.maxMacroDepth],
+  /// [TexMathBudgets.maxMacroExpansions], and [TexMathBudgets.maxNestingDepth].
   MathNode parse(String source, {TexMathOptions? options}) {
     final TexMathOptions effective = options ?? defaultOptions;
     _enforceInputLengthBudget(source, effective.budgets);
-    throw TexMathUnsupportedError(
-      'TeX parsing is unimplemented in Phase 1.',
-      span: SourceSpan(0, source.length),
-    );
+    return parseTexInternal(source, options: effective);
   }
 
   /// Lays out [syntaxTree] into a flat [DisplayList].
   ///
   /// Enforces [TexMathBudgets.maxNestingDepth] on [syntaxTree] and throws
-  /// [TexMathUnsupportedError] in Phase 1.
+  /// [TexMathUnsupportedError] while Appendix G layout awaits Wave 2.
   DisplayList layout(
     MathNode syntaxTree, {
     TexMathOptions? options,
@@ -47,15 +47,12 @@ final class TexMathEngine {
     final TexMathOptions effective = options ?? defaultOptions;
     _enforceNestingDepthBudget(syntaxTree, effective.budgets, 1);
     throw TexMathUnsupportedError(
-      'Appendix G math layout is unimplemented in Phase 1.',
+      'Math layout is unimplemented in Phase 1.',
       span: syntaxTree.span,
     );
   }
 
   /// Parses and lays out [source], returning a complete [RenderResult].
-  ///
-  /// Enforces [TexMathBudgets.maxInputLength] before throwing
-  /// [TexMathUnsupportedError] in Phase 1.
   RenderResult render(
     String source, {
     TexMathOptions? options,
@@ -75,9 +72,6 @@ final class TexMathEngine {
   }
 
   /// Parses, lays out, and serializes [source] directly to standalone SVG XML.
-  ///
-  /// Enforces [TexMathBudgets.maxInputLength] before throwing
-  /// [TexMathUnsupportedError] in Phase 1.
   String renderToSvg(
     String source, {
     TexMathOptions? options,
@@ -94,29 +88,15 @@ final class TexMathEngine {
   }
 
   /// Parses [source] and emits Presentation MathML.
-  ///
-  /// Enforces [TexMathBudgets.maxInputLength] before throwing
-  /// [TexMathUnsupportedError] in Phase 1.
   String toMathMl(String source, {TexMathOptions? options}) {
-    final TexMathOptions effective = options ?? defaultOptions;
-    _enforceInputLengthBudget(source, effective.budgets);
-    throw TexMathUnsupportedError(
-      'Presentation MathML emission is unimplemented in Phase 1.',
-      span: SourceSpan(0, source.length),
-    );
+    final MathNode syntaxTree = parse(source, options: options);
+    return mathNodeToMathMl(syntaxTree);
   }
 
   /// Parses [source] and emits plain spoken text for assistive technologies.
-  ///
-  /// Enforces [TexMathBudgets.maxInputLength] before throwing
-  /// [TexMathUnsupportedError] in Phase 1.
   String toSpokenText(String source, {TexMathOptions? options}) {
-    final TexMathOptions effective = options ?? defaultOptions;
-    _enforceInputLengthBudget(source, effective.budgets);
-    throw TexMathUnsupportedError(
-      'Spoken-text generation is unimplemented in Phase 1.',
-      span: SourceSpan(0, source.length),
-    );
+    final MathNode syntaxTree = parse(source, options: options);
+    return mathNodeToSpokenText(syntaxTree);
   }
 
   static void _enforceInputLengthBudget(String source, TexMathBudgets budgets) {
@@ -156,6 +136,10 @@ final class TexMathEngine {
         for (final MathNode child in children) {
           _enforceNestingDepthBudget(child, budgets, depth + 1);
         }
+      case TextNode(:final List<MathNode> children):
+        for (final MathNode child in children) {
+          _enforceNestingDepthBudget(child, budgets, depth + 1);
+        }
       case FractionNode(:final MathNode numerator, :final MathNode denominator):
         _enforceNestingDepthBudget(numerator, budgets, depth + 1);
         _enforceNestingDepthBudget(denominator, budgets, depth + 1);
@@ -163,6 +147,8 @@ final class TexMathEngine {
         :final MathNode base,
         :final MathNode? subscript,
         :final MathNode? superscript,
+        :final MathNode? presubscript,
+        :final MathNode? presuperscript,
       ):
         _enforceNestingDepthBudget(base, budgets, depth + 1);
         if (subscript != null) {
@@ -170,6 +156,12 @@ final class TexMathEngine {
         }
         if (superscript != null) {
           _enforceNestingDepthBudget(superscript, budgets, depth + 1);
+        }
+        if (presubscript != null) {
+          _enforceNestingDepthBudget(presubscript, budgets, depth + 1);
+        }
+        if (presuperscript != null) {
+          _enforceNestingDepthBudget(presuperscript, budgets, depth + 1);
         }
       case RadicalNode(:final MathNode radicand, :final MathNode? index):
         _enforceNestingDepthBudget(radicand, budgets, depth + 1);
@@ -190,7 +182,6 @@ final class TexMathEngine {
         }
       case SymbolNode():
       case OperatorNode():
-      case TextNode():
       case SpaceNode():
       case ErrorNode():
         break;

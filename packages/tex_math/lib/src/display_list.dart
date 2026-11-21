@@ -2,6 +2,8 @@ import 'package:meta/meta.dart';
 
 import 'ast.dart';
 import 'error.dart';
+import 'export/mathml.dart';
+import 'export/spoken_text.dart';
 import 'font.dart';
 import 'options.dart';
 import 'source_span.dart';
@@ -477,24 +479,10 @@ final class RenderResult {
   }
 
   /// Emits Presentation MathML from [syntaxTree].
-  ///
-  /// Throws [TexMathUnsupportedError] in Phase 1.
-  String toMathMl() {
-    throw TexMathUnsupportedError(
-      'Presentation MathML emission is unimplemented in Phase 1.',
-      span: syntaxTree.span,
-    );
-  }
+  String toMathMl() => mathNodeToMathMl(syntaxTree);
 
   /// Emits plain spoken text for screen readers from [syntaxTree].
-  ///
-  /// Throws [TexMathUnsupportedError] in Phase 1.
-  String toSpokenText() {
-    throw TexMathUnsupportedError(
-      'Spoken-text generation is unimplemented in Phase 1.',
-      span: syntaxTree.span,
-    );
-  }
+  String toSpokenText() => mathNodeToSpokenText(syntaxTree);
 
   @override
   bool operator ==(Object other) =>

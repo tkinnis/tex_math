@@ -18,7 +18,10 @@ void main() {
         expect(first.byteLength, greaterThan(1000000));
         expect(first.familyName, 'NewComputerModernMath');
         expect(first.licenseText, contains('GUST Font License'));
-        expect(first.decodeMathFont, throwsA(isA<TexMathUnsupportedError>()));
+        final MathFont decoded = first.decodeMathFont();
+        expect(decoded.familyName, 'NewComputerModernMath');
+        expect(decoded.unitsPerEm, 1000);
+        expect(decoded.numGlyphs, greaterThan(8000));
       },
     );
   });

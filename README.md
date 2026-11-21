@@ -72,7 +72,7 @@ Widget buildFormula() {
 
 ## Corpus Coverage & Benchmarks
 
-Measured corpus parity from [`doc/COVERAGE.md`](doc/COVERAGE.md) (`corpus/expectations.json` verified against `MathJax 4.1.3` with `mathjax-newcm`) reports **352** total corpus cases (**315** Oracle Accepted, **37** Oracle Refused). In Phase 1, `TexMathEngine` enforces `TexMathBudgets` and establishes the public API contract (`0` Pass, `0` Differs, `352` Unsupported, `0` Refused Match, `0.0%` Pass %):
+Measured corpus parity from [`doc/COVERAGE.md`](doc/COVERAGE.md) (`corpus/expectations.json` verified against `MathJax 4.1.3` with `mathjax-newcm`) reports **352** total corpus cases (**315** Oracle Accepted, **37** Oracle Refused). Live `TexMathEngine` execution with `NewCMMath-Regular.otf` achieves `37/37` error-class parity (`0` Pass, `0` Differs, `315` Unsupported, `37` Refused Match, `10.5%` Pass %) while accepted expressions await Appendix G layout:
 
 | Tier | Pass | Differs | Unsupported | Refused Match | Total | Pass % |
 | :--- | ---: | ---: | ---: | ---: | ---: | ---: |
@@ -81,10 +81,10 @@ Measured corpus parity from [`doc/COVERAGE.md`](doc/COVERAGE.md) (`corpus/expect
 | Tier 3 (Remaining MathJax 4 Extensions) | 0 | 0 | 35 | 0 | 35 | 0.0% |
 | Stretchy (Delimiters, Radicals, Braces, Wide Accents) | 0 | 0 | 25 | 0 | 25 | 0.0% |
 | Notebooks (Physics, Calculus, Linear Algebra, ML, Chemistry) | 0 | 0 | 25 | 0 | 25 | 0.0% |
-| Errors (Malformed Inputs & Macro/Delimiter Violations) | 0 | 0 | 37 | 0 | 37 | 0.0% |
-| **Total** | **0** | **0** | **352** | **0** | **352** | **0.0%** |
+| Errors (Malformed Inputs & Macro/Delimiter Violations) | 0 | 0 | 0 | 37 | 37 | 100.0% |
+| **Total** | **0** | **0** | **315** | **37** | **352** | **10.5%** |
 
-Native Dart AOT measurements for `DisplayList.toSvg()`, `TexMathBudgets` guards, and full-corpus dispatch are recorded in [`doc/BENCHMARKS.md`](doc/BENCHMARKS.md).
+Native Dart AOT measurements for `MathFont.fromBytes` (`1.021 ms` mean on `NewCMMath-Regular.otf`), `DisplayList.toSvg()`, `TexMathBudgets` guards, and full-corpus parse dispatch (`7.456 ms` mean across `352` cases) are recorded in [`doc/BENCHMARKS.md`](doc/BENCHMARKS.md).
 
 ## Documentation
 

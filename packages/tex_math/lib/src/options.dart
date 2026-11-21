@@ -143,6 +143,7 @@ final class TexMathOptions {
   const TexMathOptions({
     this.displayMode = TexMathDisplayMode.display,
     this.packages = defaultPackages,
+    this.requireAllowlist = defaultRequireAllowlist,
     this.macros = const <String, String>{},
     this.budgets = const TexMathBudgets(),
     this.strictErrors = true,
@@ -182,11 +183,58 @@ final class TexMathOptions {
     'require',
   ];
 
+  /// Default packages permitted by synchronous `\require{...}` loading.
+  ///
+  /// Matches MathJax's `require.allow` defaults by allowing built-in and
+  /// preloaded extensions while disallowing `base`, `autoload`, `configmacros`,
+  /// `tagformat`, `setoptions`, and `texhtml`.
+  static const List<String> defaultRequireAllowlist = <String>[
+    'action',
+    'ams',
+    'amscd',
+    'bbm',
+    'bboldx',
+    'bbox',
+    'begingroup',
+    'boldsymbol',
+    'braket',
+    'bussproofs',
+    'cancel',
+    'cases',
+    'centernot',
+    'color',
+    'colortbl',
+    'colorv2',
+    'dsfont',
+    'empheq',
+    'enclose',
+    'extpfeil',
+    'fontsizev3',
+    'gensymb',
+    'html',
+    'mathtools',
+    'mhchem',
+    'newcommand',
+    'noerrors',
+    'noundefined',
+    'physics',
+    'require',
+    'textcomp',
+    'textmacros',
+    'unicode',
+    'units',
+    'upgreek',
+    'verb',
+  ];
+
   /// Typesetting display mode (`inline` or `display`).
   final TexMathDisplayMode displayMode;
 
   /// Ordered list of enabled TeX extension package names.
   final List<String> packages;
+
+  /// Package names permitted for synchronous loading via `\require{pkg}`.
+  final List<String> requireAllowlist;
 
   /// Preconfigured macro definitions mapping control sequence names (without
   /// leading backslash) to TeX replacement bodies.
@@ -203,6 +251,7 @@ final class TexMathOptions {
   TexMathOptions copyWith({
     TexMathDisplayMode? displayMode,
     List<String>? packages,
+    List<String>? requireAllowlist,
     Map<String, String>? macros,
     TexMathBudgets? budgets,
     bool? strictErrors,
@@ -210,6 +259,7 @@ final class TexMathOptions {
     return TexMathOptions(
       displayMode: displayMode ?? this.displayMode,
       packages: packages ?? this.packages,
+      requireAllowlist: requireAllowlist ?? this.requireAllowlist,
       macros: macros ?? this.macros,
       budgets: budgets ?? this.budgets,
       strictErrors: strictErrors ?? this.strictErrors,
@@ -222,6 +272,7 @@ final class TexMathOptions {
       other is TexMathOptions &&
           displayMode == other.displayMode &&
           _stringListEquals(packages, other.packages) &&
+          _stringListEquals(requireAllowlist, other.requireAllowlist) &&
           _stringMapEquals(macros, other.macros) &&
           budgets == other.budgets &&
           strictErrors == other.strictErrors;
@@ -230,6 +281,7 @@ final class TexMathOptions {
   int get hashCode => Object.hash(
     displayMode,
     Object.hashAll(packages),
+    Object.hashAll(requireAllowlist),
     Object.hashAllUnordered(
       macros.entries.map(
         (MapEntry<String, String> entry) => Object.hash(entry.key, entry.value),
@@ -244,6 +296,7 @@ final class TexMathOptions {
       'TexMathOptions('
       'displayMode: $displayMode, '
       'packages: $packages, '
+      'requireAllowlist: $requireAllowlist, '
       'macros: $macros, '
       'budgets: $budgets, '
       'strictErrors: $strictErrors)';

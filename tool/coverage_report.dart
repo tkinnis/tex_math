@@ -184,6 +184,11 @@ String _renderCoverageMarkdown({
   required List<_PackageAggregate> packages,
   required List<_FeatureAggregate> features,
 }) {
+  final String summaryProse = _renderSummaryProse(
+    overall: overall,
+    oracleAcceptedCount: oracleAcceptedCount,
+    oracleRefusedCount: oracleRefusedCount,
+  );
   final StringBuffer out = StringBuffer()
     ..writeln('# Corpus Coverage Matrix')
     ..writeln()
@@ -194,14 +199,7 @@ String _renderCoverageMarkdown({
       'and live `TexMathEngine` execution.',
     )
     ..writeln()
-    ..writeln(
-      'Phase 1 establishes the pure-Dart public API, safety budgets, AST, and '
-      'display list contracts, so `TexMathEngine.render` raises '
-      '`TexMathUnsupportedError` across expressions within input-length '
-      'limits. Passing and refused-match counts advance as parser, macro '
-      'expansion, and Appendix G OpenType `MATH` layout stages land in '
-      'subsequent phases. `Pass %` measures `(Pass + Refused Match) / Total`.',
-    )
+    ..writeln(summaryProse)
     ..writeln()
     ..writeln('## Summary')
     ..writeln()
@@ -284,6 +282,38 @@ String _renderCoverageMarkdown({
 int _tierOrder(String tier) {
   final int index = canonicalTiers.indexOf(tier);
   return index == -1 ? canonicalTiers.length : index;
+}
+
+String _renderSummaryProse({
+  required _Counts overall,
+  required int oracleAcceptedCount,
+  required int oracleRefusedCount,
+}) {
+  if (overall.pass == 0 && overall.refusedMatch == 0) {
+    return 'All ${overall.total} expressions within input-length limits raise '
+        '`TexMathUnsupportedError` until parser and layout stages execute. '
+        '`Pass %` measures `(Pass + Refused Match) / Total`.';
+  }
+  if (overall.pass == 0) {
+    return 'TeX tokenization, macro expansion, AST parsing, and error-class '
+        'validation match ${overall.refusedMatch} of $oracleRefusedCount '
+        'oracle-refused inputs (`Refused Match`), while ${overall.unsupported} '
+        'expressions raise `TexMathUnsupportedError` at the layout boundary '
+        'and ${overall.differs} differ. `Pass %` measures '
+        '`(Pass + Refused Match) / Total`.';
+  }
+  if (overall.unsupported == 0 && overall.differs == 0) {
+    return 'Live `TexMathEngine` execution achieves full corpus parity across '
+        '${overall.pass} of $oracleAcceptedCount accepted expressions and '
+        '${overall.refusedMatch} of $oracleRefusedCount refused inputs '
+        '(${overall.passPercentFormatted}). `Pass %` measures '
+        '`(Pass + Refused Match) / Total`.';
+  }
+  return 'Live `TexMathEngine` execution matches the MathJax oracle on '
+      '${overall.pass} of $oracleAcceptedCount accepted expressions and '
+      '${overall.refusedMatch} of $oracleRefusedCount refused inputs '
+      '(${overall.unsupported} unsupported, ${overall.differs} differing). '
+      '`Pass %` measures `(Pass + Refused Match) / Total`.';
 }
 
 double _round2(double value) => (value * 100.0).roundToDouble() / 100.0;
