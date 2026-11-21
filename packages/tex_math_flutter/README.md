@@ -1,14 +1,17 @@
 # tex_math_flutter
 
-Flutter widgets, theming, bundled `NewCMMath-Regular.otf` math font assets, baseline-aligned `WidgetSpan` integration, and background isolate layout helpers for `tex_math`.
+Flutter widgets, theming, bundled `NewCMMath-Regular.otf` math font assets, cached vector glyph `Path` painting, baseline-aligned `WidgetSpan` integration, sub-expression `"copy as LaTeX"` selection, and persistent background isolate layout for `tex_math`.
 
 ## Features
 
-`tex_math_flutter` exposes `TexMath` (`display` and `inline` constructors plus `TexMath.displayList`), `TexMathSpan` (`WidgetSpan` helper for inline equations inside `Text.rich`), `TexMathErrorWidget`, `TexMathTheme` and `TexMathThemeData`, `TexMathFontBundle`, and `TexMathIsolateLayouter` with `Semantics` and `SelectionArea` support.
+`tex_math_flutter` provides:
 
-## Phase 1 Status
-
-Phase 1 provides the widget shell, theme color role resolution, once-only asset loading of `NewCMMath-Regular.otf` with its GUST Font License and manifest, vector `DisplayList` painting, background isolate dispatch, and monospace error fallback rendering while the core `tex_math` parser and layout engine throw `TexMathUnsupportedError`.
+* **`TexMath`**: Display and inline TeX math widgets (`TexMath`, `TexMath.inline`, `TexMath.display`, `TexMath.displayList`) with automatic once-per-lifecycle loading of `NewCMMath-Regular.otf`, configurable `TexMathOverflow` policies (`scroll`, `scaleToFit`, `clip`, `visible`), spoken-text `Semantics` labels, and `SelectionArea` sub-expression selection (`TexMathSelectionUtils`) that expands partial drags to the minimal enclosing `MathNode` slice.
+* **`TexMathSpan`**: Baseline-aligned `WidgetSpan` for embedding inline math inside `Text.rich` and `RichText`.
+* **`TexMathDisplayPainter` & `TexMathPathCache`**: Cached `dart:ui.Path` painting keyed by `(MathFont, glyphId)` so theme color changes repaint without re-running TeX layout or rebuilding glyph paths.
+* **`TexMathTheme` & `TexMathThemeData`**: Inherited theming mapping `TexMathColorRole` values (`foreground`, `accent`, `error`, `muted`, `custom`) cleanly to Material `ColorScheme`s.
+* **`TexMathIsolateLayouter`**: Persistent background `Isolate` layouter with bounded LRU caching keyed by `(source, options, fontId)` and single-transfer font initialization.
+* **`TexMathErrorWidget`**: Monospace diagnostic fallback displaying the original TeX source alongside structured `TexMathError` messages.
 
 ## Usage
 

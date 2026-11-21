@@ -36,15 +36,12 @@ final class TexMathFontAsset {
       bytes[2] == 0x54 &&
       bytes[3] == 0x4F;
 
-  /// Attempts to decode [bytes] into a pure-Dart [MathFont].
-  ///
-  /// Throws [TexMathUnsupportedError] in Phase 1 before full OpenType `MATH`
-  /// table decoding is enabled.
+  /// Decodes [bytes] into a pure-Dart [MathFont] via [MathFont.fromBytes].
   MathFont decodeMathFont() => MathFont.fromBytes(bytes);
 }
 
-/// Loads and caches the bundled `NewCMMath-Regular.otf` asset once per
-/// application lifecycle.
+/// Loads and caches the bundled `NewCMMath-Regular.otf` asset and decoded
+/// [MathFont] once per application lifecycle.
 final class TexMathFontBundle {
   TexMathFontBundle._();
 
@@ -64,6 +61,17 @@ final class TexMathFontBundle {
       'packages/$packageName/assets/fonts/MANIFEST-NewCMMath.txt';
 
   static Future<TexMathFontAsset>? _cachedAssetFuture;
+  static TexMathFontAsset? _cachedAsset;
+  static Future<MathFont>? _cachedMathFontFuture;
+  static MathFont? _cachedMathFont;
+
+  /// Synchronously returns the cached [TexMathFontAsset] if [load] has
+  /// already completed for the default asset bundle, or `null` otherwise.
+  static TexMathFontAsset? get cachedAsset => _cachedAsset;
+
+  /// Synchronously returns the cached decoded [MathFont] if [loadMathFont] has
+  /// already completed for the default asset bundle, or `null` otherwise.
+  static MathFont? get cachedMathFont => _cachedMathFont;
 
   /// Loads `NewCMMath-Regular.otf` and its GUST license from Flutter assets.
   ///
@@ -75,44 +83,127 @@ final class TexMathFontBundle {
     AssetBundle? bundle,
     bool forceReload = false,
   }) {
-    if (bundle == null && !forceReload && _cachedAssetFuture != null) {
-      return _cachedAssetFuture!;
+    if (bundle == null && !forceReload) {
+      final TexMathFontAsset? asset = _cachedAsset;
+      if (asset != null) {
+        return SynchronousFuture<TexMathFontAsset>(asset);
+      }
+      if (_cachedAssetFuture != null) {
+        return _cachedAssetFuture!;
+      }
     }
-    final Future<TexMathFontAsset> future = _loadInternal(bundle ?? rootBundle);
+    final Future<TexMathFontAsset> future = _loadInternal(
+      bundle ?? rootBundle,
+      cacheDefault: bundle == null,
+    );
     if (bundle == null) {
       _cachedAssetFuture = future;
     }
     return future;
   }
 
-  /// Clears the cached font bundle future. Intended for tests.
+  /// Loads and decodes the bundled `NewCMMath-Regular.otf` into a cached
+  /// [MathFont] once per application lifecycle.
+  ///
+  /// When [bundle] is omitted, both the future and the resulting [MathFont] are
+  /// cached and exposed via [cachedMathFont] unless [forceReload] is `true`.
+  static Future<MathFont> loadMathFont({
+    AssetBundle? bundle,
+    bool forceReload = false,
+  }) {
+    if (bundle == null && !forceReload) {
+      final MathFont? font = _cachedMathFont;
+      if (font != null) {
+        return SynchronousFuture<MathFont>(font);
+      }
+      if (_cachedMathFontFuture != null) {
+        return _cachedMathFontFuture!;
+      }
+    }
+    final Future<MathFont> future = _loadMathFontInternal(
+      bundle: bundle,
+      forceReload: forceReload,
+      cacheDefault: bundle == null,
+    );
+    if (bundle == null) {
+      _cachedMathFontFuture = future;
+    }
+    return future;
+  }
+
+  /// Clears all cached font asset and [MathFont] state. Intended for tests.
   @visibleForTesting
   static void clearCache() {
     _cachedAssetFuture = null;
+    _cachedAsset = null;
+    _cachedMathFontFuture = null;
+    _cachedMathFont = null;
   }
 
-  static Future<TexMathFontAsset> _loadInternal(AssetBundle bundle) async {
-    final ByteData fontData = await bundle.load(fontAssetPath);
-    final Uint8List bytes = fontData.buffer.asUint8List(
-      fontData.offsetInBytes,
-      fontData.lengthInBytes,
-    );
-    if (bytes.isEmpty ||
-        bytes.length < 4 ||
-        bytes[0] != 0x4F ||
-        bytes[1] != 0x54 ||
-        bytes[2] != 0x54 ||
-        bytes[3] != 0x4F) {
-      throw const TexMathFontError(
-        'Bundled NewCMMath-Regular.otf is missing a valid OTTO header.',
+  static Future<TexMathFontAsset> _loadInternal(
+    AssetBundle bundle, {
+    required bool cacheDefault,
+  }) async {
+    try {
+      final ByteData fontData = await bundle.load(fontAssetPath);
+      final Uint8List bytes = fontData.buffer.asUint8List(
+        fontData.offsetInBytes,
+        fontData.lengthInBytes,
       );
+      if (bytes.isEmpty ||
+          bytes.length < 4 ||
+          bytes[0] != 0x4F ||
+          bytes[1] != 0x54 ||
+          bytes[2] != 0x54 ||
+          bytes[3] != 0x4F) {
+        throw const TexMathFontError(
+          'Bundled NewCMMath-Regular.otf is missing a valid OTTO header.',
+        );
+      }
+      final String licenseText = await bundle.loadString(
+        licenseAssetPath,
+        cache: false,
+      );
+      final TexMathFontAsset asset = TexMathFontAsset(
+        bytes: bytes,
+        familyName: 'NewComputerModernMath',
+        assetPath: fontAssetPath,
+        licenseText: licenseText,
+      );
+      if (cacheDefault) {
+        _cachedAsset = asset;
+      }
+      return asset;
+    } catch (_) {
+      if (cacheDefault) {
+        _cachedAssetFuture = null;
+        _cachedAsset = null;
+      }
+      rethrow;
     }
-    final String licenseText = await bundle.loadString(licenseAssetPath);
-    return TexMathFontAsset(
-      bytes: bytes,
-      familyName: 'NewComputerModernMath',
-      assetPath: fontAssetPath,
-      licenseText: licenseText,
-    );
+  }
+
+  static Future<MathFont> _loadMathFontInternal({
+    required AssetBundle? bundle,
+    required bool forceReload,
+    required bool cacheDefault,
+  }) async {
+    try {
+      final TexMathFontAsset asset = await load(
+        bundle: bundle,
+        forceReload: forceReload,
+      );
+      final MathFont font = asset.decodeMathFont();
+      if (cacheDefault) {
+        _cachedMathFont = font;
+      }
+      return font;
+    } catch (_) {
+      if (cacheDefault) {
+        _cachedMathFontFuture = null;
+        _cachedMathFont = null;
+      }
+      rethrow;
+    }
   }
 }
