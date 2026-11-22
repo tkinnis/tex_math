@@ -1,6 +1,6 @@
 # tex_math_flutter
 
-[![CI](https://img.shields.io/github/actions/workflow/status/tkinnis/tex_math/ci.yml?branch=main&label=CI&logo=github)](https://github.com/tkinnis/tex_math/actions/workflows/ci.yml) [![Documentation](https://img.shields.io/badge/docs-GitHub%20Pages-0ea5e9)](https://tkinnis.github.io/tex_math/) [![Reference MathJax 4.1.3](https://img.shields.io/badge/reference-MathJax%204.1.3-7c3aed)](https://github.com/tkinnis/tex_math/blob/main/REFERENCE.md) [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+[![pub package](https://img.shields.io/pub/v/tex_math_flutter)](https://pub.dev/packages/tex_math_flutter) [![CI](https://img.shields.io/github/actions/workflow/status/tkinnis/tex_math/ci.yml?branch=main&label=CI&logo=github)](https://github.com/tkinnis/tex_math/actions/workflows/ci.yml) [![Documentation](https://img.shields.io/badge/docs-GitHub%20Pages-0ea5e9)](https://tkinnis.github.io/tex_math/) [![Reference MathJax 4.1.3](https://img.shields.io/badge/reference-MathJax%204.1.3-7c3aed)](https://github.com/tkinnis/tex_math/blob/main/REFERENCE.md) [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
 Flutter math rendering widgets, Material `ColorScheme` theming, bundled `NewCMMath-Regular.otf` (8.1.1) font assets, cached vector glyph painting, baseline-aligned inline spans, copy-as-LaTeX selection, and persistent background isolate layout for `tex_math`.
 
@@ -223,8 +223,9 @@ On Apple M4 native Dart AOT (`arm64`, macOS 15.6, Dart `3.13.5`), the underlying
 * **`tex_math_flutter`**: Copyright (c) 2026 Tony Kinnis — [MIT License](LICENSE).
 * **Bundled Font (`assets/fonts/NewCMMath-Regular.otf` `8.1.1`)**: New Computer Modern Math — [GUST Font License 1.0](assets/fonts/GUST-FONT-LICENSE.txt).
 
-This README covers everything needed to install and build with `tex_math_flutter`; optional repository deep dives are available on GitHub:
+This README covers everything needed to install and build with `tex_math_flutter`; pub.dev API docs and repository deep dives are linked below:
 
+* [pub.dev Package](https://pub.dev/packages/tex_math_flutter) & [API Reference](https://pub.dev/documentation/tex_math_flutter/latest/)
 * [API Manual](https://github.com/tkinnis/tex_math/blob/main/doc/API_MANUAL.md)
 * [Architecture & Design](https://github.com/tkinnis/tex_math/blob/main/doc/ARCHITECTURE.md)
 * [Corpus Coverage Matrix](https://github.com/tkinnis/tex_math/blob/main/doc/COVERAGE.md)

@@ -25,3 +25,11 @@
   - [Code of Conduct](/CODE_OF_CONDUCT.md)
   - [Security](/SECURITY.md)
   - [License](/LICENSE ':ignore')
+
+- Ecosystem
+  - [tex_math on pub.dev ↗](https://pub.dev/packages/tex_math)
+  - [tex_math_flutter on pub.dev ↗](https://pub.dev/packages/tex_math_flutter)
+  - [tex_math API Docs ↗](https://pub.dev/documentation/tex_math/latest/)
+  - [tex_math_flutter API Docs ↗](https://pub.dev/documentation/tex_math_flutter/latest/)
+  - [GitHub Repository ↗](https://github.com/tkinnis/tex_math)
+  - [tonykinnis.com ↗](https://tonykinnis.com)

@@ -1,6 +1,6 @@
 # tex_math
 
-[![CI](https://img.shields.io/github/actions/workflow/status/tkinnis/tex_math/ci.yml?branch=main&label=CI&logo=github)](https://github.com/tkinnis/tex_math/actions/workflows/ci.yml) [![Documentation](https://img.shields.io/badge/docs-GitHub%20Pages-0ea5e9)](https://tkinnis.github.io/tex_math/) [![Reference MathJax 4.1.3](https://img.shields.io/badge/reference-MathJax%204.1.3-7c3aed)](https://github.com/tkinnis/tex_math/blob/main/REFERENCE.md) [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+[![pub package](https://img.shields.io/pub/v/tex_math)](https://pub.dev/packages/tex_math) [![CI](https://img.shields.io/github/actions/workflow/status/tkinnis/tex_math/ci.yml?branch=main&label=CI&logo=github)](https://github.com/tkinnis/tex_math/actions/workflows/ci.yml) [![Documentation](https://img.shields.io/badge/docs-GitHub%20Pages-0ea5e9)](https://tkinnis.github.io/tex_math/) [![Reference MathJax 4.1.3](https://img.shields.io/badge/reference-MathJax%204.1.3-7c3aed)](https://github.com/tkinnis/tex_math/blob/main/REFERENCE.md) [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
 Pure-Dart TeX math parser, OpenType math layout engine, and standalone SVG, Presentation MathML, and spoken-text renderer aligned with MathJax `4.1.3` and JupyterLab defaults.
 
@@ -248,8 +248,9 @@ Native Dart AOT benchmarks on Apple M4 (`arm64`, macOS 15.6, Dart `3.13.5`) demo
 * **`tex_math`**: Copyright (c) 2026 Tony Kinnis — [MIT License](LICENSE).
 * **OpenType Math Font**: Bring your own OpenType math font (`.otf` or `.ttf` with a `MATH` table), such as New Computer Modern Math under the GUST Font License 1.0, or pair with [tex_math_flutter](https://pub.dev/packages/tex_math_flutter) for bundled `NewCMMath-Regular.otf` (8.1.1).
 
-The sections above cover everything needed to install and use `tex_math` directly; optional deep dives into internals and full reports are available in the GitHub repository:
+The sections above cover everything needed to install and use `tex_math` directly; pub.dev API docs and repository deep dives are linked below:
 
+* [pub.dev Package](https://pub.dev/packages/tex_math) & [API Reference](https://pub.dev/documentation/tex_math/latest/)
 * [API Manual](https://github.com/tkinnis/tex_math/blob/main/doc/API_MANUAL.md)
 * [Architecture & Design](https://github.com/tkinnis/tex_math/blob/main/doc/ARCHITECTURE.md)
 * [Corpus Coverage Matrix](https://github.com/tkinnis/tex_math/blob/main/doc/COVERAGE.md)

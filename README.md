@@ -1,12 +1,18 @@
 # ![tex_math](doc/images/tex_math_logo.svg)
 
-[![CI](https://img.shields.io/github/actions/workflow/status/tkinnis/tex_math/ci.yml?branch=main&label=CI&logo=github)](https://github.com/tkinnis/tex_math/actions/workflows/ci.yml) [![Reference MathJax 4.1.3](https://img.shields.io/badge/reference-MathJax%204.1.3-7c3aed)](REFERENCE.md) [![Default Font NewCMMath 8.1.1](https://img.shields.io/badge/font-NewCMMath%208.1.1-0ea5e9)](REFERENCE.md) [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+[![pub: tex_math](https://img.shields.io/pub/v/tex_math?label=tex_math)](https://pub.dev/packages/tex_math) [![pub: tex_math_flutter](https://img.shields.io/pub/v/tex_math_flutter?label=tex_math_flutter)](https://pub.dev/packages/tex_math_flutter) [![CI](https://img.shields.io/github/actions/workflow/status/tkinnis/tex_math/ci.yml?branch=main&label=CI&logo=github)](https://github.com/tkinnis/tex_math/actions/workflows/ci.yml) [![Reference MathJax 4.1.3](https://img.shields.io/badge/reference-MathJax%204.1.3-7c3aed)](REFERENCE.md) [![Default Font NewCMMath 8.1.1](https://img.shields.io/badge/font-NewCMMath%208.1.1-0ea5e9)](REFERENCE.md) [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
 **`tex_math`** is a pure-Dart TeX math parser, OpenType math layout engine, and Flutter rendering suite aligned with MathJax `4.1.3` and JupyterLab math defaults. Every stage of parsing, font decoding, and geometric layout runs synchronously in Dart without a WebView or JavaScript runtime.
 
 ## Quick Start
 
-### Pure Dart (`packages/tex_math`)
+### Pure Dart ([`tex_math`](https://pub.dev/packages/tex_math))
+
+Install `tex_math` from pub.dev:
+
+```bash
+dart pub add tex_math
+```
 
 Load an OpenType math font from bytes and render a formula to standalone SVG, Presentation MathML, or spoken text:
 
@@ -30,7 +36,13 @@ void main() {
 }
 ```
 
-### Flutter (`packages/tex_math_flutter`)
+### Flutter ([`tex_math_flutter`](https://pub.dev/packages/tex_math_flutter))
+
+Install `tex_math_flutter` from pub.dev:
+
+```bash
+flutter pub add tex_math_flutter
+```
 
 Drop `TexMath` or inline `TexMathSpan` directly into your widget tree—the bundled `NewCMMath-Regular.otf` font loads automatically off the UI thread:
 
@@ -111,8 +123,8 @@ The layout engine produces a flat display list containing positioned glyph items
 
 | Component | Path | Role |
 | :--- | :--- | :--- |
-| **`tex_math`** | [`packages/tex_math/`](packages/tex_math/README.md) | Pure-Dart TeX parser, OpenType math layout engine, and SVG / MathML / spoken-text exporters. |
-| **`tex_math_flutter`** | [`packages/tex_math_flutter/`](packages/tex_math_flutter/README.md) | Flutter rendering widgets, glyph path cache, Material theming, selection, isolate layouter, and bundled font. |
+| **`tex_math`** | [`packages/tex_math/`](packages/tex_math/README.md) · [pub.dev](https://pub.dev/packages/tex_math) | Pure-Dart TeX parser, OpenType math layout engine, and SVG / MathML / spoken-text exporters. |
+| **`tex_math_flutter`** | [`packages/tex_math_flutter/`](packages/tex_math_flutter/README.md) · [pub.dev](https://pub.dev/packages/tex_math_flutter) | Flutter rendering widgets, glyph path cache, Material theming, selection, isolate layouter, and bundled font. |
 | **Flutter Example** | [`packages/tex_math_flutter/example/`](https://github.com/tkinnis/tex_math/blob/main/packages/tex_math_flutter/example/lib/main.dart) | Standalone Flutter demo and 50-equation notebook showcasing theme switching, selection, and background layout. |
 | **Comparison Studio** | [`studio/`](studio/README.md) | macOS desktop workbench comparing `tex_math`, MathJax `4.1.3`, and KaTeX `0.19.1` interactively. |
 | **Reference & Coverage** | [`REFERENCE.md`](REFERENCE.md) · [`doc/COVERAGE.md`](doc/COVERAGE.md) | Pinned upstream targets, package tiers, and live corpus parity reports. |
@@ -159,7 +171,7 @@ Native Dart AOT benchmarks on Apple M4 (`arm64`, macOS 15.6, Dart `3.13.5`) pass
 | Guide | Description |
 | :--- | :--- |
 | **[Architecture & Design](doc/ARCHITECTURE.md)** | Five-stage TeX pipeline, OpenType math table usage, oracle divergences, accessibility, and safety budgets. |
-| **[API Manual](doc/API_MANUAL.md)** | Complete public API reference across `tex_math` and `tex_math_flutter`. |
+| **[API Manual](doc/API_MANUAL.md)** | Complete public API reference across `tex_math` ([pub.dev API docs](https://pub.dev/documentation/tex_math/latest/)) and `tex_math_flutter` ([pub.dev API docs](https://pub.dev/documentation/tex_math_flutter/latest/)). |
 | **[Studio Guide](doc/STUDIO_GUIDE.md)** | Comparison Studio workflows, pixel and curtain diffing, keyboard navigation, and headless tests. |
 | **[Reference Pins](REFERENCE.md)** | Pinned MathJax `4.1.3`, JupyterLab, font versions, and package tiers. |
 | **[Coverage Matrix](doc/COVERAGE.md)** | Full corpus parity breakdown across packages, features, and error classes. |

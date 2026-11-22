@@ -1,6 +1,18 @@
 # API Manual
 
-This manual documents the public API exported by **`package:tex_math/tex_math.dart`** (pure Dart) and **`package:tex_math_flutter/tex_math_flutter.dart`** (Flutter widgets, path caching, theming, font loading, selection utilities, and background isolate layout).
+This manual documents the public API exported by [**`package:tex_math/tex_math.dart`**](https://pub.dev/packages/tex_math) ([API reference](https://pub.dev/documentation/tex_math/latest/), pure Dart) and [**`package:tex_math_flutter/tex_math_flutter.dart`**](https://pub.dev/packages/tex_math_flutter) ([API reference](https://pub.dev/documentation/tex_math_flutter/latest/), Flutter widgets, path caching, theming, font loading, selection utilities, and background isolate layout).
+
+## Installation
+
+Add `tex_math` for pure-Dart rendering or `tex_math_flutter` for Flutter widgets and the bundled `NewCMMath-Regular.otf` font asset:
+
+```bash
+# Pure Dart (requires Dart ^3.8.0)
+dart pub add tex_math
+
+# Flutter (requires Dart ^3.8.0 and Flutter >=3.32.0)
+flutter pub add tex_math_flutter
+```
 
 ---
 
