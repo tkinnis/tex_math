@@ -2,7 +2,7 @@ name: Reference Release Monitor
 
 on:
   schedule:
-    - cron: '0 13 * * *'
+    - cron: '0 13 * * 1'
   workflow_dispatch:
 
 permissions:
@@ -17,19 +17,16 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Flutter & Dart SDK
-        uses: subosito/flutter-action@v2
+      - name: Setup Dart SDK
+        uses: dart-lang/setup-dart@v1
         with:
-          channel: stable
-
-      - name: Install workspace dependencies
-        run: flutter pub get
+          sdk: "3.13.5"
 
       - name: Check npm registry for MathJax and JupyterLab updates
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          dart run tool/sync_reference.dart --check --json > reference_status.json
+          dart tool/sync_reference.dart --check --json > reference_status.json
           cat reference_status.json
 
           HAS_UPDATE=$(jq -r '.hasUpdate' reference_status.json)

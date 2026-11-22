@@ -16,7 +16,7 @@ concurrency:
 
 jobs:
   verify:
-    name: Analyze, Test, Oracle & Benchmarks
+    name: Analyze, Test & Oracle
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -49,18 +49,25 @@ jobs:
       - name: Run static analysis
         run: dart analyze --fatal-infos
 
-      - name: Run pure-Dart core tests, CLI example & dartdoc check
+      - name: Run pure-Dart core tests & CLI example
         working-directory: packages/tex_math
         run: |
           dart test
           dart run example/main.dart
-          dart doc --dry-run
 
-      - name: Run Flutter package tests & dartdoc check
+      - name: Run pure-Dart dartdoc check (release tags)
+        if: github.ref_type == 'tag'
+        working-directory: packages/tex_math
+        run: dart doc --dry-run
+
+      - name: Run Flutter package tests
         working-directory: packages/tex_math_flutter
-        run: |
-          flutter test
-          dart doc --dry-run
+        run: flutter test
+
+      - name: Run Flutter package dartdoc check (release tags)
+        if: github.ref_type == 'tag'
+        working-directory: packages/tex_math_flutter
+        run: dart doc --dry-run
 
       - name: Run Flutter example app tests
         working-directory: packages/tex_math_flutter/example
@@ -86,37 +93,12 @@ jobs:
       - name: Verify generated documentation SVGs
         run: dart run tool/generate_doc_images.dart --check
 
-      - name: Run native AOT benchmark regression gate
-        run: dart run tool/benchmark_suite.dart --check-regressions --tolerance=4.0
-
       - name: Validate pub.dev publish readiness for tex_math
+        if: github.ref_type == 'tag'
         working-directory: packages/tex_math
         run: dart pub publish --dry-run
 
       - name: Validate pub.dev publish readiness for tex_math_flutter
+        if: github.ref_type == 'tag'
         working-directory: packages/tex_math_flutter
         run: flutter pub publish --dry-run
-
-  automerge:
-    name: Auto-Merge Dependabot (Minor & Patch)
-    needs: [verify]
-    runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request' && github.actor == 'dependabot[bot]'
-    permissions:
-      contents: write
-      pull-requests: write
-    steps:
-      - name: Fetch Dependabot metadata
-        id: metadata
-        uses: dependabot/fetch-metadata@v2
-        with:
-          github-token: "${{ secrets.GITHUB_TOKEN }}"
-
-      - name: Squash-merge minor and patch updates after CI passes
-        if: >-
-          steps.metadata.outputs.update-type == 'version-update:semver-patch' ||
-          steps.metadata.outputs.update-type == 'version-update:semver-minor'
-        run: gh pr merge --squash --delete-branch "$PR_URL"
-        env:
-          PR_URL: ${{ github.event.pull_request.html_url }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

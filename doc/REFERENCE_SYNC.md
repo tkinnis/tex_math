@@ -42,7 +42,7 @@ With `--json`, the command emits structured output containing `hasUpdate`, `pinn
 
 ### Scheduled Reference Monitor Workflow
 
-`.github/workflows/reference-monitor.yml` runs `dart run tool/sync_reference.dart --check --json` on a daily schedule (`0 13 * * *` UTC) and via manual `workflow_dispatch`. When `hasUpdate` is `true`, the workflow opens a deduplicated repository issue titled `chore(reference): sync mathjax <latestMathjax> / jupyterlab <latestJupyterlab>` if no open issue with that title exists.
+`.github/workflows/reference-monitor.yml` runs `dart tool/sync_reference.dart --check --json` on a weekly schedule (`0 13 * * 1` UTC) and via manual `workflow_dispatch`. When `hasUpdate` is `true`, the workflow opens a deduplicated repository issue titled `chore(reference): sync mathjax <latestMathjax> / jupyterlab <latestJupyterlab>` if no open issue with that title exists.
 
 ---
 

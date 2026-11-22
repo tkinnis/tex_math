@@ -3,6 +3,25 @@ name: Deploy Documentation to GitHub Pages
 on:
   push:
     branches: [main]
+    paths:
+      - README.md
+      - REFERENCE.md
+      - CONTRIBUTING.md
+      - CODE_OF_CONDUCT.md
+      - SECURITY.md
+      - LICENSE
+      - AGENTS.md
+      - doc/**
+      - corpus/README.md
+      - packages/tex_math/README.md
+      - packages/tex_math/CHANGELOG.md
+      - packages/tex_math/LICENSE
+      - packages/tex_math_flutter/README.md
+      - packages/tex_math_flutter/CHANGELOG.md
+      - packages/tex_math_flutter/LICENSE
+      - packages/tex_math_flutter/assets/fonts/GUST-FONT-LICENSE.txt
+      - studio/README.md
+      - .github/workflows/pages.yml
   workflow_dispatch:
 
 permissions:
