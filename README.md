@@ -1,6 +1,6 @@
 # ![tex_math](doc/images/tex_math_logo.svg)
 
-[![CI](https://img.shields.io/github/actions/workflow/status/tkinnis/tex_math/ci.yml?branch=main&label=CI&logo=github)](https://github.com/tkinnis/tex_math/actions/workflows/ci.yml) [![Reference MathJax 4.1.3](https://img.shields.io/badge/reference-MathJax%204.1.3-7c3aed)](REFERENCE.md) [![Default Font NewCMMath 8.1.1](https://img.shields.io/badge/font-NewCMMath%208.1.1-0ea5e9)](REFERENCE.md) [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![CI](https://img.shields.io/github/actions/workflow/status/tkinnis/tex_math/ci.yml?branch=main&label=CI&logo=github)](https://github.com/tkinnis/tex_math/actions/workflows/ci.yml) [![Reference MathJax 4.1.3](https://img.shields.io/badge/reference-MathJax%204.1.3-7c3aed)](REFERENCE.md) [![Default Font NewCMMath 8.1.1](https://img.shields.io/badge/font-NewCMMath%208.1.1-0ea5e9)](REFERENCE.md) [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
 **`tex_math`** is a pure-Dart TeX math parser, OpenType math layout engine, and Flutter rendering suite aligned with MathJax `4.1.3` and JupyterLab math defaults. Every stage of parsing, font decoding, and geometric layout runs synchronously in Dart without a WebView or JavaScript runtime.
 
@@ -127,17 +127,17 @@ The macOS Comparison Studio (`studio/`) renders live expressions side by side ac
 
 `tex_math` achieves **100.0% feature support** across all 42 MathJax packages tracked in [`doc/COVERAGE.md`](doc/COVERAGE.md): **315/315** valid corpus expressions render cleanly into vector layout and SVG output (`0` unsupported), and **37/37** invalid expressions are refused with the exact matching error class.
 
-When comparing exact bounding boxes against MathJax 4.1.3, `Strict ±0.02em` acts as a diagnostic tolerance tracking verbatim agreement with MathJax's JavaScript `.tfm` font tables rather than a measure of broken features. Because `tex_math` reads authentic OpenType math tables from `NewCMMath-Regular.otf`, the 241 expressions with minor metric deltas (74/315 strict matches, 111/352 combined strict oracle matches) reflect expected typographic differences such as fraction rule thickness and optical script spacing—see [OpenType MATH Conformance](doc/ARCHITECTURE.md#opentype-math-conformance-vs-mathjax-4-js-fontdata-divergences) for details.
+When comparing exact bounding boxes against MathJax 4.1.3, `Strict ±0.02em` acts as a diagnostic tolerance tracking verbatim agreement with MathJax's JavaScript `.tfm` font tables rather than a measure of broken features. Because `tex_math` reads authentic OpenType math tables from `NewCMMath-Regular.otf`, the 239 expressions with minor metric deltas (76/315 strict matches, 113/352 combined strict oracle matches) reflect expected typographic differences such as fraction rule thickness and optical script spacing—see [OpenType MATH Conformance](doc/ARCHITECTURE.md#opentype-math-conformance-vs-mathjax-4-js-fontdata-divergences) for details.
 
 | Tier | Rendered | Refused Match | Unsupported | Total | Supported | Strict ±0.02em* |
 | :--- | ---: | ---: | ---: | ---: | ---: | ---: |
 | Tier 1 (Core TeX, AMS, Macros, Textmacros, Tag/ConfigMacros) | 125 | 0 | 0 | 125 | 100.0% | 38 / 125 (30.4%) |
-| Tier 2 (JupyterLab Standard Extensions) | 105 | 0 | 0 | 105 | 100.0% | 27 / 105 (25.7%) |
+| Tier 2 (JupyterLab Standard Extensions) | 105 | 0 | 0 | 105 | 100.0% | 29 / 105 (27.6%) |
 | Tier 3 (Remaining MathJax 4 Extensions) | 35 | 0 | 0 | 35 | 100.0% | 6 / 35 (17.1%) |
 | Stretchy (Delimiters, Radicals, Braces, Wide Accents) | 25 | 0 | 0 | 25 | 100.0% | 3 / 25 (12.0%) |
 | Notebooks (Physics, Calculus, Linear Algebra, ML, Chemistry) | 25 | 0 | 0 | 25 | 100.0% | 0 / 25 (0.0%) |
 | Errors (Malformed Inputs & Macro/Delimiter Violations) | 0 | 37 | 0 | 37 | 100.0% | — |
-| **Total** | **315** | **37** | **0** | **352** | **100.0%** | **74 / 315 (23.5%)** |
+| **Total** | **315** | **37** | **0** | **352** | **100.0%** | **76 / 315 (24.1%)** |
 
 \* *Diagnostic `±0.02em` box parity vs. MathJax `.tfm` font tables (`Pass / Oracle Accepted`, or `—` for refusal-only rows); small metric deltas reflect OpenType math constants rather than missing support.*
 

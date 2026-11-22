@@ -595,6 +595,7 @@ async function renderCase(item, includeSvg) {
   const svgJax = new SVG({
     fontData: sharedFont,
     fontCache: 'local',
+    linebreaks: { inline: false },
   });
   const doc = mathjax.document('', {
     InputJax: texJax,

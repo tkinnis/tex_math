@@ -42,6 +42,8 @@ A `RenderResult` pairs the laid-out display list, syntax tree, and source string
 | `budgets` | `TexMathBudgets` (`const TexMathBudgets()`) | Resource limits enforced during parsing, expansion, layout, and SVG serialization. |
 | `strictErrors` | `bool` (`true`) | When `false`, non-budget syntax and macro errors emit `ErrorNode` instead of throwing. |
 | `useOpticalScriptVariants` | `bool` (`false`) | When `true`, script layout substitutes OpenType `GSUB` `ssty` optical glyphs alongside `MATH` scale factors. |
+| `multlineWidthEm` | `double?` (`null`) | Positive finite target width in ems for `multline` / `multline*` environments; defaults to a compact `12em` minimum width when `null`. |
+| `tagMode` | `TexMathTagMode` (`TexMathTagMode.none`) | Automatic equation numbering policy (`none`, `ams`, or `all`). |
 
 `TexMathBudgets` exposes immutable safety limits with `copyWith(...)`:
 
@@ -60,6 +62,7 @@ Core layout and typography enums exported by `tex_math`:
 | Enum | Values | Role |
 | :--- | :--- | :--- |
 | `TexMathDisplayMode` | `inline`, `display` | Controls inline vs. display-style operator limits and fractions. |
+| `TexMathTagMode` | `none`, `ams`, `all` | Controls automatic equation numbering (`none`: explicit `\tag`/`\tag*` only; `ams`: numbered AMS/LaTeX environments; `all`: numbered environments plus untagged top-level display math). |
 | `TexMathColorRole` | `foreground`, `accent`, `error`, `muted`, `custom` | Semantic color role resolved during Flutter painting or SVG export. |
 | `TexMathStyle` | `display`, `text`, `script`, `scriptScript`, `crampedDisplay`, `crampedText`, `crampedScript`, `crampedScriptScript` | TeX Appendix G layout styles controlling size and cramped behavior. |
 | `TexMathAtomClass` | `ord`, `op`, `bin`, `rel`, `open`, `close`, `punct`, `inner` | TeX atom categories governing inter-atom horizontal spacing. |
@@ -116,12 +119,12 @@ Every `MathNode` subclass is `@immutable` with unmodifiable child/attribute view
 | `RadicalNode` | `radicand`, `index` | Square and nth roots (`\sqrt[n]{x}`). |
 | `AccentNode` | `base`, `accent`, `isWide`, `isUnder` | Over/under accents, wide accents, `\overbrace`, `\underbrace`, `\overbracket`, and `\underbracket`. |
 | `DelimiterNode` | `children`, `leftDelimiter`, `rightDelimiter`, `fixedSizeEm` | Stretchy `\left...\middle...\right` or fixed-size delimiter groups. |
-| `MatrixNode` | `rows`, `environment`, `columnAlignments`, `verticalAlignment`, `leftDelimiter`, `rightDelimiter`, `isNumbered`, `rowLines`, `columnLines`, `columnSeparators`, `rowTags` | Grids, matrices, arrays, commutative diagrams, proof trees, cases, and AMS alignments with pre-parsed column separators. |
+| `MatrixNode` | `rows`, `environment`, `columnAlignments`, `verticalAlignment`, `explicitWidthEm`, `leftDelimiter`, `rightDelimiter`, `isNumbered`, `rowLines`, `columnLines`, `columnSeparators`, `rowTags` | Grids, matrices, arrays, commutative diagrams, proof trees, cases, and AMS alignments with pre-parsed column separators. |
 | `TextNode` | `text`, `styleCommand`, `children` | Embedded text-mode runs (`\text`, `\mathrm`, `\textbf`) with inline math fragments. |
 | `SpaceNode` | `widthEm`, `command` | Explicit horizontal skips (`\,`, `\quad`, `\hspace`, `\mspace`). |
 | `StyleNode` | `style`, `children`, `scaleEm` | Explicit math style scopes and font size scales (`\tiny`–`\Huge`). |
 | `ColorNode` | `role`, `children`, `colorValue`, `backgroundColor`, `borderColor` | Semantic or explicit color, `\colorbox`, `\fcolorbox`, and `\cellcolor` scopes. |
-| `TagNode` | `label`, `isStarred`, `body`, `isReference`, `isLabelDefinition` | Equation tags, labels, and cross-references (`\tag`, `\label`, `\ref`, `\eqref`). |
+| `TagNode` | `label`, `targetId`, `isStarred`, `body`, `isReference`, `isLabelDefinition` | Equation tags, labels, and cross-references (`\tag`, `\label`, `\ref`, `\eqref`). |
 | `ErrorNode` | `error`, `rawSource` | Non-fatal diagnostic placeholder when `strictErrors` is `false` or `noerrors` is active. |
 
 ### OpenType Font, Variations, Hinting & `MATH` Table
@@ -157,6 +160,7 @@ String toSvg({
 | `DisplayMetrics` | `widthEm`, `heightEm`, `depthEm`, `baselineEm`, `unitsPerEm`, `totalHeightEm`, `widthUnits`, `heightUnits`, `depthUnits` | Em-space and design-unit layout dimensions relative to the baseline. |
 | `DisplayBreakHint` & `BreakPoint` | `xEm`, `afterItemIndex`, `breakPoint`, `span`, `kind` (`MathBreakKind`: `none`, `afterBinary`, `afterRelation`, `penalty`, `explicit`), `penalty`, `isExplicit`, `isGood` | Top-level discretionary and forced line-break metadata for wrapping downstream consumers. |
 | `DisplayItem` | `GlyphItem`, `RuleItem`, `AnchorItem` (each carrying `span`, `colorRole`, `customColor`) | Positioned glyph IDs with optional cached outlines, filled/stroked rules, and semantic anchors. |
+| `AnchorItem` | `id`, `xEm`, `yEm`, `widthEm`, `heightEm`, `depthEm`, `label`, `href` (getter) | Non-inked anchor marker carrying optional hitbox bounds (`widthEm`, `heightEm` above `yEm`, `depthEm` below `yEm`, defaulting to `0.0`); the `href` getter returns the validated safe URI for `href:` anchors (`null` otherwise), and `DisplayList.toSvg()` appends `<a href="..." data-href="..."><rect ... fill="none" pointer-events="all"/></a>` overlays when `href != null` and `widthEm > 0`. |
 
 ### Example Usage (Pure-Dart OpenType `MATH` Pipeline)
 
@@ -187,11 +191,12 @@ String renderIntegralToSvg(Uint8List otfBytes) {
 
 ## 2. Flutter Package (`package:tex_math_flutter/tex_math_flutter.dart`)
 
-`package:tex_math_flutter/tex_math_flutter.dart` gives Flutter callers a single import by re-exporting 22 core types alongside the Flutter widget, theme, caching, selection, and background-isolate APIs:
+`package:tex_math_flutter/tex_math_flutter.dart` gives Flutter callers a single import by re-exporting 24 core types alongside the Flutter widget, theme, caching, selection, and background-isolate APIs:
 
 ```dart
 export 'package:tex_math/tex_math.dart'
     show
+        AnchorItem,
         DisplayItem,
         DisplayList,
         DisplayMetrics,
@@ -213,6 +218,7 @@ export 'package:tex_math/tex_math.dart'
         TexMathMacroError,
         TexMathOptions,
         TexMathSyntaxError,
+        TexMathTagMode,
         TexMathUnsupportedError;
 ```
 
@@ -241,6 +247,9 @@ Both `TexMath` and `TexMathSpan` accept the shared widget parameters below:
 | `errorBuilder` | Build a custom fallback widget when parsing or layout throws a `TexMathError`. |
 | `semanticsLabel` | Override the generated spoken-text accessibility label. |
 | `selectable` | Enable or disable `"copy as LaTeX"` selection handling. |
+| `onLinkTap` | Optional `ValueChanged<String>?` callback invoked with the target URI when a user taps a safe `\href` link hitbox inside the rendered expression (`TexMath`, `TexMath.inline`, `TexMath.display`, `TexMath.displayList`, and `TexMathSpan`). |
+
+When `onLinkTap` is non-null, `RenderTexMath` builds interactive hit regions from `AnchorItem` records with non-null `href` and positive `widthEm`, displaying `SystemMouseCursors.click` while hovering over a link hitbox and reverting to `MouseCursor.defer` outside it. Taps trigger `onLinkTap(uri)` only when the primary pointer presses and releases within `kTouchSlop` inside the same link region, preserving `SelectionArea` drag selection across `\href` spans painted in `TexMathThemeData.accent`.
 
 ### Sub-Expression Selection (`TexMathSelectionUtils`)
 

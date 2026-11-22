@@ -3652,9 +3652,9 @@
       "oracleErrorClass": null,
       "texMathStatus": "differs",
       "box": {
-        "width": 3.3037,
-        "height": 0.75,
-        "depth": 0.25
+        "width": 6.8272,
+        "height": 0.9892,
+        "depth": 0.3906
       },
       "glyphs": [
         {
@@ -3698,9 +3698,72 @@
           "y": 0,
           "scaleX": 1,
           "scaleY": 1
+        },
+        {
+          "codePoint": 61,
+          "x": 3.5814,
+          "y": 0,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        {
+          "codePoint": 119909,
+          "x": 4.8572,
+          "y": 0.394,
+          "scaleX": 0.707,
+          "scaleY": 0.707
+        },
+        {
+          "codePoint": 119879,
+          "x": 5.284935,
+          "y": 0.650641,
+          "scaleX": 0.499849,
+          "scaleY": 0.499849
+        },
+        {
+          "codePoint": 119860,
+          "x": 5.67223,
+          "y": 0.394,
+          "scaleX": 0.707,
+          "scaleY": 0.707
+        },
+        {
+          "codePoint": 119909,
+          "x": 6.20248,
+          "y": 0.394,
+          "scaleX": 0.707,
+          "scaleY": 0.707
+        },
+        {
+          "codePoint": 119909,
+          "x": 5.1224,
+          "y": -0.3829,
+          "scaleX": 0.707,
+          "scaleY": 0.707
+        },
+        {
+          "codePoint": 119879,
+          "x": 5.550135,
+          "y": -0.178577,
+          "scaleX": 0.499849,
+          "scaleY": 0.499849
+        },
+        {
+          "codePoint": 119909,
+          "x": 5.93743,
+          "y": -0.3829,
+          "scaleX": 0.707,
+          "scaleY": 0.707
         }
       ],
-      "rules": []
+      "rules": [
+        {
+          "x": 4.7572,
+          "y": 0.22,
+          "width": 1.95,
+          "height": 0.06
+        }
+      ]
     },
     "notebooks/linear_algebra/svd_decomposition": {
       "id": "notebooks/linear_algebra/svd_decomposition",
@@ -4418,9 +4481,9 @@
       "oracleErrorClass": null,
       "texMathStatus": "differs",
       "box": {
-        "width": 1.254,
+        "width": 9.3592,
         "height": 0.8339,
-        "depth": 0.25
+        "depth": 0.248
       },
       "glyphs": [
         {
@@ -4433,6 +4496,104 @@
         {
           "codePoint": 50,
           "x": 0.8504,
+          "y": 0.363,
+          "scaleX": 0.707,
+          "scaleY": 0.707
+        },
+        {
+          "codePoint": 61,
+          "x": 1.5317,
+          "y": 0,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        {
+          "codePoint": 40,
+          "x": 2.5875,
+          "y": 0,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        {
+          "codePoint": 119901,
+          "x": 2.9765,
+          "y": 0,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        {
+          "codePoint": 119888,
+          "x": 3.4795,
+          "y": 0,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        {
+          "codePoint": 41,
+          "x": 3.9125,
+          "y": 0,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        {
+          "codePoint": 50,
+          "x": 4.3345,
+          "y": 0.363,
+          "scaleX": 0.707,
+          "scaleY": 0.707
+        },
+        {
+          "codePoint": 43,
+          "x": 4.9603,
+          "y": 0,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        {
+          "codePoint": 40,
+          "x": 5.9605,
+          "y": 0,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        {
+          "codePoint": 119898,
+          "x": 6.3495,
+          "y": 0,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        {
+          "codePoint": 48,
+          "x": 7.2605,
+          "y": -0.15,
+          "scaleX": 0.707,
+          "scaleY": 0.707
+        },
+        {
+          "codePoint": 119888,
+          "x": 7.6641,
+          "y": 0,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        {
+          "codePoint": 50,
+          "x": 8.1301,
+          "y": 0.363,
+          "scaleX": 0.707,
+          "scaleY": 0.707
+        },
+        {
+          "codePoint": 41,
+          "x": 8.5336,
+          "y": 0,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        {
+          "codePoint": 50,
+          "x": 8.9556,
           "y": 0.363,
           "scaleX": 0.707,
           "scaleY": 0.707
@@ -13868,9 +14029,9 @@
       "oracleErrorClass": null,
       "texMathStatus": "differs",
       "box": {
-        "width": 0.5105,
-        "height": 1.043,
-        "depth": 0.25
+        "width": 2.2019,
+        "height": 1.22,
+        "depth": 0.083
       },
       "glyphs": [
         {
@@ -13891,6 +14052,34 @@
           "codePoint": 729,
           "x": 0.1373,
           "y": 0.286,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        {
+          "codePoint": 43,
+          "x": 0.7327,
+          "y": 0,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        {
+          "codePoint": 120579,
+          "x": 1.7329,
+          "y": 0,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        {
+          "codePoint": 710,
+          "x": 1.7924,
+          "y": 0.295,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        {
+          "codePoint": 175,
+          "x": 1.7924,
+          "y": 0.5,
           "scaleX": 1,
           "scaleY": 1
         }
@@ -14742,9 +14931,9 @@
       "oracleErrorClass": null,
       "texMathStatus": "differs",
       "box": {
-        "width": 1.8477,
-        "height": 0.75,
-        "depth": 0.25
+        "width": 7.9454,
+        "height": 0.705,
+        "depth": 0.205
       },
       "glyphs": [
         {
@@ -14764,6 +14953,48 @@
         {
           "codePoint": 119883,
           "x": 0.9967,
+          "y": 0,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        {
+          "codePoint": 10230,
+          "x": 2.1254,
+          "y": 0,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        {
+          "codePoint": 119884,
+          "x": 3.8662,
+          "y": 0,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        {
+          "codePoint": 44,
+          "x": 4.6282,
+          "y": 0,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        {
+          "codePoint": 119909,
+          "x": 5.3509,
+          "y": 0,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        {
+          "codePoint": 8614,
+          "x": 6.2007,
+          "y": 0,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        {
+          "codePoint": 119910,
+          "x": 7.4554,
           "y": 0,
           "scaleX": 1,
           "scaleY": 1
@@ -15222,7 +15453,7 @@
       "oracleErrorClass": null,
       "texMathStatus": "differs",
       "box": {
-        "width": 8.6238,
+        "width": 9.6718,
         "height": 1.0035,
         "depth": 0.4303
       },
@@ -15349,6 +15580,20 @@
         {
           "codePoint": 119905,
           "x": 8.2628,
+          "y": 0,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        {
+          "codePoint": 119889,
+          "x": 8.7908,
+          "y": 0,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        {
+          "codePoint": 119905,
+          "x": 9.3108,
           "y": 0,
           "scaleX": 1,
           "scaleY": 1
@@ -17139,7 +17384,7 @@
       "oracleErrorClass": null,
       "texMathStatus": "differs",
       "box": {
-        "width": 2.4674,
+        "width": 3.7264,
         "height": 1.418,
         "depth": 1.059
       },
@@ -17185,6 +17430,20 @@
           "y": 0.363,
           "scaleX": 0.707,
           "scaleY": 0.707
+        },
+        {
+          "codePoint": 119889,
+          "x": 2.6344,
+          "y": 0,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        {
+          "codePoint": 119909,
+          "x": 3.1544,
+          "y": 0,
+          "scaleX": 1,
+          "scaleY": 1
         }
       ],
       "rules": []
@@ -17841,9 +18100,9 @@
       "oracleErrorClass": null,
       "texMathStatus": "differs",
       "box": {
-        "width": 3.221,
-        "height": 0.75,
-        "depth": 0.25
+        "width": 14.8941,
+        "height": 0.748,
+        "depth": 0.248
       },
       "glyphs": [
         {
@@ -17898,6 +18157,132 @@
         {
           "codePoint": 41,
           "x": 2.832,
+          "y": 0,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        {
+          "codePoint": 43,
+          "x": 3.4432,
+          "y": 0,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        {
+          "codePoint": 80,
+          "x": 4.4434,
+          "y": 0,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        {
+          "codePoint": 114,
+          "x": 5.1244,
+          "y": 0,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        {
+          "codePoint": 40,
+          "x": 5.5164,
+          "y": 0,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        {
+          "codePoint": 119883,
+          "x": 5.9054,
+          "y": 0,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        {
+          "codePoint": 8804,
+          "x": 7.0342,
+          "y": 0,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        {
+          "codePoint": 119909,
+          "x": 8.09,
+          "y": 0,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        {
+          "codePoint": 41,
+          "x": 8.662,
+          "y": 0,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        {
+          "codePoint": 43,
+          "x": 9.2732,
+          "y": 0,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        {
+          "codePoint": 104,
+          "x": 10.2734,
+          "y": 0,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        {
+          "codePoint": 111,
+          "x": 10.8294,
+          "y": 0,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        {
+          "codePoint": 109,
+          "x": 11.3294,
+          "y": 0,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        {
+          "codePoint": 8289,
+          "x": 12.1624,
+          "y": 0,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        {
+          "codePoint": 40,
+          "x": 12.1624,
+          "y": 0,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        {
+          "codePoint": 119860,
+          "x": 12.5514,
+          "y": 0,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        {
+          "codePoint": 44,
+          "x": 13.3014,
+          "y": 0,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        {
+          "codePoint": 119861,
+          "x": 13.7461,
+          "y": 0,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        {
+          "codePoint": 41,
+          "x": 14.5051,
           "y": 0,
           "scaleX": 1,
           "scaleY": 1
@@ -19148,9 +19533,9 @@
       "oracleErrorClass": null,
       "texMathStatus": "differs",
       "box": {
-        "width": 0.878,
-        "height": 0.75,
-        "depth": 0.25
+        "width": 5.7844,
+        "height": 0.748,
+        "depth": 0.248
       },
       "glyphs": [
         {
@@ -19163,6 +19548,69 @@
         {
           "codePoint": 33,
           "x": 0.6,
+          "y": 0,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        {
+          "codePoint": 43,
+          "x": 1.1002,
+          "y": 0,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        {
+          "codePoint": 40,
+          "x": 2.1004,
+          "y": 0,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        {
+          "codePoint": 50,
+          "x": 2.4894,
+          "y": 0,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        {
+          "codePoint": 119899,
+          "x": 2.9894,
+          "y": 0,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        {
+          "codePoint": 41,
+          "x": 3.5894,
+          "y": 0,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        {
+          "codePoint": 33,
+          "x": 3.9784,
+          "y": 0,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        {
+          "codePoint": 33,
+          "x": 4.2564,
+          "y": 0,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        {
+          "codePoint": 43,
+          "x": 4.5344,
+          "y": 0,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        {
+          "codePoint": 63,
+          "x": 5.3124,
           "y": 0,
           "scaleX": 1,
           "scaleY": 1
@@ -19429,7 +19877,7 @@
       "oracleErrorClass": null,
       "texMathStatus": "differs",
       "box": {
-        "width": 1.1176,
+        "width": 11.0164,
         "height": 0.75,
         "depth": 0.25
       },
@@ -19447,6 +19895,90 @@
           "y": -0.15,
           "scaleX": 0.707,
           "scaleY": 0.707
+        },
+        {
+          "codePoint": 8741,
+          "x": 1.3953,
+          "y": 0,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        {
+          "codePoint": 119871,
+          "x": 2.1731,
+          "y": 0,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        {
+          "codePoint": 50,
+          "x": 2.8871,
+          "y": -0.15,
+          "scaleX": 0.707,
+          "scaleY": 0.707
+        },
+        {
+          "codePoint": 10178,
+          "x": 3.5684,
+          "y": 0,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        {
+          "codePoint": 119871,
+          "x": 4.6242,
+          "y": 0,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        {
+          "codePoint": 51,
+          "x": 5.3382,
+          "y": -0.15,
+          "scaleX": 0.707,
+          "scaleY": 0.707
+        },
+        {
+          "codePoint": 8739,
+          "x": 6.0195,
+          "y": 0,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        {
+          "codePoint": 119899,
+          "x": 6.5753,
+          "y": 0,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        {
+          "codePoint": 8781,
+          "x": 7.4531,
+          "y": 0,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        {
+          "codePoint": 119898,
+          "x": 8.5089,
+          "y": 0,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        {
+          "codePoint": 8904,
+          "x": 9.6647,
+          "y": 0,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        {
+          "codePoint": 119903,
+          "x": 10.5654,
+          "y": 0,
+          "scaleX": 1,
+          "scaleY": 1
         }
       ],
       "rules": []
@@ -20307,9 +20839,9 @@
       "oracleErrorClass": null,
       "texMathStatus": "differs",
       "box": {
-        "width": 1.6737,
-        "height": 0.75,
-        "depth": 0.25
+        "width": 4.5267,
+        "height": 0.8417,
+        "depth": 0.2879
       },
       "glyphs": [
         {
@@ -20332,6 +20864,41 @@
           "y": -0.15,
           "scaleX": 0.707,
           "scaleY": 0.707
+        },
+        {
+          "codePoint": 43,
+          "x": 1.8959,
+          "y": 0,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        {
+          "codePoint": 52,
+          "x": 2.9291,
+          "y": 0.363,
+          "scaleX": 0.707,
+          "scaleY": 0.707
+        },
+        {
+          "codePoint": 50,
+          "x": 2.9291,
+          "y": -0.2879,
+          "scaleX": 0.707,
+          "scaleY": 0.707
+        },
+        {
+          "codePoint": 72,
+          "x": 3.3327,
+          "y": 0,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        {
+          "codePoint": 101,
+          "x": 4.0827,
+          "y": 0,
+          "scaleX": 1,
+          "scaleY": 1
         }
       ],
       "rules": []
@@ -21618,9 +22185,9 @@
       "oracleErrorClass": null,
       "texMathStatus": "differs",
       "box": {
-        "width": 1.7436,
+        "width": 4.6096,
         "height": 0.8339,
-        "depth": 0.25
+        "depth": 0.248
       },
       "glyphs": [
         {
@@ -21647,6 +22214,41 @@
         {
           "codePoint": 50,
           "x": 1.34,
+          "y": 0.363,
+          "scaleX": 0.707,
+          "scaleY": 0.707
+        },
+        {
+          "codePoint": 43,
+          "x": 1.9658,
+          "y": 0,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        {
+          "codePoint": 40,
+          "x": 2.966,
+          "y": 0,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        {
+          "codePoint": 119887,
+          "x": 3.355,
+          "y": 0,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        {
+          "codePoint": 41,
+          "x": 3.784,
+          "y": 0,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        {
+          "codePoint": 50,
+          "x": 4.206,
           "y": 0.363,
           "scaleX": 0.707,
           "scaleY": 0.707
@@ -24023,16 +24625,30 @@
       "display": false,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "differs",
+      "texMathStatus": "pass",
       "box": {
-        "width": 0.567,
-        "height": 0.75,
-        "depth": 0.25
+        "width": 2.1204,
+        "height": 0.453,
+        "depth": 0.008
       },
       "glyphs": [
         {
           "codePoint": 119959,
           "x": 0,
+          "y": 0,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        {
+          "codePoint": 8901,
+          "x": 0.7892,
+          "y": 0,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        {
+          "codePoint": 119960,
+          "x": 1.2894,
           "y": 0,
           "scaleX": 1,
           "scaleY": 1
@@ -31002,16 +31618,30 @@
       "display": false,
       "oracleAccepted": true,
       "oracleErrorClass": null,
-      "texMathStatus": "differs",
+      "texMathStatus": "pass",
       "box": {
-        "width": 0.641,
-        "height": 0.75,
-        "depth": 0.25
+        "width": 2.8634,
+        "height": 0.583,
+        "depth": 0.083
       },
       "glyphs": [
         {
           "codePoint": 945,
           "x": 0,
+          "y": 0,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        {
+          "codePoint": 43,
+          "x": 0.8632,
+          "y": 0,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        {
+          "codePoint": 8734,
+          "x": 1.8634,
           "y": 0,
           "scaleX": 1,
           "scaleY": 1
@@ -32599,9 +33229,9 @@
       "oracleErrorClass": null,
       "texMathStatus": "differs",
       "box": {
-        "width": 1.921,
-        "height": 0.75,
-        "depth": 0.25
+        "width": 4.1436,
+        "height": 0.748,
+        "depth": 0.248
       },
       "glyphs": [
         {
@@ -32621,6 +33251,27 @@
         {
           "codePoint": 119883,
           "x": 1.07,
+          "y": 0,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        {
+          "codePoint": 62,
+          "x": 2.1988,
+          "y": 0,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        {
+          "codePoint": 48,
+          "x": 3.2546,
+          "y": 0,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        {
+          "codePoint": 41,
+          "x": 3.7546,
           "y": 0,
           "scaleX": 1,
           "scaleY": 1
@@ -32701,9 +33352,9 @@
       "oracleErrorClass": null,
       "texMathStatus": "differs",
       "box": {
-        "width": 0.4004,
-        "height": 0.75,
-        "depth": 0.25
+        "width": 2.3284,
+        "height": 0.6365,
+        "depth": 0.2952
       },
       "glyphs": [
         {
@@ -32712,6 +33363,20 @@
           "y": 0,
           "scaleX": 0.7,
           "scaleY": 0.7
+        },
+        {
+          "codePoint": 43,
+          "x": 0.6226,
+          "y": 0,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        {
+          "codePoint": 119910,
+          "x": 1.6228,
+          "y": 0,
+          "scaleX": 1.44,
+          "scaleY": 1.44
         }
       ],
       "rules": []
@@ -33768,9 +34433,9 @@
       "oracleErrorClass": null,
       "texMathStatus": "differs",
       "box": {
-        "width": 2.603,
-        "height": 0.75,
-        "depth": 0.25
+        "width": 21.0007,
+        "height": 0.748,
+        "depth": 0.248
       },
       "glyphs": [
         {
@@ -33811,6 +34476,258 @@
         {
           "codePoint": 41,
           "x": 2.214,
+          "y": 0,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        {
+          "codePoint": 43,
+          "x": 2.8252,
+          "y": 0,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        {
+          "codePoint": 84,
+          "x": 3.8254,
+          "y": 0,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        {
+          "codePoint": 114,
+          "x": 4.5474,
+          "y": 0,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        {
+          "codePoint": 8289,
+          "x": 4.9394,
+          "y": 0,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        {
+          "codePoint": 40,
+          "x": 4.9394,
+          "y": 0,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        {
+          "codePoint": 119873,
+          "x": 5.3284,
+          "y": 0,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        {
+          "codePoint": 41,
+          "x": 6.2094,
+          "y": 0,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        {
+          "codePoint": 43,
+          "x": 6.8207,
+          "y": 0,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        {
+          "codePoint": 114,
+          "x": 7.8209,
+          "y": 0,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        {
+          "codePoint": 97,
+          "x": 8.2129,
+          "y": 0,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        {
+          "codePoint": 110,
+          "x": 8.7129,
+          "y": 0,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        {
+          "codePoint": 107,
+          "x": 9.2689,
+          "y": 0,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        {
+          "codePoint": 8289,
+          "x": 9.7969,
+          "y": 0,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        {
+          "codePoint": 40,
+          "x": 9.7969,
+          "y": 0,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        {
+          "codePoint": 119860,
+          "x": 10.1859,
+          "y": 0,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        {
+          "codePoint": 41,
+          "x": 10.9359,
+          "y": 0,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        {
+          "codePoint": 43,
+          "x": 11.5471,
+          "y": 0,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        {
+          "codePoint": 101,
+          "x": 12.5473,
+          "y": 0,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        {
+          "codePoint": 114,
+          "x": 12.9913,
+          "y": 0,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        {
+          "codePoint": 102,
+          "x": 13.3833,
+          "y": 0,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        {
+          "codePoint": 8289,
+          "x": 13.7403,
+          "y": 0,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        {
+          "codePoint": 40,
+          "x": 13.7403,
+          "y": 0,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        {
+          "codePoint": 119909,
+          "x": 14.1293,
+          "y": 0,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        {
+          "codePoint": 41,
+          "x": 14.7013,
+          "y": 0,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        {
+          "codePoint": 43,
+          "x": 15.3126,
+          "y": 0,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        {
+          "codePoint": 82,
+          "x": 16.3128,
+          "y": 0,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        {
+          "codePoint": 101,
+          "x": 17.0488,
+          "y": 0,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        {
+          "codePoint": 115,
+          "x": 17.4928,
+          "y": 0,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        {
+          "codePoint": 119911,
+          "x": 17.9198,
+          "y": -0.15,
+          "scaleX": 0.707,
+          "scaleY": 0.707
+        },
+        {
+          "codePoint": 61,
+          "x": 18.249969,
+          "y": -0.15,
+          "scaleX": 0.707,
+          "scaleY": 0.707
+        },
+        {
+          "codePoint": 48,
+          "x": 18.800015,
+          "y": -0.15,
+          "scaleX": 0.707,
+          "scaleY": 0.707
+        },
+        {
+          "codePoint": 8289,
+          "x": 19.2037,
+          "y": 0,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        {
+          "codePoint": 119891,
+          "x": 19.2037,
+          "y": 0,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        {
+          "codePoint": 40,
+          "x": 19.7557,
+          "y": 0,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        {
+          "codePoint": 119911,
+          "x": 20.1447,
+          "y": 0,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        {
+          "codePoint": 41,
+          "x": 20.6117,
           "y": 0,
           "scaleX": 1,
           "scaleY": 1
@@ -34249,11 +35166,26 @@
       "oracleErrorClass": null,
       "texMathStatus": "differs",
       "box": {
-        "width": 0.016,
-        "height": 0.75,
-        "depth": 0.25
+        "width": 1.8336,
+        "height": 0.666,
+        "depth": 0
       },
-      "glyphs": [],
+      "glyphs": [
+        {
+          "codePoint": 61,
+          "x": 0.2778,
+          "y": 0,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        {
+          "codePoint": 49,
+          "x": 1.3336,
+          "y": 0,
+          "scaleX": 1,
+          "scaleY": 1
+        }
+      ],
       "rules": []
     },
     "tier3_extended/texhtml/texhtml_span": {
@@ -34408,7 +35340,7 @@
       "oracleErrorClass": null,
       "texMathStatus": "differs",
       "box": {
-        "width": 1.0571,
+        "width": 3.3261,
         "height": 0.75,
         "depth": 0.25
       },
@@ -34431,6 +35363,34 @@
           "codePoint": 52,
           "x": 0.7036,
           "y": -0.1394,
+          "scaleX": 0.707,
+          "scaleY": 0.707
+        },
+        {
+          "codePoint": 43,
+          "x": 1.2793,
+          "y": 0,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        {
+          "codePoint": 97,
+          "x": 2.2796,
+          "y": 0.2476,
+          "scaleX": 0.707,
+          "scaleY": 0.707
+        },
+        {
+          "codePoint": 47,
+          "x": 2.5758,
+          "y": 0,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        {
+          "codePoint": 98,
+          "x": 3.0008,
+          "y": -0.1415,
           "scaleX": 0.707,
           "scaleY": 0.707
         }

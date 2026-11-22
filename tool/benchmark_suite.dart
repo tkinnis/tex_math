@@ -1017,32 +1017,34 @@ String _renderBenchmarksMarkdown({
     );
   }
 
-  double maxMeanUs = 100.0;
-  for (final _BenchmarkResult r in results) {
-    if (r.meanUs > maxMeanUs) {
-      maxMeanUs = r.meanUs;
-    }
-  }
-  final int yAxisMax = ((maxMeanUs * 1.15) / 100.0).ceil() * 100;
-  final String xLabels = results
-      .map((_BenchmarkResult r) => '"${_chartLabel(r.id)}"')
-      .join(', ');
-  final String barValues = results
-      .map((_BenchmarkResult r) => r.meanUs.toStringAsFixed(2))
-      .join(', ');
+  final List<_BenchmarkResult> singleOpResults = results
+      .where((_BenchmarkResult r) => !r.id.startsWith('corpus_'))
+      .toList();
+  final List<_BenchmarkResult> corpusResults = results
+      .where((_BenchmarkResult r) => r.id.startsWith('corpus_'))
+      .toList();
 
   final String inlineStatus = inlineExpr.medianUs < 50.0 ? 'PASS' : 'FAIL';
   final String notebookStatus = notebook.medianUs < 5000.0 ? 'PASS' : 'FAIL';
 
+  if (singleOpResults.isNotEmpty) {
+    _writeHorizontalMeanChart(
+      out,
+      singleOpResults,
+      title: 'Native AOT Mean Timings (Single-Op & 50-Equation)',
+      stepUs: 50.0,
+    );
+  }
+  if (corpusResults.isNotEmpty) {
+    _writeHorizontalMeanChart(
+      out,
+      corpusResults,
+      title: 'Native AOT Mean Timings (Full 352-Case Corpus)',
+      stepUs: 100.0,
+    );
+  }
+
   out
-    ..writeln()
-    ..writeln('```mermaid')
-    ..writeln('xychart-beta')
-    ..writeln('    title "Native AOT Mean Timings"')
-    ..writeln('    x-axis [$xLabels]')
-    ..writeln('    y-axis "Mean Microseconds" 0 --> $yAxisMax')
-    ..writeln('    bar [$barValues]')
-    ..writeln('```')
     ..writeln()
     ..writeln('## Target vs Measured Performance')
     ..writeln()
@@ -1092,6 +1094,37 @@ String _renderBenchmarksMarkdown({
     );
 
   return out.toString();
+}
+
+void _writeHorizontalMeanChart(
+  StringBuffer out,
+  List<_BenchmarkResult> subset, {
+  required String title,
+  required double stepUs,
+}) {
+  double maxMeanUs = stepUs;
+  for (final _BenchmarkResult r in subset) {
+    if (r.meanUs > maxMeanUs) {
+      maxMeanUs = r.meanUs;
+    }
+  }
+  final int yAxisMax = (((maxMeanUs * 1.15) / stepUs).ceil() * stepUs).toInt();
+  final String xLabels = subset
+      .map((_BenchmarkResult r) => '"${_chartLabel(r.id)}"')
+      .join(', ');
+  final String barValues = subset
+      .map((_BenchmarkResult r) => r.meanUs.toStringAsFixed(2))
+      .join(', ');
+
+  out
+    ..writeln()
+    ..writeln('```mermaid')
+    ..writeln('xychart-beta horizontal')
+    ..writeln('    title "$title"')
+    ..writeln('    x-axis [$xLabels]')
+    ..writeln('    y-axis "Mean Microseconds" 0 --> $yAxisMax')
+    ..writeln('    bar [$barValues]')
+    ..writeln('```');
 }
 
 String _chartLabel(String id) {

@@ -110,7 +110,7 @@ flowchart TD
 
 ### OpenType MATH Conformance vs. MathJax 4 JS-FontData Divergences
 
-As documented in [`doc/COVERAGE.md`](COVERAGE.md), `tex_math` renders all 315 accepted corpus cases cleanly (0 unsupported and 37/37 error-class parity). Strict ±0.02em bounding-box comparison against MathJax 4.1.3 reports 241 numeric deltas caused by structural differences between authentic OpenType math tables (`NewCMMath-Regular.otf` 8.1.1) and MathJax's `.tfm`-derived font data:
+As documented in [`doc/COVERAGE.md`](COVERAGE.md), `tex_math` renders all 315 accepted corpus cases cleanly (0 unsupported and 37/37 error-class parity). Strict ±0.02em bounding-box comparison against MathJax 4.1.3 reports 239 numeric deltas caused by structural differences between authentic OpenType math tables (`NewCMMath-Regular.otf` 8.1.1) and MathJax's `.tfm`-derived font data:
 
 * **Math Constants vs. Legacy TFM Parameters**: OpenType `MATH` defines unified constants such as `superscriptShiftUp` (0.363em), `superscriptShiftUpCramped` (0.289em), and `fractionRuleThickness` (0.040em). MathJax retains `.tfm` slots distinguishing display `sup1` (0.413em) from `sup2` (0.363em), separate subscript shifts, and 0.060em rule thickness.
 * **Unencoded Glyph Assemblies vs. Clipped SVG Tiles**: OpenType math variants build tall delimiters and horizontal braces from unencoded glyph ID segments with overlap recipes, whereas MathJax emits scaled and clipped SVG `<use>` tiles.

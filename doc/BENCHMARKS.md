@@ -36,11 +36,19 @@ Measurements cover one-time OpenType font decoding, cold font plus initial glyph
 | `budget_input_check_exceeded` | Reject oversized 50,001-char input via TexMathBudgetError guard | `20 x 4000` | 1.55 us | 1.54 us | 1.69 us | 1.43 us | 1.69 us | 52.00 MiB (-512.0 KiB) |
 
 ```mermaid
-xychart-beta
-    title "Native AOT Mean Timings"
-    x-axis ["font load", "cold decode", "inline expr", "notebook 50", "cached hit", "lru mixed", "corpus parse", "corpus layout", "corpus 352", "toSvg small", "toSvg large", "budget valid", "budget over"]
+xychart-beta horizontal
+    title "Native AOT Mean Timings (Single-Op & 50-Equation)"
+    x-axis ["font load", "cold decode", "inline expr", "notebook 50", "cached hit", "lru mixed", "toSvg small", "toSvg large", "budget valid", "budget over"]
+    y-axis "Mean Microseconds" 0 --> 550
+    bar [302.78, 438.38, 4.09, 474.49, 0.13, 62.82, 75.02, 428.90, 6.48, 1.55]
+```
+
+```mermaid
+xychart-beta horizontal
+    title "Native AOT Mean Timings (Full 352-Case Corpus)"
+    x-axis ["corpus parse", "corpus layout", "corpus 352"]
     y-axis "Mean Microseconds" 0 --> 5000
-    bar [302.78, 438.38, 4.09, 474.49, 0.13, 62.82, 2104.90, 1625.50, 4269.28, 75.02, 428.90, 6.48, 1.55]
+    bar [2104.90, 1625.50, 4269.28]
 ```
 
 ## Target vs Measured Performance

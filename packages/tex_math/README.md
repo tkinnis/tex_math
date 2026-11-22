@@ -1,6 +1,6 @@
 # tex_math
 
-[![CI](https://img.shields.io/github/actions/workflow/status/tkinnis/tex_math/ci.yml?branch=main&label=CI&logo=github)](https://github.com/tkinnis/tex_math/actions/workflows/ci.yml) [![Documentation](https://img.shields.io/badge/docs-GitHub%20Pages-0ea5e9)](https://tkinnis.github.io/tex_math/) [![Reference MathJax 4.1.3](https://img.shields.io/badge/reference-MathJax%204.1.3-7c3aed)](https://github.com/tkinnis/tex_math/blob/main/REFERENCE.md) [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![CI](https://img.shields.io/github/actions/workflow/status/tkinnis/tex_math/ci.yml?branch=main&label=CI&logo=github)](https://github.com/tkinnis/tex_math/actions/workflows/ci.yml) [![Documentation](https://img.shields.io/badge/docs-GitHub%20Pages-0ea5e9)](https://tkinnis.github.io/tex_math/) [![Reference MathJax 4.1.3](https://img.shields.io/badge/reference-MathJax%204.1.3-7c3aed)](https://github.com/tkinnis/tex_math/blob/main/REFERENCE.md) [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
 Pure-Dart TeX math parser, OpenType math layout engine, and standalone SVG, Presentation MathML, and spoken-text renderer aligned with MathJax `4.1.3` and JupyterLab defaults.
 
@@ -135,6 +135,8 @@ Pass `const MathFont.stub()` in unit tests that exercise parsing or layout struc
 | `budgets` | `TexMathBudgets` (`const TexMathBudgets()`) | Enforces complexity, recursion, output item, and SVG size caps. |
 | `strictErrors` | `bool` (`true`) | Throws `TexMathError` on syntax or macro errors; `false` produces fallback `ErrorNode` entries. |
 | `useOpticalScriptVariants` | `bool` (`false`) | Substitutes `GSUB` `ssty` optical script glyphs alongside `MATH` scaling factors. |
+| `multlineWidthEm` | `double?` (`null`) | Optional positive finite target line width in ems for `multline` / `multline*` environments; defaults to a compact 12em minimum width when `null`. |
+| `tagMode` | `TexMathTagMode` (`none`) | Automatic equation numbering policy (`none`, `ams` for numbered AMS environments, or `all` for all untagged display expressions). |
 
 `TexMathBudgets` protects applications processing untrusted or user-supplied TeX inputs against excessive memory or CPU consumption.
 
@@ -159,6 +161,7 @@ Pass `const MathFont.stub()` in unit tests that exercise parsing or layout struc
 | `RenderResult` | `displayList`, `syntaxTree`, `source`, `toSvg(...)`, `toMathMl()`, `toSpokenText()` | Bundles parsed AST and laid-out display primitives with XML and spoken-text exporters. |
 | `DisplayList` | `metrics`, `items`, `breakHints`, `source`, `fontSignature`, `toSvg(...)` | Flat list of positioned primitives (`GlyphItem`, `RuleItem`, `AnchorItem`) and top-level line-break hints. |
 | `DisplayMetrics` | `widthEm`, `heightEm`, `depthEm`, `baselineEm`, `totalHeightEm`, `unitsPerEm` | Em-space bounding box and baseline measurements plus integer font-unit helpers (`widthUnits`, `heightUnits`, `depthUnits`). |
+| `AnchorItem` | `id`, `xEm`, `yEm`, `widthEm`, `heightEm`, `depthEm`, `label`, `href` | Non-inked semantic anchor with optional hitbox bounds and validated `\href` URI getter; `toSvg()` emits SVG `<a>` overlays when `href != null` and `widthEm > 0`. |
 | `TexMathColorRole` | `foreground`, `accent`, `error`, `muted`, `custom` | Semantic color roles mapped to CSS hex strings via the `colors` argument of `toSvg()`. |
 
 Pass `fontSize` (default 16.0), `colors`, and an accessible `title` to `toSvg()` when customizing SVG output.
@@ -226,7 +229,7 @@ Including `autoload` in `packages` activates supported Tier 2 commands and envir
 
 ## Verification & Performance
 
-Tested against a live MathJax `4.1.3` oracle across 352 corpus entries, `tex_math` achieves **100.0% feature support**: **315/315** valid expressions render into clean vector output (0 unsupported), and **37/37** malformed inputs are refused with matching error classes. Strict ±0.02em bounding-box matching against MathJax (74/315 accepted expressions, 111/352 overall) is tracked as a diagnostic comparison against JavaScript `.tfm` font tables rather than missing coverage, since `tex_math` computes layout directly from OpenType `MATH` metrics.
+Tested against a live MathJax `4.1.3` oracle across 352 corpus entries, `tex_math` achieves **100.0% feature support**: **315/315** valid expressions render into clean vector output (0 unsupported), and **37/37** malformed inputs are refused with matching error classes. Strict ±0.02em bounding-box matching against MathJax (76/315 accepted expressions, 113/352 overall) is tracked as a diagnostic comparison against JavaScript `.tfm` font tables rather than missing coverage, since `tex_math` computes layout directly from OpenType `MATH` metrics.
 
 Native Dart AOT benchmarks on Apple M4 (`arm64`, macOS 15.6, Dart `3.13.5`) demonstrate microsecond layout and sub-millisecond cold font loading:
 

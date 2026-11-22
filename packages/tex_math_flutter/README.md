@@ -1,6 +1,6 @@
 # tex_math_flutter
 
-[![CI](https://img.shields.io/github/actions/workflow/status/tkinnis/tex_math/ci.yml?branch=main&label=CI&logo=github)](https://github.com/tkinnis/tex_math/actions/workflows/ci.yml) [![Documentation](https://img.shields.io/badge/docs-GitHub%20Pages-0ea5e9)](https://tkinnis.github.io/tex_math/) [![Reference MathJax 4.1.3](https://img.shields.io/badge/reference-MathJax%204.1.3-7c3aed)](https://github.com/tkinnis/tex_math/blob/main/REFERENCE.md) [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![CI](https://img.shields.io/github/actions/workflow/status/tkinnis/tex_math/ci.yml?branch=main&label=CI&logo=github)](https://github.com/tkinnis/tex_math/actions/workflows/ci.yml) [![Documentation](https://img.shields.io/badge/docs-GitHub%20Pages-0ea5e9)](https://tkinnis.github.io/tex_math/) [![Reference MathJax 4.1.3](https://img.shields.io/badge/reference-MathJax%204.1.3-7c3aed)](https://github.com/tkinnis/tex_math/blob/main/REFERENCE.md) [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
 Flutter math rendering widgets, Material `ColorScheme` theming, bundled `NewCMMath-Regular.otf` (8.1.1) font assets, cached vector glyph painting, baseline-aligned inline spans, copy-as-LaTeX selection, and persistent background isolate layout for `tex_math`.
 
@@ -109,6 +109,7 @@ Both `TexMath` and `TexMathSpan` accept the shared widget parameters below:
 | `textStyle` / `style` | `TextStyle?` | Override font size and foreground color (`textStyle` on `TexMath`, `style` on `TexMathSpan`). |
 | `errorBuilder` | `TexMathErrorBuilder?` | Build a custom fallback widget when TeX parsing or layout throws `TexMathError`. |
 | `semanticsLabel` / `selectable` | `String?` / `bool?` | Override generated spoken-text semantics or toggle `"copy as LaTeX"` selection handling (`bool` defaulting to `true` on `TexMath`, nullable `bool?` on `TexMathSpan` inheriting ancestor `SelectionArea`). |
+| `onLinkTap` | `ValueChanged<String>?` | Callback invoked when a safe `\href` link is tapped; shows `SystemMouseCursors.click` on hover without interrupting drag selection. |
 
 ### Theming, Selection & Font Caching
 
