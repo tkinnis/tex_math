@@ -8,6 +8,8 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:tex_math/tex_math.dart';
+import 'package:tex_math_flutter/src/font_decode_stub.dart' as web_font_decode;
+import 'package:tex_math_flutter/src/isolate_layouter_web.dart' as web_layouter;
 import 'package:tex_math_flutter/src/selection_adapter.dart'
     show
         RenderTexMath,
@@ -1022,7 +1024,8 @@ void main() {
             expect(caughtTrace.toString(), isNotEmpty);
 
             // Crash recovery: killing the worker isolate fails pending requests and restarts.
-            final Isolate? workerIsolate = layouter.debugWorkerIsolate;
+            final Isolate? workerIsolate =
+                layouter.debugWorkerIsolate as Isolate?;
             expect(workerIsolate, isNotNull);
             final Future<RenderResult> doomedRequest = layouter
                 .renderInBackground(r'\int_0^1 x^2\,dx', font: fontA);
@@ -1881,6 +1884,72 @@ void main() {
         );
         await tester.pumpAndSettle();
         expect(find.text('Empty input (at position 1)'), findsOneWidget);
+      },
+    );
+  });
+
+  group('Conditional Web/Wasm isolate fallback', () {
+    testWidgets(
+      'font_decode_stub and isolate_layouter_web preserve caching, deduplication, error propagation, and dispose semantics',
+      (WidgetTester tester) async {
+        final TexMathFontAsset asset = (await tester.runAsync(
+          TexMathFontBundle.load,
+        ))!;
+        final MathFont decoded = (await tester.runAsync(
+          () => web_font_decode.decodeMathFontOffThread(asset.bytes),
+        ))!;
+        expect(decoded.unitsPerEm, greaterThan(0));
+
+        final web_layouter.TexMathIsolateLayouter layouter = (await tester
+            .runAsync(
+              () => web_layouter.TexMathIsolateLayouter.withBundledFont(
+                maxCacheEntries: 2,
+              ),
+            ))!;
+        addTearDown(layouter.dispose);
+
+        await tester.runAsync(() async {
+          expect(layouter.hasFontBytes, isTrue);
+          expect(layouter.isWorkerRunning, isFalse);
+          await layouter.warmUp();
+          expect(layouter.isWorkerRunning, isTrue);
+          expect(layouter.debugWorkerIsolate, isNull);
+
+          final List<RenderResult> concurrent = await Future.wait<RenderResult>(
+            <Future<RenderResult>>[
+              layouter.renderInBackground('a + b'),
+              layouter.renderInBackground('a + b'),
+            ],
+          );
+          expect(concurrent.length, 2);
+          expect(layouter.missCount, 1);
+          expect(layouter.hitCount, 0);
+
+          await layouter.renderInBackground('a + b');
+          expect(layouter.hitCount, 1);
+
+          final MathFont customFont = _createDistinctCopyFont(asset.bytes);
+          final RenderResult customRes = await layouter.renderInBackground(
+            'c + d',
+            font: customFont,
+          );
+          expect(customRes.displayList.fontSignature, customFont.signature);
+          expect(layouter.debugWorkerFontCacheCount, 1);
+
+          await layouter.renderInBackground('e + f');
+          expect(layouter.cacheLength, 2);
+          expect(layouter.getCached('a + b'), isNull);
+
+          await expectLater(
+            layouter.renderInBackground(r'\undefinedcmd'),
+            throwsA(isA<TexMathSyntaxError>()),
+          );
+
+          await layouter.dispose();
+          expect(layouter.isDisposed, isTrue);
+          expect(layouter.isWorkerRunning, isFalse);
+          await expectLater(layouter.renderInBackground('x'), throwsStateError);
+        });
       },
     );
   });

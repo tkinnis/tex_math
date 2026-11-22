@@ -1,11 +1,11 @@
 import 'dart:async';
-import 'dart:isolate';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:tex_math/tex_math.dart';
 
 import 'async_zone.dart';
+import 'font_decode_stub.dart' if (dart.library.isolate) 'font_decode_io.dart';
 
 /// Loaded New Computer Modern Math font payload and associated GUST license.
 @immutable
@@ -145,8 +145,7 @@ final class TexMathFontBundle {
     future = runInRealAsyncZone<Future<MathFont>>(() {
       return assetFuture
           .then<MathFont>((TexMathFontAsset asset) {
-            final Uint8List bytes = asset.bytes;
-            return Isolate.run<MathFont>(() => MathFont.fromBytes(bytes));
+            return decodeMathFontOffThread(asset.bytes);
           })
           .then<MathFont>(
             (MathFont font) {

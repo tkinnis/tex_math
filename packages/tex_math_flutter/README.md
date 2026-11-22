@@ -119,7 +119,7 @@ Both `TexMath` and `TexMathSpan` accept the shared widget parameters below:
 
 ### Background Isolate Layout (`TexMathIsolateLayouter`)
 
-`TexMathIsolateLayouter` runs parsing and layout in a persistent background worker isolate backed by a bounded LRU cache (`TexMathLayoutCacheKey`) so scrolling notebooks and dynamic formula feeds stay jank-free:
+`TexMathIsolateLayouter` and `TexMathFontBundle` decode `NewCMMath-Regular.otf` and run parsing and layout in a persistent background worker isolate on native platforms (`Android`, `iOS`, `Linux`, `macOS`, `Windows`) while falling back seamlessly on Web and Wasm via conditional imports, backed by a bounded LRU cache (`TexMathLayoutCacheKey`):
 
 | Member | Behavior |
 | :--- | :--- |
