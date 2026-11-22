@@ -2,7 +2,6 @@ import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
-import 'package:flutter/material.dart' show SelectionArea;
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
@@ -408,7 +407,7 @@ final class RenderTexMathBaselineProxy extends RenderProxyBox {
 }
 
 /// Leaf render object widget painting a [DisplayList] via [TexMathDisplayPainter]
-/// and participating in [SelectionArea] sub-expression selection.
+/// and participating in `SelectionArea` sub-expression selection.
 final class TexMathRenderLeaf extends LeafRenderObjectWidget {
   /// Creates a selectable math leaf render widget.
   const TexMathRenderLeaf({

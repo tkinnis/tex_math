@@ -1,4 +1,7 @@
-import 'package:flutter/material.dart';
+// Keeps ColorScheme/Theme type compatibility with Flutter 3.32-3.47+ callers.
+// ignore: deprecated_member_use
+import 'package:flutter/material.dart' show ColorScheme, Theme;
+import 'package:flutter/widgets.dart';
 import 'package:tex_math/tex_math.dart';
 
 /// Immutable theme values governing math glyph colors, accent rules, error

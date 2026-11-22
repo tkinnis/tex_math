@@ -1,7 +1,10 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
+// Keeps ColorScheme/SelectionArea type compatibility with Flutter 3.32-3.47+ callers.
+// ignore: deprecated_member_use
+import 'package:flutter/material.dart' show SelectionArea, Theme;
 import 'package:flutter/rendering.dart';
+import 'package:flutter/widgets.dart';
 import 'package:tex_math/tex_math.dart';
 
 import 'display_painter.dart';
