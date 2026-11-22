@@ -15,6 +15,6 @@
 - [ ] `dart format --output=none --set-exit-if-changed packages tool studio` passes.
 - [ ] `dart analyze --fatal-infos` reports 0 issues across the workspace.
 - [ ] `dart test` passes in `packages/tex_math`, and `dart run example/main.dart` plus `dart doc --dry-run` succeed.
-- [ ] `flutter test` passes in `packages/tex_math_flutter`, `packages/tex_math_flutter/example`, and `studio`.
+- [ ] `flutter test` passes in `packages/tex_math_flutter`, `packages/tex_math_flutter/example`, and `studio`, and `dart doc --dry-run` succeeds in `packages/tex_math_flutter`.
 - [ ] `dart run tool/check_versions.dart`, `dart run tool/verify_against_mathjax.dart`, `dart run tool/sync_reference.dart --verify`, `dart run tool/generate_doc_images.dart --check`, and `dart run tool/benchmark_suite.dart --check-regressions` pass.
 - [ ] Pure-Dart boundary preserved (`packages/tex_math/lib/` contains no `package:flutter`, `dart:ui`, `dart:io`, `dart:html`, or `dart:js*` imports).

@@ -36,7 +36,7 @@ Execute the full workspace verification suite from the repository root and confi
 dart format --output=none --set-exit-if-changed packages tool studio
 dart analyze --fatal-infos
 (cd packages/tex_math && dart test && dart run example/main.dart && dart doc --dry-run)
-(cd packages/tex_math_flutter && flutter test)
+(cd packages/tex_math_flutter && flutter test && dart doc --dry-run)
 (cd packages/tex_math_flutter/example && flutter test)
 (cd studio && flutter test)
 (cd tool/oracle && npm ci)
@@ -57,7 +57,7 @@ Run dry-run publishing validation for both publishable packages:
 (cd packages/tex_math_flutter && flutter pub publish --dry-run)
 ```
 
-Verify that `packages/tex_math` passes `dart pub publish --dry-run` with zero errors or warnings. For `packages/tex_math_flutter`, `flutter pub publish --dry-run` validates package layout, `.pubignore` exclusions, and the bundled `NewCMMath-Regular.otf` + `GUST-FONT-LICENSE.txt` + `MANIFEST-NewCMMath.txt` assets; before `tex_math` `X.Y.Z` is live on pub.dev, `flutter pub publish --dry-run` flags only the unpublished `tex_math: ^X.Y.Z` dependency constraint.
+Verify that both `packages/tex_math` and `packages/tex_math_flutter` pass `dart pub publish --dry-run` / `flutter pub publish --dry-run` cleanly inside the workspace with zero errors or warnings, validating package layout, `.pubignore` exclusions, screenshots, and bundled font/license assets. Because `packages/tex_math_flutter` depends on `tex_math: ^X.Y.Z`, **`tex_math` `X.Y.Z` still must be published to pub.dev before publishing `tex_math_flutter` `X.Y.Z`**, and tag CI only enforces `dart pub publish --dry-run` against `tex_math` when releasing a lockstep bump.
 
 ---
 
@@ -100,5 +100,5 @@ After `tex_math` `X.Y.Z` is available on pub.dev, verify `flutter pub publish --
 
 ## 4. Post-Release Verification
 
-* Confirm both package pages on pub.dev display matching `X.Y.Z` versions, complete READMEs, and MIT license metadata (plus GUST Font License documentation for `NewCMMath-Regular.otf`).
+* Confirm both package pages on pub.dev display matching `X.Y.Z` versions, complete READMEs, proxied showcase SVGs and `screenshots:` gallery images, and MIT license metadata (plus GUST Font License documentation for `NewCMMath-Regular.otf`).
 * Verify the Docsify portal built by `.github/workflows/pages.yml` renders updated changelogs, [`doc/COVERAGE.md`](COVERAGE.md), and [`doc/BENCHMARKS.md`](BENCHMARKS.md).

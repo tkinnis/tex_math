@@ -31,11 +31,12 @@ body:
     id: dart_code
     attributes:
       label: Dart / Flutter Invocation & Options
-      description: Show how you called `TexMathEngine`, `renderTex`, or `TexMath` with `TexMathOptions`.
+      description: Show how you called `TexMathEngine`, `renderTex` (with a `MathFont`), or `TexMath` with `TexMathOptions`.
       render: dart
       placeholder: |
         final result = renderTex(
           r'\frac{a + b}{c - d}',
+          font: font,
           options: const TexMathOptions(displayMode: TexMathDisplayMode.display),
         );
     validations:

@@ -66,7 +66,7 @@ Before completing any task or committing changes, verify all workspace gates pas
 3. **Package, Example & Studio Tests**:
    ```bash
    (cd packages/tex_math && dart test && dart run example/main.dart && dart doc --dry-run)
-   (cd packages/tex_math_flutter && flutter test)
+   (cd packages/tex_math_flutter && flutter test && dart doc --dry-run)
    (cd packages/tex_math_flutter/example && flutter test)
    (cd studio && flutter test)
    ```
@@ -89,7 +89,7 @@ Before completing any task or committing changes, verify all workspace gates pas
 
 ## 4. Reference Sync, Documentation & Commit Rules
 
-* Follow [`doc/REFERENCE_SYNC.md`](doc/REFERENCE_SYNC.md) and [`.agents/skills/sync-reference-mathjax/SKILL.md`](.agents/skills/sync-reference-mathjax/SKILL.md) when updating pinned MathJax or JupyterLab versions, regenerating `corpus/expectations.json`, `doc/COVERAGE.md`, and `doc/BENCHMARKS.md`.
+* Follow [`doc/REFERENCE_SYNC.md`](doc/REFERENCE_SYNC.md) and [`sync-reference-mathjax`](https://github.com/tkinnis/tex_math/blob/main/.agents/skills/sync-reference-mathjax/SKILL.md) when updating pinned MathJax or JupyterLab versions, regenerating `corpus/expectations.json`, `doc/COVERAGE.md`, and `doc/BENCHMARKS.md`.
 * Keep every Markdown prose paragraph on a single line without hard-wrapped line breaks inside paragraphs.
 * Never commit private filesystem paths, third-party `node_modules/`, temporary SymPy output, or unverified coverage/benchmark counts.
 * Use **Conventional Commits** (`feat(parser): ...`, `fix(layout): ...`, `docs(reference): ...`, `chore(ci): ...`) and omit automated tool credits, trailer attributions, or synthetic author tags from commit messages, PR descriptions, and code comments.

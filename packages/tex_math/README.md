@@ -1,5 +1,7 @@
 # tex_math
 
+[![CI](https://img.shields.io/github/actions/workflow/status/tkinnis/tex_math/ci.yml?branch=main&label=CI&logo=github)](https://github.com/tkinnis/tex_math/actions/workflows/ci.yml) [![Documentation](https://img.shields.io/badge/docs-GitHub%20Pages-0ea5e9)](https://tkinnis.github.io/tex_math/) [![Reference MathJax 4.1.3](https://img.shields.io/badge/reference-MathJax%204.1.3-7c3aed)](https://github.com/tkinnis/tex_math/blob/main/REFERENCE.md) [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 Pure-Dart TeX math parser, OpenType math layout engine, and standalone SVG, Presentation MathML, and spoken-text renderer aligned with MathJax `4.1.3` and JupyterLab defaults.
 
 Every stage of tokenization, macro expansion, syntax-tree parsing, Appendix G layout, and export runs synchronously on in-memory strings and font bytes with `package:meta` as the sole runtime dependency and zero Flutter, DOM, or filesystem imports.
@@ -12,7 +14,7 @@ Install `tex_math` with the Dart CLI (requires Dart `^3.13.0`):
 dart pub add tex_math
 ```
 
-`tex_math` is font-agnostic and reads metrics and vector outlines directly from any OpenType math font (.otf or .ttf containing a `MATH` table) supplied as a `Uint8List`. Syntax-tree exports (`parseTex`, `toMathMl`, and `toSpokenText`) work without a font, while vector layout and SVG rendering require a loaded `MathFont`. If you are building a Flutter app and want `NewCMMath-Regular.otf` (8.1.1) bundled automatically alongside widgets and Material theming, use [tex_math_flutter](https://pub.dev/packages/tex_math_flutter) instead.
+`tex_math` is font-agnostic and reads metrics and vector outlines directly from any OpenType math font (.otf or .ttf containing a `MATH` table) supplied as a `Uint8List`. Syntax-tree exports (`parseTex`, `mathNodeToMathMl`, and `mathNodeToSpokenText`) work without a font, while vector layout and SVG rendering require a loaded `MathFont`. If you are building a Flutter app and want `NewCMMath-Regular.otf` (8.1.1) bundled automatically alongside widgets and Material theming, use [tex_math_flutter](https://pub.dev/packages/tex_math_flutter) instead.
 
 ## Quick Start
 
@@ -52,7 +54,7 @@ void main() {
 }
 ```
 
-If you only need MathML or spoken text without glyph layout, call `parseTex`, `toMathMl`, or `toSpokenText` without supplying a font.
+If you only need MathML or spoken text without glyph layout, call `parseTex`, `mathNodeToMathMl`, or `mathNodeToSpokenText` directly (or invoke `const TexMathEngine().toMathMl(...)` and `toSpokenText(...)`) without supplying a font.
 
 ## Rendered Examples
 

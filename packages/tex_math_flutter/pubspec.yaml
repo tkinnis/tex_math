@@ -1,8 +1,8 @@
 name: tex_math_flutter
 description: Flutter widget, theming, bundled New Computer Modern Math font asset, and background isolate layout integration for tex_math.
 version: 0.1.0
-homepage: https://github.com/tkinnis/tex_math
-repository: https://github.com/tkinnis/tex_math
+homepage: https://tkinnis.github.io/tex_math/
+repository: https://github.com/tkinnis/tex_math/tree/main/packages/tex_math_flutter
 issue_tracker: https://github.com/tkinnis/tex_math/issues
 documentation: https://tkinnis.github.io/tex_math/
 
@@ -10,8 +10,16 @@ topics:
   - tex
   - latex
   - math
-  - flutter
+  - widget
   - typography
+
+screenshots:
+  - description: 'TexMath widget rendering the quadratic formula using bundled OpenType MATH paths.'
+    path: screenshots/formula_quadratic.png
+  - description: 'Dark-theme TexMath widget styled dynamically via TexMathTheme without relayout.'
+    path: screenshots/dark_theme_formula.png
+  - description: 'Parenthesized rotation matrix rendered with cached glyph paths in TexMath.'
+    path: screenshots/formula_matrix.png
 
 resolution: workspace
 

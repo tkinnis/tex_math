@@ -3,10 +3,12 @@ import 'dart:io';
 import 'package:tex_math/tex_math.dart';
 
 /// Demonstrates rendering TeX math into a vector [DisplayList] and standalone
-/// SVG XML with OpenType `MATH` layout when `NewCMMath-Regular.otf` is present.
-void main() {
+/// SVG XML with OpenType `MATH` layout when an OpenType math font (such as
+/// `NewCMMath-Regular.otf`) is supplied, or fontless AST/MathML/spoken-text
+/// export otherwise.
+void main(List<String> args) {
   const String source = r'\int_0^\infty e^{-x^2}\,dx = \frac{\sqrt{\pi}}{2}';
-  final File? fontFile = _locateBundledFont();
+  final File? fontFile = _resolveFontFile(args);
 
   if (fontFile != null) {
     final MathFont font = MathFont.fromBytes(fontFile.readAsBytesSync());
@@ -23,6 +25,10 @@ void main() {
     stdout.writeln(svg);
   } else {
     final MathNode tree = parseTex(source);
+    stdout.writeln(
+      'Pass an OpenType MATH font path, e.g.: '
+      'dart run example/main.dart path/to/NewCMMath-Regular.otf',
+    );
     stdout.writeln('Parsed AST: ${tree.runtimeType}');
     stdout.writeln('MathML: ${mathNodeToMathMl(tree)}');
     stdout.writeln('Spoken: ${mathNodeToSpokenText(tree)}');
@@ -39,8 +45,18 @@ void main() {
   }
 }
 
-File? _locateBundledFont() {
+File? _resolveFontFile(List<String> args) {
+  if (args.isNotEmpty) {
+    final File explicit = File(args.first);
+    if (!explicit.existsSync()) {
+      stderr.writeln('Font file not found: ${args.first}');
+      exitCode = 2;
+      return null;
+    }
+    return explicit;
+  }
   const List<String> candidates = <String>[
+    'NewCMMath-Regular.otf',
     '../tex_math_flutter/assets/fonts/NewCMMath-Regular.otf',
     'packages/tex_math_flutter/assets/fonts/NewCMMath-Regular.otf',
   ];

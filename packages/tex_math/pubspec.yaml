@@ -1,8 +1,8 @@
 name: tex_math
 description: Pure-Dart TeX math-mode parser, OpenType MATH layout engine, and SVG/MathML/spoken-text renderer aligned to MathJax TeX input.
 version: 0.1.0
-homepage: https://github.com/tkinnis/tex_math
-repository: https://github.com/tkinnis/tex_math
+homepage: https://tkinnis.github.io/tex_math/
+repository: https://github.com/tkinnis/tex_math/tree/main/packages/tex_math
 issue_tracker: https://github.com/tkinnis/tex_math/issues
 documentation: https://tkinnis.github.io/tex_math/
 
@@ -12,6 +12,12 @@ topics:
   - math
   - svg
   - opentype
+
+screenshots:
+  - description: 'Quadratic formula laid out with OpenType MATH metrics and vector paths.'
+    path: screenshots/formula_quadratic.png
+  - description: 'Rotation matrix with extensible delimiters and trigonometric operators.'
+    path: screenshots/formula_matrix.png
 
 resolution: workspace
 

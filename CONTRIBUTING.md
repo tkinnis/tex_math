@@ -48,7 +48,7 @@ dart analyze --fatal-infos
 
 ```bash
 (cd packages/tex_math && dart test && dart run example/main.dart && dart doc --dry-run)
-(cd packages/tex_math_flutter && flutter test)
+(cd packages/tex_math_flutter && flutter test && dart doc --dry-run)
 (cd packages/tex_math_flutter/example && flutter test)
 (cd studio && flutter test)
 ```

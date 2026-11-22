@@ -71,7 +71,7 @@ The package also exposes registry and symbol metadata utilities for inspecting s
 | :--- | :--- |
 | `TexPackageRegistry` | Catalogs all 42 MathJax `4.1.3` packages (`all`, `byName`, `allNames`, `contains`, `autoloadCommands`, `autoloadEnvironments`) as `TexPackageDescriptor` entries grouped by `TexPackageTier` (`tier1`, `tier2`, `tier3`). |
 | `TexSymbolSpec` | Metadata record describing built-in TeX math commands and symbol classes. |
-| `resolveTexColor` | Resolves named, hex, and CSS color specifications into 32-bit ARGB colors. |
+| `resolveTexColor` | Resolves named, hex, and CSS color specifications into normalized CSS/hex color strings (such as `'#FF0000'`). |
 | `mathUnicodeCodePoint` | Maps a base Unicode code point and `TexMathFontVariant` to the corresponding Unicode Mathematical Alphanumeric scalar. |
 
 ### Source Spans, Tokens, & Errors (`SourceSpan`, `TexToken`, `TexMathError`)
@@ -83,7 +83,7 @@ The package also exposes registry and symbol metadata utilities for inspecting s
 | `SourceSpan` | Constructors `SourceSpan(start, end)`, `SourceSpan.empty`, and `SourceSpan.zero`; getters `length` and `isEmpty`; helpers `slice(source)` and `merge(other)`. |
 | `TexToken` | Exposes `kind` (`TexTokenKind`), `text`, `span` (`SourceSpan`), `catCode` (`TexCatCode`), `isControlWord`, `isIgnorableInMath`, and `rawText`. |
 
-`TexMathError` is a sealed `Exception` carrying `message`, `errorClass`, and an optional source span. Its five subclasses enable exhaustive Dart 3 `switch` handling:
+`TexMathError` is a sealed `Exception` carrying `message`, `errorClass`, and an optional source `span`, plus 1-based UTF-16 `position`, `formattedMessage`, and `formatWithSource(String source)` caret/snippet formatting. Its five subclasses enable exhaustive Dart 3 `switch` handling:
 
 | Exception Class | Default `errorClass` | Trigger Condition & Extra Fields |
 | :--- | :--- | :--- |
@@ -226,7 +226,7 @@ export 'package:tex_math/tex_math.dart'
 | `TexMath.displayList(displayList, ...)` | Renders a pre-computed display list directly without running parsing or layout again. |
 | `TexMathSpan(source, ...)` | `WidgetSpan` aligned with `PlaceholderAlignment.baseline` and `TextBaseline.alphabetic` for `Text.rich` and `RichText`, scaling baselines proportionally under `scaleToFit`. |
 | `TexMathOverflow` | Horizontal overflow policy: `scroll`, `scaleToFit`, `clip`, or `visible` (expanding hit-test bounds cleanly). |
-| `TexMathErrorWidget` & `TexMathErrorBuilder` | Monospace diagnostic fallback respecting `selectable: false` inside ancestor selection areas and setting `Semantics(excludeSemantics: true)`; `TexMathErrorBuilder` allows custom error UI. |
+| `TexMathErrorWidget` & `TexMathErrorBuilder` | Monospace diagnostic fallback taking `source`, optional `error`, `errorMessage`, `displayMode`, and `selectable`; highlights offending UTF-16 error spans or caret positions (`error?.formattedMessage`), respects `selectable: false` inside ancestor selection areas, and sets `Semantics(excludeSemantics: true)`. `TexMathErrorBuilder` allows custom error UI. |
 
 Both `TexMath` and `TexMathSpan` accept the shared widget parameters below:
 
@@ -253,7 +253,7 @@ Inside a `SelectionArea`, `TexMath` builds hit boxes lazily only when registered
 
 | Type | Role & Key Members |
 | :--- | :--- |
-| `TexMathPathCache` | Bounded LRU `Path` cache (`defaultMaxEntries = 4096`, `maxTextPainterEntries` defaulting to `min(maxEntries, 256)`, singleton `TexMathPathCache.shared`) keyed by font signature, glyph ID, and optional `ppemBucket` (falling back to `GlyphOutline` when no signature exists). Exposes `length`, `hitCount`, `buildCount`, `pathForGlyph`, `resolvePath`, and `clear`. |
+| `TexMathPathCache` | Bounded LRU `Path` cache (`defaultMaxEntries = 4096`, `maxTextPainterEntries` defaulting to `min(maxEntries, 256)`, singleton `TexMathPathCache.shared`) keyed by font signature, glyph ID, and optional `ppemBucket` for real glyphs while isolating synthetic `glyphId == 0` procedural outlines (e.g. `\enclose`, `\cancel`) by outline identity. Exposes `length`, `hitCount`, `buildCount`, `pathForGlyph`, `resolvePath`, and `clear`. |
 | `TexMathDisplayPainter` | `CustomPainter` drawing glyphs, filled or stroked rules, and selection highlights onto a `Canvas` using cached `Paint` objects; exposes static `paintDisplayList` and `buildPathFromCommands`. |
 | `TexMathThemeData` & `TexMathTheme` | `InheritedTheme` propagating `foreground`, `accent`, `error`, `muted`, `errorBackground`, and `fontSize = 18.0`, with `fromColorScheme`, `fallback`, `colorForRole`, `copyWith`, `lerp`, `of`, and `maybeOf`. |
 
@@ -264,21 +264,23 @@ Inside a `SelectionArea`, `TexMath` builds hit boxes lazily only when registered
 | Method / Property | Behavior |
 | :--- | :--- |
 | `TexMathFontBundle.load` | Validates non-empty bytes and the `OTTO` OpenType header, returning `Future<TexMathFontAsset>`. |
-| `TexMathFontBundle.loadMathFont` | Loads and decodes `NewCMMath-Regular.otf` off the UI thread via `Isolate.run`, returning `Future<MathFont>`. |
+| `TexMathFontBundle.loadMathFont` | Loads and decodes `NewCMMath-Regular.otf` off the UI thread via `Isolate.run` on native platforms and seamless conditional-import fallback on Web/Wasm, returning `Future<MathFont>`. |
 | `cachedAsset` / `cachedMathFont` | Synchronous getters returning already-loaded bundle assets or decoded fonts, plus `@visibleForTesting` `clearCache()`. |
 | `TexMathFontAsset` | Exposes `bytes`, `familyName`, `assetPath`, `licenseText`, `byteLength`, `hasOttoHeader`, and `decodeMathFont()`. |
 
-`TexMathIsolateLayouter` runs parsing and layout in a persistent background worker isolate backed by an LRU cache keyed by `TexMathLayoutCacheKey(source, options, fontId, fontSignature)`:
+`TexMathIsolateLayouter` runs parsing and layout in a persistent background worker isolate on native platforms (`Android`, `iOS`, `Linux`, `macOS`, `Windows`) with seamless asynchronous conditional-import fallback on Web/Wasm, backed by an LRU cache keyed by `TexMathLayoutCacheKey(source, options, fontId, fontSignature)`:
 
 | Member | Behavior |
 | :--- | :--- |
 | Constructors | `TexMathIsolateLayouter({maxCacheEntries = 256, fontId = 'NewCMMath-Regular', fontBytes, shutdownTimeout = Duration(milliseconds: 500)})` and `TexMathIsolateLayouter.withBundledFont(...)`. |
-| Lifecycle & Status | `warmUp()`, `dispose()` (killing unresponsive workers after `shutdownTimeout`), `hasFontBytes`, `isWorkerRunning`, and `isDisposed`. |
-| Rendering & Cache | `renderInBackground`, `layoutInBackground`, `getCached`, `putCached`, `clearCache`, `cacheLength`, `hitCount`, and `missCount`. Transfers font bytes once, deduplicates in-flight renders, recovers automatically from worker crashes, and preserves `TexMathError` stack traces across the isolate boundary. |
+| Lifecycle & Status | `warmUp()`, `dispose()` (killing unresponsive native workers after `shutdownTimeout`), `hasFontBytes`, `isWorkerRunning`, and `isDisposed`. |
+| Rendering & Cache | `renderInBackground`, `layoutInBackground`, `getCached`, `putCached`, `clearCache`, `cacheLength`, `hitCount`, and `missCount`. Transfers font bytes once on native isolates, deduplicates in-flight renders, recovers automatically from native worker crashes, and preserves `TexMathError` diagnostics and stack traces. |
 
 ### Example Usage (Flutter Theme, Inline Span, & Persistent Isolate Layouter)
 
 ```dart
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:tex_math_flutter/tex_math_flutter.dart';
 
@@ -295,18 +297,25 @@ class _MathNotebookSectionState extends State<MathNotebookSection> {
   @override
   void initState() {
     super.initState();
-    TexMathIsolateLayouter.withBundledFont().then((TexMathIsolateLayouter l) {
-      if (!mounted) {
-        l.dispose();
-        return;
-      }
-      setState(() => _layouter = l);
-    });
+    unawaited(_initLayouter());
+  }
+
+  Future<void> _initLayouter() async {
+    final TexMathIsolateLayouter layouter =
+        await TexMathIsolateLayouter.withBundledFont();
+    if (!mounted) {
+      await layouter.dispose();
+      return;
+    }
+    setState(() => _layouter = layouter);
   }
 
   @override
   void dispose() {
-    _layouter?.dispose();
+    final TexMathIsolateLayouter? active = _layouter;
+    if (active != null) {
+      unawaited(active.dispose());
+    }
     super.dispose();
   }
 

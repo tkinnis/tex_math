@@ -49,7 +49,7 @@ Widget buildFormula() {
 
 ## Rendered Examples
 
-Every SVG below was generated directly in pure Dart by [`tool/generate_doc_images.dart`](tool/generate_doc_images.dart) using the bundled New Computer Modern Math font.
+Every SVG below was generated directly in pure Dart by [`tool/generate_doc_images.dart`](https://github.com/tkinnis/tex_math/blob/main/tool/generate_doc_images.dart) using the bundled New Computer Modern Math font.
 
 **Gaussian Integral** — Display limits, optical superscripts, stacked fractions, and stretchy square roots:
 
@@ -113,7 +113,7 @@ The layout engine produces a flat display list containing positioned glyph items
 | :--- | :--- | :--- |
 | **`tex_math`** | [`packages/tex_math/`](packages/tex_math/README.md) | Pure-Dart TeX parser, OpenType math layout engine, and SVG / MathML / spoken-text exporters. |
 | **`tex_math_flutter`** | [`packages/tex_math_flutter/`](packages/tex_math_flutter/README.md) | Flutter rendering widgets, glyph path cache, Material theming, selection, isolate layouter, and bundled font. |
-| **Flutter Example** | [`packages/tex_math_flutter/example/`](packages/tex_math_flutter/example/lib/main.dart) | Standalone Flutter demo and 50-equation notebook showcasing theme switching, selection, and background layout. |
+| **Flutter Example** | [`packages/tex_math_flutter/example/`](https://github.com/tkinnis/tex_math/blob/main/packages/tex_math_flutter/example/lib/main.dart) | Standalone Flutter demo and 50-equation notebook showcasing theme switching, selection, and background layout. |
 | **Comparison Studio** | [`studio/`](studio/README.md) | macOS desktop workbench comparing `tex_math`, MathJax `4.1.3`, and KaTeX `0.19.1` interactively. |
 | **Reference & Coverage** | [`REFERENCE.md`](REFERENCE.md) · [`doc/COVERAGE.md`](doc/COVERAGE.md) | Pinned upstream targets, package tiers, and live corpus parity reports. |
 
@@ -171,4 +171,4 @@ Native Dart AOT benchmarks on Apple M4 (`arm64`, macOS 15.6, Dart `3.13.5`) pass
 ## License
 
 * **`tex_math` & `tex_math_flutter`**: Copyright (c) 2026 Tony Kinnis — [MIT License](LICENSE).
-* **Bundled Math Font (`NewCMMath-Regular.otf` `8.1.1`)**: New Computer Modern Math — GUST Font License 1.0 (`packages/tex_math_flutter/assets/fonts/GUST-FONT-LICENSE.txt`).
+* **Bundled Math Font (`NewCMMath-Regular.otf` `8.1.1`)**: New Computer Modern Math — [GUST Font License 1.0](packages/tex_math_flutter/assets/fonts/GUST-FONT-LICENSE.txt).

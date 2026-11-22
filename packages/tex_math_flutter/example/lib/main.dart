@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/scheduler.dart';
 import 'package:tex_math_flutter/tex_math_flutter.dart';
 
 /// Entry point for the `tex_math_flutter` example application.
@@ -80,8 +79,6 @@ final class _ExampleHomePageState extends State<ExampleHomePage> {
   late final Future<TexMathFontAsset> _fontAssetFuture;
   TexMathIsolateLayouter? _notebookLayouter;
   String? _notebookError;
-  int _showcaseLayoutCount = 0;
-  bool _showcaseRefreshScheduled = false;
 
   static final List<String> _notebookEquations = List<String>.generate(
     50,
@@ -142,21 +139,6 @@ final class _ExampleHomePageState extends State<ExampleHomePage> {
     super.dispose();
   }
 
-  void _recordShowcaseLayout() {
-    _showcaseLayoutCount++;
-    if (!mounted || _showcaseRefreshScheduled) {
-      return;
-    }
-    _showcaseRefreshScheduled = true;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _showcaseRefreshScheduled = false;
-      if (mounted) {
-        setState(() {});
-      }
-    });
-    SchedulerBinding.instance.ensureVisualUpdate();
-  }
-
   @override
   Widget build(BuildContext context) {
     final ColorScheme scheme = Theme.of(context).colorScheme;
@@ -214,10 +196,9 @@ final class _ExampleHomePageState extends State<ExampleHomePage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
-              TexMath(
+              const TexMath(
                 r'x = \frac{-b \pm \sqrt{b^2 - 4ac}}{2a}',
                 textStyle: displayStyle,
-                debugOnLayout: _recordShowcaseLayout,
               ),
               const SizedBox(height: 16.0),
               const TexMath(
@@ -302,10 +283,7 @@ final class _ExampleHomePageState extends State<ExampleHomePage> {
                     },
               ),
               const SizedBox(height: 4.0),
-              Text(
-                'Quadratic layout runs: $_showcaseLayoutCount | '
-                'Cached glyph paths: ${TexMathPathCache.shared.length}',
-              ),
+              Text('Cached glyph paths: ${TexMathPathCache.shared.length}'),
             ],
           ),
         ),

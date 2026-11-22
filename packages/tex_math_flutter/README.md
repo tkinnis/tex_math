@@ -1,5 +1,7 @@
 # tex_math_flutter
 
+[![CI](https://img.shields.io/github/actions/workflow/status/tkinnis/tex_math/ci.yml?branch=main&label=CI&logo=github)](https://github.com/tkinnis/tex_math/actions/workflows/ci.yml) [![Documentation](https://img.shields.io/badge/docs-GitHub%20Pages-0ea5e9)](https://tkinnis.github.io/tex_math/) [![Reference MathJax 4.1.3](https://img.shields.io/badge/reference-MathJax%204.1.3-7c3aed)](https://github.com/tkinnis/tex_math/blob/main/REFERENCE.md) [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 Flutter math rendering widgets, Material `ColorScheme` theming, bundled `NewCMMath-Regular.otf` (8.1.1) font assets, cached vector glyph painting, baseline-aligned inline spans, copy-as-LaTeX selection, and persistent background isolate layout for `tex_math`.
 
 All parsing and OpenType `MATH` layout runs synchronously in pure Dart via `tex_math` with zero WebViews or JavaScript bridges, while glyph paths and worker-isolate layouts keep Flutter frames smooth across theme changes and equation-heavy views.
@@ -101,12 +103,12 @@ Both `TexMath` and `TexMathSpan` accept the shared widget parameters below:
 | :--- | :--- | :--- |
 | `options` / `engine` | `TexMathOptions?` / `TexMathEngine` | Override default TeX options or supply a custom engine instance. |
 | `font` | `MathFont?` | Provide an explicit font instead of auto-loading the bundled font asset. |
-| `overflow` | `TexMathOverflow?` | Override the horizontal constraint policy (`scroll`, `scaleToFit`, `clip`, or `visible`). |
+| `overflow` | `TexMathOverflow?` / `TexMathOverflow` | Override the horizontal constraint policy (`scroll`, `scaleToFit`, `clip`, or `visible`; nullable preset on `TexMath`, required with default on `TexMathSpan`). |
 | `pathCache` | `TexMathPathCache?` | Supply a custom glyph path cache instead of `TexMathPathCache.shared`. |
 | `layouter` | `TexMathIsolateLayouter?` | Offload parsing and OpenType layout to a persistent background worker isolate. |
 | `textStyle` / `style` | `TextStyle?` | Override font size and foreground color (`textStyle` on `TexMath`, `style` on `TexMathSpan`). |
 | `errorBuilder` | `TexMathErrorBuilder?` | Build a custom fallback widget when TeX parsing or layout throws `TexMathError`. |
-| `semanticsLabel` / `selectable` | `String?` / `bool` | Override generated spoken-text semantics or toggle `"copy as LaTeX"` selection handling. |
+| `semanticsLabel` / `selectable` | `String?` / `bool?` | Override generated spoken-text semantics or toggle `"copy as LaTeX"` selection handling (`bool` defaulting to `true` on `TexMath`, nullable `bool?` on `TexMathSpan` inheriting ancestor `SelectionArea`). |
 
 ### Theming, Selection & Font Caching
 

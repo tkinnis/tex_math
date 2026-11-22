@@ -43,12 +43,14 @@ void main() {
         find.textContaining('Bundled font: NewComputerModernMath'),
         findsOneWidget,
       );
-      expect(find.textContaining('Quadratic layout runs: 1'), findsOneWidget);
+      expect(find.textContaining('Cached glyph paths:'), findsOneWidget);
+      final int buildsBeforeThemeToggle = TexMathPathCache.shared.buildCount;
+      expect(buildsBeforeThemeToggle, greaterThan(0));
 
       await tester.tap(find.byKey(const Key('theme-toggle-button')));
       await tester.pumpAndSettle();
 
-      expect(find.textContaining('Quadratic layout runs: 1'), findsOneWidget);
+      expect(TexMathPathCache.shared.buildCount, buildsBeforeThemeToggle);
 
       await tester.tap(find.text('Notebook (50)'));
       await tester.pump();
@@ -73,8 +75,9 @@ void main() {
   );
 
   testWidgets(
-    'Example app reactively updates Quadratic layout count on warm-font initial build',
+    'Example app populates glyph path cache on warm-font initial build',
     (WidgetTester tester) async {
+      TexMathPathCache.shared.clear();
       await tester.runAsync(TexMathFontBundle.loadMathFont);
       await tester.pumpWidget(const TexMathExampleApp());
       await tester.pumpAndSettle();
@@ -88,11 +91,12 @@ void main() {
         ),
       );
       await tester.scrollUntilVisible(
-        find.textContaining('Quadratic layout runs: 1'),
+        find.textContaining('Cached glyph paths:'),
         200.0,
         scrollable: showcaseScrollable,
       );
-      expect(find.textContaining('Quadratic layout runs: 1'), findsOneWidget);
+      expect(TexMathPathCache.shared.length, greaterThan(0));
+      expect(TexMathPathCache.shared.buildCount, greaterThan(0));
 
       await tester.pumpWidget(const SizedBox.shrink());
       await tester.runAsync(() async {

@@ -136,11 +136,11 @@ The Flutter package wraps the pure-Dart engine in idiomatic widgets, caches, and
 
 | Component | Architecture & Behavior |
 | :--- | :--- |
-| **`TexMathPathCache`** | Caches Flutter `Path` geometry keyed by `(fontSignature, glyphId, ppemBucket?)`—preserving hits even when a display list came from a background isolate without a `MathFont` on the UI thread—and bounds fallback `TextPainter` entries with automatic disposal on eviction. |
+| **`TexMathPathCache`** | Caches Flutter `Path` geometry keyed by `(fontSignature, glyphId, ppemBucket?)` for real glyphs and isolates synthetic `glyphId == 0` procedural outlines by outline identity—preserving hits even when a display list came from a background worker—and bounds fallback `TextPainter` entries with automatic disposal on eviction. |
 | **`TexMathDisplayPainter` & `TexMathTheme`** | Resolves semantic `TexMathColorRole` colors at paint time, allowing light and dark theme changes to repaint immediately without re-running TeX layout or rebuilding glyph paths. |
-| **`TexMathFontBundle`** | Reads `NewCMMath-Regular.otf` (`8.1.1`) once per app lifecycle and decodes it off the UI thread via `Isolate.run`, using a real async zone guard so `FakeAsync` widget tests never stall. |
+| **`TexMathFontBundle`** | Reads `NewCMMath-Regular.otf` (`8.1.1`) once per app lifecycle and decodes it via conditional `Isolate.run` on native targets (and async Web/Wasm fallback), using a real async zone guard so `FakeAsync` widget tests never stall. |
 | **`TexMath` & `TexMathSpan`** | Resolves font size in precedence order (`widget.textStyle`, `TexMathTheme`, `DefaultTextStyle`, theme fallback) scaled by `MediaQuery.textScalerOf(context)`. Passes pre-parsed syntax trees directly to `engine.layout()` on cold bundled font loads, aligns alphabetic and ideographic baselines, and scales baselines proportionally under `TexMathOverflow.scaleToFit`. |
-| **`TexMathIsolateLayouter`** | Maintains a persistent worker isolate with single-transfer font initialization (`TransferableTypedData`), worker-side font caching by signature, in-flight request deduplication, a 256-entry LRU result cache, and crash recovery via exit and error listeners. |
+| **`TexMathIsolateLayouter`** | Maintains a persistent worker isolate on native platforms via conditional exports (`TransferableTypedData` font initialization, worker-side font caching, and crash recovery) and falls back seamlessly to asynchronous main-thread execution on Web/Wasm with shared in-flight request deduplication and 256-entry LRU caching. |
 | **Selection & Error Semantics** | Builds selection hit boxes lazily only when an ancestor `SelectionArea` registers the render object, expands hit bounds under `TexMathOverflow.visible`, and respects `selectable: false` and semantic exclusion inside `TexMathErrorWidget`. |
 
 ```mermaid
