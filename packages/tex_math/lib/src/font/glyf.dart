@@ -10,9 +10,11 @@ import 'outline_utils.dart';
 final class GlyfDecoder {
   GlyfDecoder._({
     required FontByteReader glyfReader,
-    required this._offsets,
-    required this._numGlyphs,
-  }) : _glyf = glyfReader;
+    required Uint32List offsets,
+    required int numGlyphs,
+  }) : _glyf = glyfReader,
+       _offsets = offsets,
+       _numGlyphs = numGlyphs;
 
   static const int _maxCompositeDepth = 32;
   static const int _maxCompositeVisits = 4096;

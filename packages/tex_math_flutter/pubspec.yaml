@@ -24,8 +24,8 @@ screenshots:
 resolution: workspace
 
 environment:
-  sdk: ^3.13.0
-  flutter: ">=3.47.0"
+  sdk: ^3.8.0
+  flutter: ">=3.32.0"
 
 dependencies:
   flutter:
@@ -35,7 +35,7 @@ dependencies:
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  lints: ^6.1.0
+  lints: ^6.0.0
 
 flutter:
   assets:

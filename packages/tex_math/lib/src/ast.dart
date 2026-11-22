@@ -133,10 +133,11 @@ final class MathRootNode extends MathNode {
   /// Creates a root node with [children], [displayMode], and optional [labels].
   const MathRootNode({
     required super.span,
-    required this._children,
+    required List<MathNode> children,
     this.displayMode = TexMathDisplayMode.display,
-    this._labels = const <String, String>{},
-  });
+    Map<String, String> labels = const <String, String>{},
+  }) : _children = children,
+       _labels = labels;
 
   final List<MathNode> _children;
   final Map<String, String> _labels;
@@ -180,13 +181,14 @@ final class MathGroupNode extends MathNode {
   /// Creates a group node wrapping [children].
   const MathGroupNode({
     required super.span,
-    required this._children,
+    required List<MathNode> children,
     this.isExplicitGroup = true,
     this.atomClass,
     this.fontVariant,
     this.role,
-    this._attributes = const <String, String>{},
-  });
+    Map<String, String> attributes = const <String, String>{},
+  }) : _children = children,
+       _attributes = attributes;
 
   final List<MathNode> _children;
   final Map<String, String> _attributes;
@@ -564,11 +566,11 @@ final class DelimiterNode extends MathNode {
   /// Creates a delimited group node around [children].
   const DelimiterNode({
     required super.span,
-    required this._children,
+    required List<MathNode> children,
     this.leftDelimiter,
     this.rightDelimiter,
     this.fixedSizeEm,
-  });
+  }) : _children = children;
 
   final List<MathNode> _children;
 
@@ -615,19 +617,24 @@ final class MatrixNode extends MathNode {
   /// Creates a matrix or alignment node with [rows] and [environment].
   const MatrixNode({
     required super.span,
-    required this._rows,
+    required List<List<MathNode>> rows,
     required this.environment,
-    this._columnAlignments = const <String>[],
+    List<String> columnAlignments = const <String>[],
     this.verticalAlignment,
     this.explicitWidthEm,
     this.leftDelimiter,
     this.rightDelimiter,
     this.isNumbered = false,
-    this._rowLines = const <int, String>{},
-    this._columnLines = const <int, String>{},
-    this._columnSeparators = const <int, MathNode>{},
-    this._rowTags = const <int, TagNode>{},
-  });
+    Map<int, String> rowLines = const <int, String>{},
+    Map<int, String> columnLines = const <int, String>{},
+    Map<int, MathNode> columnSeparators = const <int, MathNode>{},
+    Map<int, TagNode> rowTags = const <int, TagNode>{},
+  }) : _rows = rows,
+       _columnAlignments = columnAlignments,
+       _rowLines = rowLines,
+       _columnLines = columnLines,
+       _columnSeparators = columnSeparators,
+       _rowTags = rowTags;
 
   final List<List<MathNode>> _rows;
   final List<String> _columnAlignments;
@@ -728,8 +735,8 @@ final class TextNode extends MathNode {
     required super.span,
     required this.text,
     this.styleCommand,
-    this._children = const <MathNode>[],
-  });
+    List<MathNode> children = const <MathNode>[],
+  }) : _children = children;
 
   final List<MathNode> _children;
 
@@ -795,9 +802,9 @@ final class StyleNode extends MathNode {
   const StyleNode({
     required super.span,
     required this.style,
-    required this._children,
+    required List<MathNode> children,
     this.scaleEm,
-  });
+  }) : _children = children;
 
   final List<MathNode> _children;
 
@@ -835,11 +842,11 @@ final class ColorNode extends MathNode {
   const ColorNode({
     required super.span,
     required this.role,
-    required this._children,
+    required List<MathNode> children,
     this.colorValue,
     this.backgroundColor,
     this.borderColor,
-  });
+  }) : _children = children;
 
   final List<MathNode> _children;
 

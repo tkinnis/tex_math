@@ -727,14 +727,20 @@ final class _MathKernEntry {
 /// top accent attachment, extended shape flags, and 4-corner math kerns.
 final class MathGlyphInfo {
   MathGlyphInfo._({
-    required this._italicsCoverage,
-    required this._italicsValues,
-    required this._topAccentCoverage,
-    required this._topAccentValues,
-    required this._extendedShapeCoverage,
-    required this._kernCoverage,
-    required this._kernEntries,
-  });
+    required CoverageTable italicsCoverage,
+    required List<double> italicsValues,
+    required CoverageTable topAccentCoverage,
+    required List<double> topAccentValues,
+    required CoverageTable extendedShapeCoverage,
+    required CoverageTable kernCoverage,
+    required List<_MathKernEntry> kernEntries,
+  }) : _italicsCoverage = italicsCoverage,
+       _italicsValues = italicsValues,
+       _topAccentCoverage = topAccentCoverage,
+       _topAccentValues = topAccentValues,
+       _extendedShapeCoverage = extendedShapeCoverage,
+       _kernCoverage = kernCoverage,
+       _kernEntries = kernEntries;
 
   /// Empty `MathGlyphInfo` when absent from a font.
   static final MathGlyphInfo empty = MathGlyphInfo._(
@@ -1089,11 +1095,14 @@ final class MathGlyphConstruction {
 final class MathVariants {
   MathVariants._({
     required this.minConnectorOverlap,
-    required this._vertCoverage,
-    required this._vertConstructions,
-    required this._horizCoverage,
-    required this._horizConstructions,
-  });
+    required CoverageTable vertCoverage,
+    required List<MathGlyphConstruction> vertConstructions,
+    required CoverageTable horizCoverage,
+    required List<MathGlyphConstruction> horizConstructions,
+  }) : _vertCoverage = vertCoverage,
+       _vertConstructions = vertConstructions,
+       _horizCoverage = horizCoverage,
+       _horizConstructions = horizConstructions;
 
   /// Empty `MathVariants` table.
   static final MathVariants empty = MathVariants._(

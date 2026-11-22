@@ -12,11 +12,8 @@ import 'selection_adapter.dart';
 import 'theme.dart';
 
 /// Builder callback invoked when [TexMath] catches a [TexMathError].
-typedef TexMathErrorBuilder = Widget Function(
-  BuildContext context,
-  String source,
-  TexMathError error,
-);
+typedef TexMathErrorBuilder =
+    Widget Function(BuildContext context, String source, TexMathError error);
 
 /// Renders a TeX math expression or pre-computed [DisplayList] inside Flutter
 /// with OpenType `MATH` glyph path caching, alphabetic baseline alignment,
@@ -477,8 +474,9 @@ final class _TexMathState extends State<TexMath> {
       candidateSize,
       theme: theme,
     );
-    final double rawScaledFontSize = MediaQuery.textScalerOf(context)
-        .scale(baseSize);
+    final double rawScaledFontSize = MediaQuery.textScalerOf(
+      context,
+    ).scale(baseSize);
     final double scaledFontSize = resolveSafeTexMathFontSize(
       rawScaledFontSize,
       theme: theme,

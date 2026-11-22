@@ -35,9 +35,11 @@ void main() {
   group('Architecture & Package Invariants', () {
     test('ARCH-1/SEC-4: MatrixNode.columnSeparators stores pre-parsed ASTs and '
         'expands colSpec stars safely', () {
-      final MathRootNode root = parseTex(
-        r'\def\sep{\times}\begin{array}{c@{\sep}c!{|}c}a&b&c\end{array}',
-      ) as MathRootNode;
+      final MathRootNode root =
+          parseTex(
+                r'\def\sep{\times}\begin{array}{c@{\sep}c!{|}c}a&b&c\end{array}',
+              )
+              as MathRootNode;
       final MatrixNode array = root.children.single as MatrixNode;
       expect(array.columnSeparators[1], isA<MathNode>());
       expect(mathNodeToSpokenText(array.columnSeparators[1]!), 'times');
@@ -104,8 +106,9 @@ void main() {
             xHeight: 550,
           ),
         );
-        final RenderResult preUnkerned = TexMathEngine(font: unkernedFont)
-            .render(r'\prescript{p}{}{x}');
+        final RenderResult preUnkerned = TexMathEngine(
+          font: unkernedFont,
+        ).render(r'\prescript{p}{}{x}');
         final RenderResult preKerned = engine.render(r'\prescript{p}{}{x}');
         expect(
           preKerned.displayList.metrics.widthEm,
@@ -122,10 +125,12 @@ void main() {
           'units',
         ],
       );
-      final MathRootNode tree = parseTex(
-        r'\dmat{1,2} + \imat{2} + \units{9.8}{m/s^2}',
-        options: physicsOpts,
-      ) as MathRootNode;
+      final MathRootNode tree =
+          parseTex(
+                r'\dmat{1,2} + \imat{2} + \units{9.8}{m/s^2}',
+                options: physicsOpts,
+              )
+              as MathRootNode;
       expect(tree.children, isNotEmpty);
       expect(
         () => parseTex(r'\imat{100}', options: physicsOpts),
@@ -326,34 +331,43 @@ void main() {
   });
 
   group('Security Hardening (SEC-2 through SEC-11)', () {
-    test('SEC-2: defeats cumulative token bombs across macros, edef & subtokens', () {
-      // Nested exponential expansion under custom maxTokens.
-      expect(
-        () => parseTex(
-          r'\def\a{xx}\def\b{\a\a}\def\c{\b\b}\def\d{\c\c}\d\d\d\d',
-          options: const TexMathOptions(budgets: TexMathBudgets(maxTokens: 20)),
-        ),
-        throwsA(isA<TexMathBudgetError>()),
-      );
+    test(
+      'SEC-2: defeats cumulative token bombs across macros, edef & subtokens',
+      () {
+        // Nested exponential expansion under custom maxTokens.
+        expect(
+          () => parseTex(
+            r'\def\a{xx}\def\b{\a\a}\def\c{\b\b}\def\d{\c\c}\d\d\d\d',
+            options: const TexMathOptions(
+              budgets: TexMathBudgets(maxTokens: 20),
+            ),
+          ),
+          throwsA(isA<TexMathBudgetError>()),
+        );
 
-      // Exponential growth inside \edef body enforces shared maxTokens budget.
-      expect(
-        () => parseTex(
-          r'\def\a{xxxxxxxx}\edef\b{\a\a\a\a\a}\b',
-          options: const TexMathOptions(budgets: TexMathBudgets(maxTokens: 25)),
-        ),
-        throwsA(isA<TexMathBudgetError>()),
-      );
+        // Exponential growth inside \edef body enforces shared maxTokens budget.
+        expect(
+          () => parseTex(
+            r'\def\a{xxxxxxxx}\edef\b{\a\a\a\a\a}\b',
+            options: const TexMathOptions(
+              budgets: TexMathBudgets(maxTokens: 25),
+            ),
+          ),
+          throwsA(isA<TexMathBudgetError>()),
+        );
 
-      // Macro bomb inside array @{...} separator shares budget.
-      expect(
-        () => parseTex(
-          r'\def\a{xxxxxx}\begin{array}{c@{\a\a\a\a}c}1&2\end{array}',
-          options: const TexMathOptions(budgets: TexMathBudgets(maxTokens: 15)),
-        ),
-        throwsA(isA<TexMathBudgetError>()),
-      );
-    });
+        // Macro bomb inside array @{...} separator shares budget.
+        expect(
+          () => parseTex(
+            r'\def\a{xxxxxx}\begin{array}{c@{\a\a\a\a}c}1&2\end{array}',
+            options: const TexMathOptions(
+              budgets: TexMathBudgets(maxTokens: 15),
+            ),
+          ),
+          throwsA(isA<TexMathBudgetError>()),
+        );
+      },
+    );
 
     test('SEC-6: bounds all 5 unchecked recursion paths and export depth', () {
       const TexMathOptions shallow = TexMathOptions(
@@ -527,92 +541,95 @@ void main() {
       );
     });
 
-    test('AUDIT: boldsymbol scoping, boldSymbolVariantFor, texhtml tag stack, and \\style safety', () {
-      // Re-exported defaultMathVariantForCodePoint and boldSymbolVariantFor contract.
-      expect(defaultMathVariantForCodePoint(0x45), TexMathFontVariant.italic);
-      expect(defaultMathVariantForCodePoint(0x03A3), isNull);
-      expect(
-        boldSymbolVariantFor(TexMathFontVariant.normal, 0x2207),
-        TexMathFontVariant.bold,
-      );
-      expect(
-        boldSymbolVariantFor(TexMathFontVariant.italic, 0x45),
-        TexMathFontVariant.boldItalic,
-      );
-      expect(
-        boldSymbolVariantFor(TexMathFontVariant.script, 0x41),
-        TexMathFontVariant.boldScript,
-      );
-      expect(
-        boldSymbolVariantFor(TexMathFontVariant.fraktur, 0x41),
-        TexMathFontVariant.boldFraktur,
-      );
-      expect(
-        boldSymbolVariantFor(TexMathFontVariant.sansSerif, 0x41),
-        TexMathFontVariant.boldSansSerif,
-      );
-      expect(
-        boldSymbolVariantFor(TexMathFontVariant.sansSerifItalic, 0x41),
-        TexMathFontVariant.sansSerifBoldItalic,
-      );
-      expect(
-        boldSymbolVariantFor(TexMathFontVariant.doubleStruck, 0x52),
-        TexMathFontVariant.doubleStruckBold,
-      );
+    test(
+      'AUDIT: boldsymbol scoping, boldSymbolVariantFor, texhtml tag stack, and \\style safety',
+      () {
+        // Re-exported defaultMathVariantForCodePoint and boldSymbolVariantFor contract.
+        expect(defaultMathVariantForCodePoint(0x45), TexMathFontVariant.italic);
+        expect(defaultMathVariantForCodePoint(0x03A3), isNull);
+        expect(
+          boldSymbolVariantFor(TexMathFontVariant.normal, 0x2207),
+          TexMathFontVariant.bold,
+        );
+        expect(
+          boldSymbolVariantFor(TexMathFontVariant.italic, 0x45),
+          TexMathFontVariant.boldItalic,
+        );
+        expect(
+          boldSymbolVariantFor(TexMathFontVariant.script, 0x41),
+          TexMathFontVariant.boldScript,
+        );
+        expect(
+          boldSymbolVariantFor(TexMathFontVariant.fraktur, 0x41),
+          TexMathFontVariant.boldFraktur,
+        );
+        expect(
+          boldSymbolVariantFor(TexMathFontVariant.sansSerif, 0x41),
+          TexMathFontVariant.boldSansSerif,
+        );
+        expect(
+          boldSymbolVariantFor(TexMathFontVariant.sansSerifItalic, 0x41),
+          TexMathFontVariant.sansSerifBoldItalic,
+        );
+        expect(
+          boldSymbolVariantFor(TexMathFontVariant.doubleStruck, 0x52),
+          TexMathFontVariant.doubleStruckBold,
+        );
 
-      final TexMathEngine engine = TexMathEngine(font: bundledFont);
+        final TexMathEngine engine = TexMathEngine(font: bundledFont);
 
-      // \boldsymbol scope does not leak past its brace argument.
-      final List<int> scopedCps = engine
-          .render(r'{\boldsymbol{x}} y')
-          .displayList
-          .items
-          .whereType<GlyphItem>()
-          .map((GlyphItem g) => g.codePoint)
-          .toList();
-      expect(scopedCps, <int>[0x1D499, 0x1D466]);
+        // \boldsymbol scope does not leak past its brace argument.
+        final List<int> scopedCps = engine
+            .render(r'{\boldsymbol{x}} y')
+            .displayList
+            .items
+            .whereType<GlyphItem>()
+            .map((GlyphItem g) => g.codePoint)
+            .toList();
+        expect(scopedCps, <int>[0x1D499, 0x1D466]);
 
-      // Malformed/unknown/empty <tex-html> tags never drop text or emit empty runs.
-      const TexMathOptions htmlOpts = TexMathOptions(
-        packages: <String>['base', 'html', 'texhtml'],
-      );
-      final MathGroupNode emptyHtml =
-          (parseTex(
-                '<tex-html><em></em></tex-html>',
-                options: htmlOpts,
-              ) as MathRootNode).children.single
-              as MathGroupNode;
-      expect(emptyHtml.children, hasLength(1));
-      final TextNode emptyText = emptyHtml.children.single as TextNode;
-      expect(emptyText.text, isEmpty);
-      expect(emptyText.styleCommand, 'text');
+        // Malformed/unknown/empty <tex-html> tags never drop text or emit empty runs.
+        const TexMathOptions htmlOpts = TexMathOptions(
+          packages: <String>['base', 'html', 'texhtml'],
+        );
+        final MathGroupNode emptyHtml =
+            (parseTex('<tex-html><em></em></tex-html>', options: htmlOpts)
+                        as MathRootNode)
+                    .children
+                    .single
+                as MathGroupNode;
+        expect(emptyHtml.children, hasLength(1));
+        final TextNode emptyText = emptyHtml.children.single as TextNode;
+        expect(emptyText.text, isEmpty);
+        expect(emptyText.styleCommand, 'text');
 
-      final List<int> unknownWrapped = engine
-          .render(
-            '<tex-html><em>a<span>b</span>c</em></tex-html>',
-            options: htmlOpts,
-          )
-          .displayList
-          .items
-          .whereType<GlyphItem>()
-          .map((GlyphItem g) => g.codePoint)
-          .toList();
-      expect(unknownWrapped, <int>[0x1D44E, 0x1D44F, 0x1D450]);
+        final List<int> unknownWrapped = engine
+            .render(
+              '<tex-html><em>a<span>b</span>c</em></tex-html>',
+              options: htmlOpts,
+            )
+            .displayList
+            .items
+            .whereType<GlyphItem>()
+            .map((GlyphItem g) => g.codePoint)
+            .toList();
+        expect(unknownWrapped, <int>[0x1D44E, 0x1D44F, 0x1D450]);
 
-      // Invalid/unsafe CSS values in \style are ignored cleanly.
-      final DisplayList badStyleDl = engine
-          .render(
-            r'\style{color: notacolor; background-color: url(evil)}{x}',
-            options: htmlOpts,
-          )
-          .displayList;
-      expect(badStyleDl.items.whereType<RuleItem>(), isEmpty);
-      final GlyphItem badStyleGlyph = badStyleDl.items
-          .whereType<GlyphItem>()
-          .single;
-      expect(badStyleGlyph.colorRole, TexMathColorRole.foreground);
-      expect(badStyleGlyph.customColor, isNull);
-    });
+        // Invalid/unsafe CSS values in \style are ignored cleanly.
+        final DisplayList badStyleDl = engine
+            .render(
+              r'\style{color: notacolor; background-color: url(evil)}{x}',
+              options: htmlOpts,
+            )
+            .displayList;
+        expect(badStyleDl.items.whereType<RuleItem>(), isEmpty);
+        final GlyphItem badStyleGlyph = badStyleDl.items
+            .whereType<GlyphItem>()
+            .single;
+        expect(badStyleGlyph.colorRole, TexMathColorRole.foreground);
+        expect(badStyleGlyph.customColor, isNull);
+      },
+    );
   });
 }
 

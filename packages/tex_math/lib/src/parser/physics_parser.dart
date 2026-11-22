@@ -586,12 +586,9 @@ abstract final class PhysicsParser {
     String commandName,
     SourceSpan span,
   ) {
-    final DelimiterNode arg = _parseQuantity(
-      host,
-      commandName,
-      span,
-      requiredArg: true,
-    ) as DelimiterNode;
+    final DelimiterNode arg =
+        _parseQuantity(host, commandName, span, requiredArg: true)
+            as DelimiterNode;
     return MathGroupNode(
       span: span,
       isExplicitGroup: false,

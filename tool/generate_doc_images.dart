@@ -17,17 +17,20 @@ void main(List<String> args) {
     'doc/images/box_metrics_diagram.svg': _buildBoxMetricsDiagramSvg(engine),
     'doc/images/showcase_gaussian_integral.svg': _buildShowcaseSvg(
       engine,
-      tex: r'\int_{-\infty}^{\infty} e^{-\alpha x^2}\,dx = \sqrt{\frac{\pi}{\alpha}} \quad (\alpha > 0)',
+      tex:
+          r'\int_{-\infty}^{\infty} e^{-\alpha x^2}\,dx = \sqrt{\frac{\pi}{\alpha}} \quad (\alpha > 0)',
       title: 'tex_math Showcase: Gaussian Integral',
     ),
     'doc/images/showcase_piecewise_cases.svg': _buildShowcaseSvg(
       engine,
-      tex: r'|x| = \begin{cases} x & \text{if } x \ge 0 \\ -x & \text{if } x < 0 \end{cases}',
+      tex:
+          r'|x| = \begin{cases} x & \text{if } x \ge 0 \\ -x & \text{if } x < 0 \end{cases}',
       title: 'tex_math Showcase: Piecewise Cases',
     ),
     'doc/images/showcase_matrix_rotation.svg': _buildShowcaseSvg(
       engine,
-      tex: r'R(\theta) = \begin{pmatrix} \cos\theta & -\sin\theta \\ \sin\theta & \cos\theta \end{pmatrix}',
+      tex:
+          r'R(\theta) = \begin{pmatrix} \cos\theta & -\sin\theta \\ \sin\theta & \cos\theta \end{pmatrix}',
       title: 'tex_math Showcase: Rotation Matrix',
     ),
     'doc/images/showcase_nested_radical.svg': _buildShowcaseSvg(
@@ -416,9 +419,9 @@ void _validateSvgXml(String path, String svg) {
   final int openTags = RegExp(
     r'<(?!/)([A-Za-z][A-Za-z0-9:-]*)(?:[^>"\x27]|"[^"]*"|\x27[^\x27]*\x27)*(?<!/)>',
   ).allMatches(trimmed).length;
-  final int closeTags = RegExp(r'</([A-Za-z][A-Za-z0-9:-]*)>')
-      .allMatches(trimmed)
-      .length;
+  final int closeTags = RegExp(
+    r'</([A-Za-z][A-Za-z0-9:-]*)>',
+  ).allMatches(trimmed).length;
   if (openTags != closeTags || openTags == 0) {
     throw StateError(
       '$path failed balanced XML tag check (open=$openTags, close=$closeTags).',

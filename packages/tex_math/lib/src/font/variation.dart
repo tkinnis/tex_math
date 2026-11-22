@@ -223,8 +223,8 @@ final class ItemVariationStore {
   ItemVariationStore._({
     required this.regionScalars,
     required this.variationData,
-    required this._dataRegionScalars,
-  });
+    required Map<int, List<double>> dataRegionScalars,
+  }) : _dataRegionScalars = dataRegionScalars;
 
   /// Precomputed scalar for each region in `VarRegionList`.
   final List<double> regionScalars;
@@ -470,9 +470,10 @@ final class ItemVariationStore {
 final class HvarTable {
   HvarTable._({
     required this.store,
-    required this._advanceMap,
-    required this._lsbMap,
-  });
+    required List<int>? advanceMap,
+    required List<int>? lsbMap,
+  }) : _advanceMap = advanceMap,
+       _lsbMap = lsbMap;
 
   final ItemVariationStore store;
   final List<int>? _advanceMap;

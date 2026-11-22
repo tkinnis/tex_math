@@ -252,9 +252,9 @@ void main() {
 
   group('Tier 1, Stretchy, and Notebooks end-to-end coverage', () {
     test('lays out all 175 Tier 1, Stretchy, and Notebook corpus cases', () {
-      final Map<String, Object?> raw = jsonDecode(
-        _expectationsFile().readAsStringSync(),
-      ) as Map<String, Object?>;
+      final Map<String, Object?> raw =
+          jsonDecode(_expectationsFile().readAsStringSync())
+              as Map<String, Object?>;
       final Map<String, Object?> cases = raw['cases']! as Map<String, Object?>;
 
       int evaluated = 0;
@@ -294,9 +294,9 @@ void main() {
     });
 
     test('matches MathJax 4.1.3 within 0.02em on calibrated Tier 1 suite', () {
-      final Map<String, Object?> raw = jsonDecode(
-        _expectationsFile().readAsStringSync(),
-      ) as Map<String, Object?>;
+      final Map<String, Object?> raw =
+          jsonDecode(_expectationsFile().readAsStringSync())
+              as Map<String, Object?>;
       final Map<String, Object?> cases = raw['cases']! as Map<String, Object?>;
 
       const List<String> calibratedIds = <String>[
@@ -506,80 +506,85 @@ void main() {
       );
     });
 
-    test('clamps vertical rules for top-only, bottom-only, no \\hline, and empty arrays', () {
-      // Top-only \hline.
-      final DisplayList topOnly = engine
-          .render(r'\begin{array}{|c|c|} \hline x & y \\ z & w \end{array}')
-          .displayList;
-      final List<RuleItem> topHRules = topOnly.items
-          .whereType<RuleItem>()
-          .where((RuleItem r) => r.widthEm > r.heightEm)
-          .toList();
-      final List<RuleItem> topVRules = topOnly.items
-          .whereType<RuleItem>()
-          .where((RuleItem r) => r.heightEm > r.widthEm)
-          .toList();
-      expect(topHRules, hasLength(1));
-      expect(topVRules, hasLength(3));
-      final double topOnlyTop =
-          topHRules.single.yEm + topHRules.single.heightEm;
-      for (final RuleItem v in topVRules) {
-        expect(v.yEm + v.heightEm, closeTo(topOnlyTop, 1e-9));
-        expect(v.yEm, closeTo(-topOnly.metrics.depthEm + 0.125, 1e-9));
-      }
+    test(
+      'clamps vertical rules for top-only, bottom-only, no \\hline, and empty arrays',
+      () {
+        // Top-only \hline.
+        final DisplayList topOnly = engine
+            .render(r'\begin{array}{|c|c|} \hline x & y \\ z & w \end{array}')
+            .displayList;
+        final List<RuleItem> topHRules = topOnly.items
+            .whereType<RuleItem>()
+            .where((RuleItem r) => r.widthEm > r.heightEm)
+            .toList();
+        final List<RuleItem> topVRules = topOnly.items
+            .whereType<RuleItem>()
+            .where((RuleItem r) => r.heightEm > r.widthEm)
+            .toList();
+        expect(topHRules, hasLength(1));
+        expect(topVRules, hasLength(3));
+        final double topOnlyTop =
+            topHRules.single.yEm + topHRules.single.heightEm;
+        for (final RuleItem v in topVRules) {
+          expect(v.yEm + v.heightEm, closeTo(topOnlyTop, 1e-9));
+          expect(v.yEm, closeTo(-topOnly.metrics.depthEm + 0.125, 1e-9));
+        }
 
-      // Bottom-only \hline.
-      final DisplayList botOnly = engine
-          .render(r'\begin{array}{|c|c|} x & y \\ z & w \\ \hline \end{array}')
-          .displayList;
-      final List<RuleItem> botHRules = botOnly.items
-          .whereType<RuleItem>()
-          .where((RuleItem r) => r.widthEm > r.heightEm)
-          .toList();
-      final List<RuleItem> botVRules = botOnly.items
-          .whereType<RuleItem>()
-          .where((RuleItem r) => r.heightEm > r.widthEm)
-          .toList();
-      expect(botHRules, hasLength(1));
-      expect(botVRules, hasLength(3));
-      for (final RuleItem v in botVRules) {
-        expect(v.yEm, closeTo(botHRules.single.yEm, 1e-9));
-        expect(
-          v.yEm + v.heightEm,
-          closeTo(botOnly.metrics.heightEm - 0.125, 1e-9),
-        );
-      }
+        // Bottom-only \hline.
+        final DisplayList botOnly = engine
+            .render(
+              r'\begin{array}{|c|c|} x & y \\ z & w \\ \hline \end{array}',
+            )
+            .displayList;
+        final List<RuleItem> botHRules = botOnly.items
+            .whereType<RuleItem>()
+            .where((RuleItem r) => r.widthEm > r.heightEm)
+            .toList();
+        final List<RuleItem> botVRules = botOnly.items
+            .whereType<RuleItem>()
+            .where((RuleItem r) => r.heightEm > r.widthEm)
+            .toList();
+        expect(botHRules, hasLength(1));
+        expect(botVRules, hasLength(3));
+        for (final RuleItem v in botVRules) {
+          expect(v.yEm, closeTo(botHRules.single.yEm, 1e-9));
+          expect(
+            v.yEm + v.heightEm,
+            closeTo(botOnly.metrics.heightEm - 0.125, 1e-9),
+          );
+        }
 
-      // No \hline.
-      final DisplayList noHline = engine
-          .render(r'\begin{array}{|c|c|} x & y \\ z & w \end{array}')
-          .displayList;
-      final List<RuleItem> noHRules = noHline.items
-          .whereType<RuleItem>()
-          .where((RuleItem r) => r.widthEm > r.heightEm)
-          .toList();
-      final List<RuleItem> noVRules = noHline.items
-          .whereType<RuleItem>()
-          .where((RuleItem r) => r.heightEm > r.widthEm)
-          .toList();
-      expect(noHRules, isEmpty);
-      expect(noVRules, hasLength(3));
-      for (final RuleItem v in noVRules) {
-        expect(v.yEm, closeTo(-noHline.metrics.depthEm + 0.125, 1e-9));
-        expect(
-          v.yEm + v.heightEm,
-          closeTo(noHline.metrics.heightEm - 0.125, 1e-9),
-        );
-      }
+        // No \hline.
+        final DisplayList noHline = engine
+            .render(r'\begin{array}{|c|c|} x & y \\ z & w \end{array}')
+            .displayList;
+        final List<RuleItem> noHRules = noHline.items
+            .whereType<RuleItem>()
+            .where((RuleItem r) => r.widthEm > r.heightEm)
+            .toList();
+        final List<RuleItem> noVRules = noHline.items
+            .whereType<RuleItem>()
+            .where((RuleItem r) => r.heightEm > r.widthEm)
+            .toList();
+        expect(noHRules, isEmpty);
+        expect(noVRules, hasLength(3));
+        for (final RuleItem v in noVRules) {
+          expect(v.yEm, closeTo(-noHline.metrics.depthEm + 0.125, 1e-9));
+          expect(
+            v.yEm + v.heightEm,
+            closeTo(noHline.metrics.heightEm - 0.125, 1e-9),
+          );
+        }
 
-      // Empty array (rowCount == 0) omits vertical rules.
-      final DisplayList emptyArray = engine
-          .render(r'\begin{array}{|c|c|} \end{array}')
-          .displayList;
-      expect(emptyArray.items.whereType<RuleItem>(), isEmpty);
-      expect(emptyArray.metrics.heightEm, closeTo(0.0, 1e-9));
-      expect(emptyArray.metrics.depthEm, closeTo(0.0, 1e-9));
-    });
+        // Empty array (rowCount == 0) omits vertical rules.
+        final DisplayList emptyArray = engine
+            .render(r'\begin{array}{|c|c|} \end{array}')
+            .displayList;
+        expect(emptyArray.items.whereType<RuleItem>(), isEmpty);
+        expect(emptyArray.metrics.heightEm, closeTo(0.0, 1e-9));
+        expect(emptyArray.metrics.depthEm, closeTo(0.0, 1e-9));
+      },
+    );
 
     test('aligns \\boxed frame stroke outer bounds flush with box metrics', () {
       final DisplayList dl = engine.render(r'\boxed{x+1}').displayList;
@@ -600,332 +605,341 @@ void main() {
   });
 
   group('Text-mode \\textit, \\emph, and nested style toggling', () {
-    test('renders textmacros_styles and textmacros_dashes_emph with Unicode math alphanumerics', () {
-      final DisplayList stylesDl = engine
-          .render(
-            r'\text{normal \textbf{bold} \textit{italic} \texttt{mono} \textsf{sans}}',
-          )
-          .displayList;
-      final List<int> styleCps = stylesDl.items
-          .whereType<GlyphItem>()
-          .where((GlyphItem g) => g.codePoint != 0x00A0 && g.codePoint != 0x20)
-          .map((GlyphItem g) => g.codePoint)
-          .toList();
-      for (final GlyphItem g in stylesDl.items.whereType<GlyphItem>()) {
-        expect(
-          g.glyphId,
-          isNonZero,
-          reason: 'Missing glyph for U+${g.codePoint.toRadixString(16)}',
-        );
-      }
-      expect(styleCps, <int>[
-        // normal
-        0x6E, 0x6F, 0x72, 0x6D, 0x61, 0x6C,
-        // bold
-        0x1D41B, 0x1D428, 0x1D425, 0x1D41D,
-        // italic
-        0x1D456, 0x1D461, 0x1D44E, 0x1D459, 0x1D456, 0x1D450,
-        // mono
-        0x1D696, 0x1D698, 0x1D697, 0x1D698,
-        // sans
-        0x1D5CC, 0x1D5BA, 0x1D5C7, 0x1D5CC,
-      ]);
-
-      final DisplayList emphDl = engine
-          .render(
-            r"\text{a---b, c--d, ``quoted'' \emph{emph}}",
-            options: const TexMathOptions(
-              displayMode: TexMathDisplayMode.inline,
-            ),
-          )
-          .displayList;
-      final List<int> emphCps = emphDl.items
-          .whereType<GlyphItem>()
-          .where((GlyphItem g) => g.codePoint != 0x00A0 && g.codePoint != 0x20)
-          .map((GlyphItem g) => g.codePoint)
-          .toList();
-      for (final GlyphItem g in emphDl.items.whereType<GlyphItem>()) {
-        expect(
-          g.glyphId,
-          isNonZero,
-          reason: 'Missing glyph for U+${g.codePoint.toRadixString(16)}',
-        );
-      }
-      expect(emphCps, <int>[
-        0x61,
-        0x2014,
-        0x62,
-        0x2C,
-        0x63,
-        0x2013,
-        0x64,
-        0x2C,
-        0x201C,
-        0x71,
-        0x75,
-        0x6F,
-        0x74,
-        0x65,
-        0x64,
-        0x201D,
-        0x1D452,
-        0x1D45A,
-        0x1D45D,
-        0x210E,
-      ]);
-    });
-
-    test('toggles nested \\emph and \\textit / \\emph while preserving non-letters and error parity', () {
-      final RenderResult nestedEmph = engine.render(
-        r'\text{\emph{outer \emph{inner} outer}}',
-      );
-      final List<int> nestedCps = nestedEmph.displayList.items
-          .whereType<GlyphItem>()
-          .where((GlyphItem g) => g.codePoint != 0x00A0 && g.codePoint != 0x20)
-          .map((GlyphItem g) => g.codePoint)
-          .toList();
-      expect(nestedCps, <int>[
-        // outer (italic)
-        0x1D45C, 0x1D462, 0x1D461, 0x1D452, 0x1D45F,
-        // inner (upright)
-        0x69, 0x6E, 0x6E, 0x65, 0x72,
-        // outer (italic)
-        0x1D45C, 0x1D462, 0x1D461, 0x1D452, 0x1D45F,
-      ]);
-      final String nestedMathMl = nestedEmph.toMathMl();
-      expect(
-        nestedMathMl,
-        contains('<mtext mathvariant="italic">outer </mtext>'),
-      );
-      expect(nestedMathMl, contains('<mtext>inner</mtext>'));
-      expect(
-        nestedMathMl,
-        contains('<mtext mathvariant="italic"> outer</mtext>'),
-      );
-
-      for (final String tex in const <String>[
-        r'\text{\textit{outer \emph{inner}}}',
-        r'\textit{outer \emph{inner}}',
-      ]) {
-        final List<int> cps = engine
-            .render(tex)
-            .displayList
-            .items
+    test(
+      'renders textmacros_styles and textmacros_dashes_emph with Unicode math alphanumerics',
+      () {
+        final DisplayList stylesDl = engine
+            .render(
+              r'\text{normal \textbf{bold} \textit{italic} \texttt{mono} \textsf{sans}}',
+            )
+            .displayList;
+        final List<int> styleCps = stylesDl.items
             .whereType<GlyphItem>()
             .where(
               (GlyphItem g) => g.codePoint != 0x00A0 && g.codePoint != 0x20,
             )
             .map((GlyphItem g) => g.codePoint)
             .toList();
-        expect(cps, <int>[
-          0x1D45C,
-          0x1D462,
-          0x1D461,
-          0x1D452,
-          0x1D45F,
-          0x69,
-          0x6E,
-          0x6E,
-          0x65,
-          0x72,
-        ], reason: tex);
-      }
+        for (final GlyphItem g in stylesDl.items.whereType<GlyphItem>()) {
+          expect(
+            g.glyphId,
+            isNonZero,
+            reason: 'Missing glyph for U+${g.codePoint.toRadixString(16)}',
+          );
+        }
+        expect(styleCps, <int>[
+          // normal
+          0x6E, 0x6F, 0x72, 0x6D, 0x61, 0x6C,
+          // bold
+          0x1D41B, 0x1D428, 0x1D425, 0x1D41D,
+          // italic
+          0x1D456, 0x1D461, 0x1D44E, 0x1D459, 0x1D456, 0x1D450,
+          // mono
+          0x1D696, 0x1D698, 0x1D697, 0x1D698,
+          // sans
+          0x1D5CC, 0x1D5BA, 0x1D5C7, 0x1D5CC,
+        ]);
 
-      // Digits, punctuation, and ligatures inside \textit remain unchanged.
-      final List<int> nonAlpha = engine
-          .render(r'\text{\textit{a12--}}')
-          .displayList
-          .items
-          .whereType<GlyphItem>()
-          .map((GlyphItem g) => g.codePoint)
-          .toList();
-      expect(nonAlpha, <int>[0x1D44E, 0x31, 0x32, 0x2013]);
-
-      // Direct TextNode inherits enclosing variant only when styleCommand == null.
-      const MathRootNode inheritTree = MathRootNode(
-        span: SourceSpan.zero,
-        children: <MathNode>[
-          MathGroupNode(
-            span: SourceSpan.zero,
-            fontVariant: TexMathFontVariant.bold,
-            children: <MathNode>[
-              TextNode(span: SourceSpan.zero, text: 'a'),
-              TextNode(
-                span: SourceSpan.zero,
-                text: 'b',
-                styleCommand: 'textrm',
+        final DisplayList emphDl = engine
+            .render(
+              r"\text{a---b, c--d, ``quoted'' \emph{emph}}",
+              options: const TexMathOptions(
+                displayMode: TexMathDisplayMode.inline,
               ),
-            ],
-          ),
-        ],
-      );
-      final List<int> inheritCps = engine
-          .layout(inheritTree)
-          .items
-          .whereType<GlyphItem>()
-          .map((GlyphItem g) => g.codePoint)
-          .toList();
-      expect(inheritCps, <int>[0x1D41A, 0x62]);
+            )
+            .displayList;
+        final List<int> emphCps = emphDl.items
+            .whereType<GlyphItem>()
+            .where(
+              (GlyphItem g) => g.codePoint != 0x00A0 && g.codePoint != 0x20,
+            )
+            .map((GlyphItem g) => g.codePoint)
+            .toList();
+        for (final GlyphItem g in emphDl.items.whereType<GlyphItem>()) {
+          expect(
+            g.glyphId,
+            isNonZero,
+            reason: 'Missing glyph for U+${g.codePoint.toRadixString(16)}',
+          );
+        }
+        expect(emphCps, <int>[
+          0x61,
+          0x2014,
+          0x62,
+          0x2C,
+          0x63,
+          0x2013,
+          0x64,
+          0x2C,
+          0x201C,
+          0x71,
+          0x75,
+          0x6F,
+          0x74,
+          0x65,
+          0x64,
+          0x201D,
+          0x1D452,
+          0x1D45A,
+          0x1D45D,
+          0x210E,
+        ]);
+      },
+    );
 
-      // MathJax 4.1.3 error parity: \textsl, top-level \emph, and nested \text/\mbox are rejected.
-      for (final String badTex in const <String>[
-        r'\textsl{x}',
-        r'\emph{x}',
-        r'\text{\text{x}}',
-        r'\text{\mbox{x}}',
-      ]) {
-        expect(
-          () => engine.render(badTex),
-          throwsA(isA<TexMathSyntaxError>()),
-          reason: 'Expected syntax error for $badTex',
+    test(
+      'toggles nested \\emph and \\textit / \\emph while preserving non-letters and error parity',
+      () {
+        final RenderResult nestedEmph = engine.render(
+          r'\text{\emph{outer \emph{inner} outer}}',
         );
-      }
-    });
+        final List<int> nestedCps = nestedEmph.displayList.items
+            .whereType<GlyphItem>()
+            .where(
+              (GlyphItem g) => g.codePoint != 0x00A0 && g.codePoint != 0x20,
+            )
+            .map((GlyphItem g) => g.codePoint)
+            .toList();
+        expect(nestedCps, <int>[
+          // outer (italic)
+          0x1D45C, 0x1D462, 0x1D461, 0x1D452, 0x1D45F,
+          // inner (upright)
+          0x69, 0x6E, 0x6E, 0x65, 0x72,
+          // outer (italic)
+          0x1D45C, 0x1D462, 0x1D461, 0x1D452, 0x1D45F,
+        ]);
+        final String nestedMathMl = nestedEmph.toMathMl();
+        expect(
+          nestedMathMl,
+          contains('<mtext mathvariant="italic">outer </mtext>'),
+        );
+        expect(nestedMathMl, contains('<mtext>inner</mtext>'));
+        expect(
+          nestedMathMl,
+          contains('<mtext mathvariant="italic"> outer</mtext>'),
+        );
+
+        for (final String tex in const <String>[
+          r'\text{\textit{outer \emph{inner}}}',
+          r'\textit{outer \emph{inner}}',
+        ]) {
+          final List<int> cps = engine
+              .render(tex)
+              .displayList
+              .items
+              .whereType<GlyphItem>()
+              .where(
+                (GlyphItem g) => g.codePoint != 0x00A0 && g.codePoint != 0x20,
+              )
+              .map((GlyphItem g) => g.codePoint)
+              .toList();
+          expect(cps, <int>[
+            0x1D45C,
+            0x1D462,
+            0x1D461,
+            0x1D452,
+            0x1D45F,
+            0x69,
+            0x6E,
+            0x6E,
+            0x65,
+            0x72,
+          ], reason: tex);
+        }
+
+        // Digits, punctuation, and ligatures inside \textit remain unchanged.
+        final List<int> nonAlpha = engine
+            .render(r'\text{\textit{a12--}}')
+            .displayList
+            .items
+            .whereType<GlyphItem>()
+            .map((GlyphItem g) => g.codePoint)
+            .toList();
+        expect(nonAlpha, <int>[0x1D44E, 0x31, 0x32, 0x2013]);
+
+        // Direct TextNode inherits enclosing variant only when styleCommand == null.
+        const MathRootNode inheritTree = MathRootNode(
+          span: SourceSpan.zero,
+          children: <MathNode>[
+            MathGroupNode(
+              span: SourceSpan.zero,
+              fontVariant: TexMathFontVariant.bold,
+              children: <MathNode>[
+                TextNode(span: SourceSpan.zero, text: 'a'),
+                TextNode(
+                  span: SourceSpan.zero,
+                  text: 'b',
+                  styleCommand: 'textrm',
+                ),
+              ],
+            ),
+          ],
+        );
+        final List<int> inheritCps = engine
+            .layout(inheritTree)
+            .items
+            .whereType<GlyphItem>()
+            .map((GlyphItem g) => g.codePoint)
+            .toList();
+        expect(inheritCps, <int>[0x1D41A, 0x62]);
+
+        // MathJax 4.1.3 error parity: \textsl, top-level \emph, and nested \text/\mbox are rejected.
+        for (final String badTex in const <String>[
+          r'\textsl{x}',
+          r'\emph{x}',
+          r'\text{\text{x}}',
+          r'\text{\mbox{x}}',
+        ]) {
+          expect(
+            () => engine.render(badTex),
+            throwsA(isA<TexMathSyntaxError>()),
+            reason: 'Expected syntax error for $badTex',
+          );
+        }
+      },
+    );
   });
 
   group('Multline, multlined, and shove alignment', () {
+    test('lays out ams_shove with 12em width, 4em span, and strict stagger', () {
+      final DisplayList dl = engine
+          .render(
+            r'\begin{multline} \shoveleft{a + b} \\ c + d \\ \shoveright{e + f} \end{multline}',
+          )
+          .displayList;
+      expect(dl.metrics.widthEm, 12.0);
+      expect(dl.metrics.heightEm, closeTo(2.25, 1e-6));
+      expect(dl.metrics.depthEm, closeTo(1.75, 1e-6));
+
+      final List<GlyphItem> glyphs = dl.items.whereType<GlyphItem>().toList();
+      expect(glyphs, hasLength(9));
+      expect(glyphs[0].xEm, closeTo(1.0, 1e-6));
+      expect(glyphs[0].xEm, lessThan(glyphs[3].xEm));
+      expect(glyphs[3].xEm, lessThan(glyphs[6].xEm));
+      expect(glyphs[8].xEm + glyphs[8].advanceEm, closeTo(11.0, 1e-6));
+    });
+
     test(
-      'lays out ams_shove with 12em width, 4em span, and strict stagger',
+      'lays out multline_basic with 0.50em row gap, stagger, and binary leading +',
       () {
         final DisplayList dl = engine
             .render(
-              r'\begin{multline} \shoveleft{a + b} \\ c + d \\ \shoveright{e + f} \end{multline}',
+              r'\begin{multline} a + b + c + d \\ + e + f + g + h \end{multline}',
             )
             .displayList;
-        expect(dl.metrics.widthEm, 12.0);
-        expect(dl.metrics.heightEm, closeTo(2.25, 1e-6));
-        expect(dl.metrics.depthEm, closeTo(1.75, 1e-6));
+        expect(dl.metrics.heightEm, closeTo(1.50, 1e-6));
+        expect(dl.metrics.depthEm, closeTo(1.00, 1e-6));
 
         final List<GlyphItem> glyphs = dl.items.whereType<GlyphItem>().toList();
-        expect(glyphs, hasLength(9));
+        expect(glyphs, hasLength(15));
         expect(glyphs[0].xEm, closeTo(1.0, 1e-6));
-        expect(glyphs[0].xEm, lessThan(glyphs[3].xEm));
-        expect(glyphs[3].xEm, lessThan(glyphs[6].xEm));
-        expect(glyphs[8].xEm + glyphs[8].advanceEm, closeTo(11.0, 1e-6));
+        // Row 1 starts after row 0 and ends 1em from right edge.
+        expect(glyphs[7].xEm, greaterThan(glyphs[0].xEm));
+        expect(
+          glyphs[14].xEm + glyphs[14].advanceEm,
+          closeTo(dl.metrics.widthEm - 1.0, 1e-6),
+        );
+
+        // Compare `+ e` distance in continuation row against binary `a + e` vs unary `+e`.
+        final List<GlyphItem> binRef = engine
+            .render('a + e')
+            .displayList
+            .items
+            .whereType<GlyphItem>()
+            .toList();
+        final List<GlyphItem> unaryRef = engine
+            .render('+ e')
+            .displayList
+            .items
+            .whereType<GlyphItem>()
+            .toList();
+        final double multlinePlusToE = glyphs[8].xEm - glyphs[7].xEm;
+        final double binaryPlusToE = binRef[2].xEm - binRef[1].xEm;
+        final double unaryPlusToE = unaryRef[1].xEm - unaryRef[0].xEm;
+        expect(multlinePlusToE, closeTo(binaryPlusToE, 1e-6));
+        expect(multlinePlusToE, greaterThan(unaryPlusToE + 0.15));
       },
     );
-
-    test('lays out multline_basic with 0.50em row gap, stagger, and binary leading +', () {
-      final DisplayList dl = engine
-          .render(
-            r'\begin{multline} a + b + c + d \\ + e + f + g + h \end{multline}',
-          )
-          .displayList;
-      expect(dl.metrics.heightEm, closeTo(1.50, 1e-6));
-      expect(dl.metrics.depthEm, closeTo(1.00, 1e-6));
-
-      final List<GlyphItem> glyphs = dl.items.whereType<GlyphItem>().toList();
-      expect(glyphs, hasLength(15));
-      expect(glyphs[0].xEm, closeTo(1.0, 1e-6));
-      // Row 1 starts after row 0 and ends 1em from right edge.
-      expect(glyphs[7].xEm, greaterThan(glyphs[0].xEm));
-      expect(
-        glyphs[14].xEm + glyphs[14].advanceEm,
-        closeTo(dl.metrics.widthEm - 1.0, 1e-6),
-      );
-
-      // Compare `+ e` distance in continuation row against binary `a + e` vs unary `+e`.
-      final List<GlyphItem> binRef = engine
-          .render('a + e')
-          .displayList
-          .items
-          .whereType<GlyphItem>()
-          .toList();
-      final List<GlyphItem> unaryRef = engine
-          .render('+ e')
-          .displayList
-          .items
-          .whereType<GlyphItem>()
-          .toList();
-      final double multlinePlusToE = glyphs[8].xEm - glyphs[7].xEm;
-      final double binaryPlusToE = binRef[2].xEm - binRef[1].xEm;
-      final double unaryPlusToE = unaryRef[1].xEm - unaryRef[0].xEm;
-      expect(multlinePlusToE, closeTo(binaryPlusToE, 1e-6));
-      expect(multlinePlusToE, greaterThan(unaryPlusToE + 0.15));
-    });
-
-    test('prevents collapse/overflow/inversion on wide equal-length multline rows', () {
-      const String longLine = 'a + b + c + d + e + f + g + h + i + j + k + l';
-      final DisplayList dl = engine
-          .render(
-            '\\begin{multline} $longLine \\\\ $longLine \\\\ $longLine \\end{multline}',
-          )
-          .displayList;
-      expect(dl.metrics.widthEm, greaterThan(12.0));
-
-      final List<GlyphItem> glyphs = dl.items.whereType<GlyphItem>().toList();
-      final double row0Y = glyphs.first.yEm;
-      final double row2Y = glyphs.last.yEm;
-      final List<GlyphItem> row0 = glyphs
-          .where((GlyphItem g) => (g.yEm - row0Y).abs() < 1e-6)
-          .toList();
-      final List<GlyphItem> row2 = glyphs
-          .where((GlyphItem g) => (g.yEm - row2Y).abs() < 1e-6)
-          .toList();
-      final List<GlyphItem> row1 = glyphs
-          .where(
-            (GlyphItem g) =>
-                (g.yEm - row0Y).abs() > 0.1 && (g.yEm - row2Y).abs() > 0.1,
-          )
-          .toList();
-
-      expect(row0.first.xEm, closeTo(1.0, 1e-6));
-      expect(row0.first.xEm, lessThan(row1.first.xEm));
-      expect(row1.first.xEm, lessThan(row2.first.xEm));
-      expect(
-        row2.last.xEm + row2.last.advanceEm,
-        closeTo(dl.metrics.widthEm - 1.0, 1e-6),
-      );
-    });
 
     test(
-      'honors TexMathOptions.multlineWidthEm and mathtools shove shifts',
+      'prevents collapse/overflow/inversion on wide equal-length multline rows',
       () {
-        final DisplayList wideDl = engine
+        const String longLine = 'a + b + c + d + e + f + g + h + i + j + k + l';
+        final DisplayList dl = engine
             .render(
-              r'\begin{multline} \shoveleft{a + b} \\ c + d \\ \shoveright{e + f} \end{multline}',
-              options: const TexMathOptions(multlineWidthEm: 25.0),
+              '\\begin{multline} $longLine \\\\ $longLine \\\\ $longLine \\end{multline}',
             )
             .displayList;
-        expect(wideDl.metrics.widthEm, 25.0);
-        final List<GlyphItem> wideGlyphs = wideDl.items
-            .whereType<GlyphItem>()
-            .toList();
-        expect(wideGlyphs[0].xEm, closeTo(1.0, 1e-6));
-        expect(wideGlyphs[3].xEm, greaterThan(10.0));
-        expect(
-          wideGlyphs[8].xEm + wideGlyphs[8].advanceEm,
-          closeTo(24.0, 1e-6),
-        );
+        expect(dl.metrics.widthEm, greaterThan(12.0));
 
-        final DisplayList shiftedDl = engine
-            .render(
-              r'\begin{multline} \shoveleft[2em]{a + b} \\ \shoveright[2em]{e + f} \end{multline}',
+        final List<GlyphItem> glyphs = dl.items.whereType<GlyphItem>().toList();
+        final double row0Y = glyphs.first.yEm;
+        final double row2Y = glyphs.last.yEm;
+        final List<GlyphItem> row0 = glyphs
+            .where((GlyphItem g) => (g.yEm - row0Y).abs() < 1e-6)
+            .toList();
+        final List<GlyphItem> row2 = glyphs
+            .where((GlyphItem g) => (g.yEm - row2Y).abs() < 1e-6)
+            .toList();
+        final List<GlyphItem> row1 = glyphs
+            .where(
+              (GlyphItem g) =>
+                  (g.yEm - row0Y).abs() > 0.1 && (g.yEm - row2Y).abs() > 0.1,
             )
-            .displayList;
-        final List<GlyphItem> shiftedGlyphs = shiftedDl.items
-            .whereType<GlyphItem>()
             .toList();
-        expect(shiftedGlyphs[0].xEm, closeTo(3.0, 1e-6));
-        expect(
-          shiftedGlyphs[5].xEm + shiftedGlyphs[5].advanceEm,
-          closeTo(shiftedDl.metrics.widthEm - 3.0, 1e-6),
-        );
 
-        // Multi-child cells (`\shoveleft{a+b}\label{eq:1}` and `\shoveleft{a+b}+c`) preserve shove.
-        final RenderResult shoveLabeled = engine.render(
-          r'\begin{multline} a + b \\ \shoveleft{c + d}\label{eq:s1} \\ \shoveleft{e + f} + g \end{multline}',
-          options: const TexMathOptions(tagMode: TexMathTagMode.ams),
+        expect(row0.first.xEm, closeTo(1.0, 1e-6));
+        expect(row0.first.xEm, lessThan(row1.first.xEm));
+        expect(row1.first.xEm, lessThan(row2.first.xEm));
+        expect(
+          row2.last.xEm + row2.last.advanceEm,
+          closeTo(dl.metrics.widthEm - 1.0, 1e-6),
         );
-        expect((shoveLabeled.syntaxTree as MathRootNode).labels['eq:s1'], '1');
-        final List<GlyphItem> shoveGlyphs = shoveLabeled.displayList.items
-            .whereType<GlyphItem>()
-            .toList();
-        // `c` (index 3) and `e` (index 6) are both shoved left to x == 1.0.
-        expect(shoveGlyphs[3].xEm, closeTo(1.0, 1e-6));
-        expect(shoveGlyphs[6].xEm, closeTo(1.0, 1e-6));
       },
     );
+
+    test('honors TexMathOptions.multlineWidthEm and mathtools shove shifts', () {
+      final DisplayList wideDl = engine
+          .render(
+            r'\begin{multline} \shoveleft{a + b} \\ c + d \\ \shoveright{e + f} \end{multline}',
+            options: const TexMathOptions(multlineWidthEm: 25.0),
+          )
+          .displayList;
+      expect(wideDl.metrics.widthEm, 25.0);
+      final List<GlyphItem> wideGlyphs = wideDl.items
+          .whereType<GlyphItem>()
+          .toList();
+      expect(wideGlyphs[0].xEm, closeTo(1.0, 1e-6));
+      expect(wideGlyphs[3].xEm, greaterThan(10.0));
+      expect(wideGlyphs[8].xEm + wideGlyphs[8].advanceEm, closeTo(24.0, 1e-6));
+
+      final DisplayList shiftedDl = engine
+          .render(
+            r'\begin{multline} \shoveleft[2em]{a + b} \\ \shoveright[2em]{e + f} \end{multline}',
+          )
+          .displayList;
+      final List<GlyphItem> shiftedGlyphs = shiftedDl.items
+          .whereType<GlyphItem>()
+          .toList();
+      expect(shiftedGlyphs[0].xEm, closeTo(3.0, 1e-6));
+      expect(
+        shiftedGlyphs[5].xEm + shiftedGlyphs[5].advanceEm,
+        closeTo(shiftedDl.metrics.widthEm - 3.0, 1e-6),
+      );
+
+      // Multi-child cells (`\shoveleft{a+b}\label{eq:1}` and `\shoveleft{a+b}+c`) preserve shove.
+      final RenderResult shoveLabeled = engine.render(
+        r'\begin{multline} a + b \\ \shoveleft{c + d}\label{eq:s1} \\ \shoveleft{e + f} + g \end{multline}',
+        options: const TexMathOptions(tagMode: TexMathTagMode.ams),
+      );
+      expect((shoveLabeled.syntaxTree as MathRootNode).labels['eq:s1'], '1');
+      final List<GlyphItem> shoveGlyphs = shoveLabeled.displayList.items
+          .whereType<GlyphItem>()
+          .toList();
+      // `c` (index 3) and `e` (index 6) are both shoved left to x == 1.0.
+      expect(shoveGlyphs[3].xEm, closeTo(1.0, 1e-6));
+      expect(shoveGlyphs[6].xEm, closeTo(1.0, 1e-6));
+    });
 
     test(
       'lays out multlined compact natural width and optional [pos][width] args',
@@ -1026,9 +1040,11 @@ void main() {
       expect(amsRes.toMathMl(), contains('<mtext>1</mtext>'));
 
       // Unresolved ref/eqref in math mode and text mode both produce `???` and targetId.
-      final MathRootNode missingRefs = engine.parse(
-        r'\eqref{missing} + \ref{missing2} + \text{\eqref{tmissing} \ref{tmissing2}}',
-      ) as MathRootNode;
+      final MathRootNode missingRefs =
+          engine.parse(
+                r'\eqref{missing} + \ref{missing2} + \text{\eqref{tmissing} \ref{tmissing2}}',
+              )
+              as MathRootNode;
       final List<TagNode> refNodes = <TagNode>[
         missingRefs.children[0] as TagNode,
         missingRefs.children[2] as TagNode,
@@ -1081,10 +1097,12 @@ void main() {
       expect((multlineExplicit.syntaxTree as MathRootNode).labels['m3'], '*');
 
       // Align & gather \notag + cross-row label isolation + order-independent label/tag.
-      final MathRootNode alignAms = engine.parse(
-        r'\begin{align} a &= b \label{a1} \\ c &= d \notag \\ e &= f \label{a2} \end{align}',
-        options: const TexMathOptions(tagMode: TexMathTagMode.ams),
-      ) as MathRootNode;
+      final MathRootNode alignAms =
+          engine.parse(
+                r'\begin{align} a &= b \label{a1} \\ c &= d \notag \\ e &= f \label{a2} \end{align}',
+                options: const TexMathOptions(tagMode: TexMathTagMode.ams),
+              )
+              as MathRootNode;
       final MatrixNode alignMatrix = alignAms.children.single as MatrixNode;
       expect(alignMatrix.rowTags.keys, <int>[0, 2]);
       expect(alignMatrix.rowTags[0]!.label, '1');
@@ -1092,80 +1110,102 @@ void main() {
       expect(alignAms.labels['a1'], '1');
       expect(alignAms.labels['a2'], '2');
 
-      final MathRootNode gatherAms = engine.parse(
-        r'\begin{gather} x \notag \\ y \label{g1} \end{gather}',
-        options: const TexMathOptions(tagMode: TexMathTagMode.ams),
-      ) as MathRootNode;
+      final MathRootNode gatherAms =
+          engine.parse(
+                r'\begin{gather} x \notag \\ y \label{g1} \end{gather}',
+                options: const TexMathOptions(tagMode: TexMathTagMode.ams),
+              )
+              as MathRootNode;
       final MatrixNode gatherMatrix = gatherAms.children.single as MatrixNode;
       expect(gatherMatrix.rowTags.keys, <int>[1]);
       expect(gatherMatrix.rowTags[1]!.label, '1');
       expect(gatherAms.labels['g1'], '1');
 
-      final MathRootNode noLeakNone = engine.parse(
-        r'\begin{align} a &= b \label{leak} \\ c &= d \tag{*} \end{align}',
-      ) as MathRootNode;
+      final MathRootNode noLeakNone =
+          engine.parse(
+                r'\begin{align} a &= b \label{leak} \\ c &= d \tag{*} \end{align}',
+              )
+              as MathRootNode;
       expect(noLeakNone.labels.containsKey('leak'), isFalse);
 
-      final MathRootNode bothOrders = engine.parse(
-        r'\begin{align} a &= b \label{x1}\tag{A} \\ c &= d \tag{B}\label{x2} \end{align}',
-      ) as MathRootNode;
+      final MathRootNode bothOrders =
+          engine.parse(
+                r'\begin{align} a &= b \label{x1}\tag{A} \\ c &= d \tag{B}\label{x2} \end{align}',
+              )
+              as MathRootNode;
       expect(bothOrders.labels['x1'], 'A');
       expect(bothOrders.labels['x2'], 'B');
 
       // TexMathTagMode.all: wraps top-level display math without double-wrapping display envs.
-      final MathRootNode allTop = engine.parse(
-        r'E = mc^2 \label{top}',
-        options: const TexMathOptions(tagMode: TexMathTagMode.all),
-      ) as MathRootNode;
+      final MathRootNode allTop =
+          engine.parse(
+                r'E = mc^2 \label{top}',
+                options: const TexMathOptions(tagMode: TexMathTagMode.all),
+              )
+              as MathRootNode;
       expect(allTop.children.single, isA<TagNode>());
       expect((allTop.children.single as TagNode).label, '1');
       expect(allTop.labels['top'], '1');
 
-      final MathRootNode allInline = engine.parse(
-        r'E = mc^2',
-        options: const TexMathOptions(
-          displayMode: TexMathDisplayMode.inline,
-          tagMode: TexMathTagMode.all,
-        ),
-      ) as MathRootNode;
+      final MathRootNode allInline =
+          engine.parse(
+                r'E = mc^2',
+                options: const TexMathOptions(
+                  displayMode: TexMathDisplayMode.inline,
+                  tagMode: TexMathTagMode.all,
+                ),
+              )
+              as MathRootNode;
       expect(allInline.children, hasLength(4));
       expect(allInline.children.whereType<TagNode>(), isEmpty);
 
-      final MathRootNode allNotag = engine.parse(
-        r'E = mc^2 \notag',
-        options: const TexMathOptions(tagMode: TexMathTagMode.all),
-      ) as MathRootNode;
+      final MathRootNode allNotag =
+          engine.parse(
+                r'E = mc^2 \notag',
+                options: const TexMathOptions(tagMode: TexMathTagMode.all),
+              )
+              as MathRootNode;
       expect(allNotag.children, hasLength(4));
       expect(allNotag.children.whereType<TagNode>(), isEmpty);
 
-      final MathRootNode allEqStar = engine.parse(
-        r'\begin{equation*} E = mc^2 \end{equation*}',
-        options: const TexMathOptions(tagMode: TexMathTagMode.all),
-      ) as MathRootNode;
+      final MathRootNode allEqStar =
+          engine.parse(
+                r'\begin{equation*} E = mc^2 \end{equation*}',
+                options: const TexMathOptions(tagMode: TexMathTagMode.all),
+              )
+              as MathRootNode;
       expect(allEqStar.children.single, isA<MathGroupNode>());
 
-      final MathRootNode allPmatrix = engine.parse(
-        r'\begin{pmatrix} 1 \\ 2 \end{pmatrix}',
-        options: const TexMathOptions(tagMode: TexMathTagMode.all),
-      ) as MathRootNode;
+      final MathRootNode allPmatrix =
+          engine.parse(
+                r'\begin{pmatrix} 1 \\ 2 \end{pmatrix}',
+                options: const TexMathOptions(tagMode: TexMathTagMode.all),
+              )
+              as MathRootNode;
       expect(allPmatrix.children.single, isA<TagNode>());
 
-      final MathRootNode allAligned = engine.parse(
-        r'\begin{aligned} a &= b \\ c &= d \end{aligned}',
-        options: const TexMathOptions(tagMode: TexMathTagMode.all),
-      ) as MathRootNode;
+      final MathRootNode allAligned =
+          engine.parse(
+                r'\begin{aligned} a &= b \\ c &= d \end{aligned}',
+                options: const TexMathOptions(tagMode: TexMathTagMode.all),
+              )
+              as MathRootNode;
       expect(allAligned.children.single, isA<TagNode>());
 
-      final MathRootNode allMultlineStar = engine.parse(
-        r'\begin{multline*} a \\ b \end{multline*}',
-        options: const TexMathOptions(tagMode: TexMathTagMode.all),
-      ) as MathRootNode;
+      final MathRootNode allMultlineStar =
+          engine.parse(
+                r'\begin{multline*} a \\ b \end{multline*}',
+                options: const TexMathOptions(tagMode: TexMathTagMode.all),
+              )
+              as MathRootNode;
       expect(allMultlineStar.children.single, isA<MatrixNode>());
 
-      final MathRootNode allEmpheqEq = engine.parse(
-        r'\begin{empheq}[left=\empheqlangle,right=\empheqrangle]{equation} x = 1 \end{empheq}',
-        options: const TexMathOptions(tagMode: TexMathTagMode.all),
-      ) as MathRootNode;
+      final MathRootNode allEmpheqEq =
+          engine.parse(
+                r'\begin{empheq}[left=\empheqlangle,right=\empheqrangle]{equation} x = 1 \end{empheq}',
+                options: const TexMathOptions(tagMode: TexMathTagMode.all),
+              )
+              as MathRootNode;
       expect(allEmpheqEq.children.single, isA<TagNode>());
       expect((allEmpheqEq.children.single as TagNode).label, '1');
       expect(
@@ -1174,88 +1214,93 @@ void main() {
       );
     });
 
-    test('styles \\href and \\ref with accent color, hitbox bounds, SVG <a>, and safe URI checks', () {
-      final RenderResult hrefRes = engine.render(
-        r'\href{https://example.org}{E = mc^2}',
-      );
-      final DisplayList dl = hrefRes.displayList;
-      final List<GlyphItem> glyphs = dl.items.whereType<GlyphItem>().toList();
-      expect(glyphs, isNotEmpty);
-      for (final GlyphItem g in glyphs) {
-        expect(g.colorRole, TexMathColorRole.accent);
-      }
+    test(
+      'styles \\href and \\ref with accent color, hitbox bounds, SVG <a>, and safe URI checks',
+      () {
+        final RenderResult hrefRes = engine.render(
+          r'\href{https://example.org}{E = mc^2}',
+        );
+        final DisplayList dl = hrefRes.displayList;
+        final List<GlyphItem> glyphs = dl.items.whereType<GlyphItem>().toList();
+        expect(glyphs, isNotEmpty);
+        for (final GlyphItem g in glyphs) {
+          expect(g.colorRole, TexMathColorRole.accent);
+        }
 
-      final AnchorItem anchor = dl.items.whereType<AnchorItem>().single;
-      expect(anchor.id, 'href:https://example.org');
-      expect(anchor.label, 'https://example.org');
-      expect(anchor.href, 'https://example.org');
-      expect(anchor.widthEm, closeTo(dl.metrics.widthEm, 1e-6));
-      expect(anchor.heightEm, closeTo(dl.metrics.heightEm, 1e-6));
-      expect(anchor.depthEm, closeTo(dl.metrics.depthEm, 1e-6));
+        final AnchorItem anchor = dl.items.whereType<AnchorItem>().single;
+        expect(anchor.id, 'href:https://example.org');
+        expect(anchor.label, 'https://example.org');
+        expect(anchor.href, 'https://example.org');
+        expect(anchor.widthEm, closeTo(dl.metrics.widthEm, 1e-6));
+        expect(anchor.heightEm, closeTo(dl.metrics.heightEm, 1e-6));
+        expect(anchor.depthEm, closeTo(dl.metrics.depthEm, 1e-6));
 
-      final String svg = hrefRes.toSvg();
-      expect(svg, contains('id="href:https://example.org"'));
-      expect(svg, contains('data-anchor="true"'));
-      expect(svg, contains('<a href="https://example.org"'));
-      expect(svg, contains('pointer-events="all"/></a></svg>'));
+        final String svg = hrefRes.toSvg();
+        expect(svg, contains('id="href:https://example.org"'));
+        expect(svg, contains('data-anchor="true"'));
+        expect(svg, contains('<a href="https://example.org"'));
+        expect(svg, contains('pointer-events="all"/></a></svg>'));
 
-      // Inner \color overrides accent while outer href parts keep accent.
-      final DisplayList fullOverride = engine
-          .render(r'\href{https://example.org}{\color{red} E = mc^2}')
-          .displayList;
-      for (final GlyphItem g in fullOverride.items.whereType<GlyphItem>()) {
-        expect(g.colorRole, TexMathColorRole.custom);
-        expect(g.customColor, 0xFFFF0000);
-      }
+        // Inner \color overrides accent while outer href parts keep accent.
+        final DisplayList fullOverride = engine
+            .render(r'\href{https://example.org}{\color{red} E = mc^2}')
+            .displayList;
+        for (final GlyphItem g in fullOverride.items.whereType<GlyphItem>()) {
+          expect(g.colorRole, TexMathColorRole.custom);
+          expect(g.customColor, 0xFFFF0000);
+        }
 
-      final DisplayList partialOverride = engine
-          .render(r'\href{https://example.org}{E + \textcolor{red}{x}}')
-          .displayList;
-      final List<GlyphItem> partialGlyphs = partialOverride.items
-          .whereType<GlyphItem>()
-          .toList();
-      expect(partialGlyphs[0].colorRole, TexMathColorRole.accent);
-      expect(partialGlyphs[1].colorRole, TexMathColorRole.accent);
-      expect(partialGlyphs[2].colorRole, TexMathColorRole.custom);
-      expect(partialGlyphs[2].customColor, 0xFFFF0000);
+        final DisplayList partialOverride = engine
+            .render(r'\href{https://example.org}{E + \textcolor{red}{x}}')
+            .displayList;
+        final List<GlyphItem> partialGlyphs = partialOverride.items
+            .whereType<GlyphItem>()
+            .toList();
+        expect(partialGlyphs[0].colorRole, TexMathColorRole.accent);
+        expect(partialGlyphs[1].colorRole, TexMathColorRole.accent);
+        expect(partialGlyphs[2].colorRole, TexMathColorRole.custom);
+        expect(partialGlyphs[2].customColor, 0xFFFF0000);
 
-      // \eqref reference glyphs carry accent color and AnchorItem has no href.
-      final RenderResult refRes = engine.render(
-        r'\begin{equation} x \label{e} \end{equation}\quad\eqref{e}',
-        options: const TexMathOptions(tagMode: TexMathTagMode.ams),
-      );
-      final AnchorItem refAnchor = refRes.displayList.items
-          .whereType<AnchorItem>()
-          .firstWhere((AnchorItem a) => a.id == 'ref:e');
-      expect(refAnchor.href, isNull);
-      expect(refAnchor.widthEm, greaterThan(0.0));
-      expect(refAnchor.heightEm, greaterThan(0.0));
-      final List<GlyphItem> refGlyphs = refRes.displayList.items
-          .whereType<GlyphItem>()
-          .where((GlyphItem g) => g.colorRole == TexMathColorRole.accent)
-          .toList();
-      expect(refGlyphs, hasLength(3)); // (1)
+        // \eqref reference glyphs carry accent color and AnchorItem has no href.
+        final RenderResult refRes = engine.render(
+          r'\begin{equation} x \label{e} \end{equation}\quad\eqref{e}',
+          options: const TexMathOptions(tagMode: TexMathTagMode.ams),
+        );
+        final AnchorItem refAnchor = refRes.displayList.items
+            .whereType<AnchorItem>()
+            .firstWhere((AnchorItem a) => a.id == 'ref:e');
+        expect(refAnchor.href, isNull);
+        expect(refAnchor.widthEm, greaterThan(0.0));
+        expect(refAnchor.heightEm, greaterThan(0.0));
+        final List<GlyphItem> refGlyphs = refRes.displayList.items
+            .whereType<GlyphItem>()
+            .where((GlyphItem g) => g.colorRole == TexMathColorRole.accent)
+            .toList();
+        expect(refGlyphs, hasLength(3)); // (1)
 
-      // Manually constructed AST with unsafe href scheme is stripped in layout and SVG.
-      const MathRootNode unsafeAst = MathRootNode(
-        span: SourceSpan.zero,
-        children: <MathNode>[
-          MathGroupNode(
-            span: SourceSpan.zero,
-            role: 'href',
-            attributes: <String, String>{'href': 'javascript:evil()'},
-            children: <MathNode>[SymbolNode(span: SourceSpan.zero, value: 'x')],
-          ),
-        ],
-      );
-      final DisplayList unsafeDl = engine.layout(unsafeAst);
-      expect(unsafeDl.items.whereType<AnchorItem>(), isEmpty);
-      expect(
-        unsafeDl.items.whereType<GlyphItem>().single.colorRole,
-        TexMathColorRole.foreground,
-      );
-      expect(unsafeDl.toSvg(), isNot(contains('<a ')));
-    });
+        // Manually constructed AST with unsafe href scheme is stripped in layout and SVG.
+        const MathRootNode unsafeAst = MathRootNode(
+          span: SourceSpan.zero,
+          children: <MathNode>[
+            MathGroupNode(
+              span: SourceSpan.zero,
+              role: 'href',
+              attributes: <String, String>{'href': 'javascript:evil()'},
+              children: <MathNode>[
+                SymbolNode(span: SourceSpan.zero, value: 'x'),
+              ],
+            ),
+          ],
+        );
+        final DisplayList unsafeDl = engine.layout(unsafeAst);
+        expect(unsafeDl.items.whereType<AnchorItem>(), isEmpty);
+        expect(
+          unsafeDl.items.whereType<GlyphItem>().single.colorRole,
+          TexMathColorRole.foreground,
+        );
+        expect(unsafeDl.toSvg(), isNot(contains('<a ')));
+      },
+    );
   });
 }
 

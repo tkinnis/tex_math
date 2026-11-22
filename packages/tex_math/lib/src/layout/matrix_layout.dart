@@ -54,11 +54,12 @@ const Set<String> tier1MatrixEnvironments = <String>{
 
 /// Callback invoked by [layoutMatrixNode] to lay out an individual cell node
 /// in the resolved [TexMathStyle].
-typedef MatrixCellLayouter = MathBox Function(
-  MathNode node, {
-  required TexMathStyle style,
-  TexMathAtomClass? leadingImplicitClass,
-});
+typedef MatrixCellLayouter =
+    MathBox Function(
+      MathNode node, {
+      required TexMathStyle style,
+      TexMathAtomClass? leadingImplicitClass,
+    });
 
 /// Lays out a [MatrixNode] (arrays, matrices, cases, AMS alignments,
 /// commutative diagrams, and proof-tree steps) using OpenType `MATH`

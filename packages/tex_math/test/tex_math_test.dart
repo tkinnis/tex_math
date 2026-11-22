@@ -721,12 +721,14 @@ void main() {
     test(
       'parses RGB/rgb/HTML/gray color commands into expected ColorNode hex',
       () {
-        final MathRootNode root = parseTex(
-          r'\textcolor[RGB]{220,20,60}{\alpha}'
-          r' + \textcolor[rgb]{0,0.5,1}{x}'
-          r' + \textcolor[HTML]{1e40af}{y}'
-          r' + \textcolor[gray]{0.5}{z}',
-        ) as MathRootNode;
+        final MathRootNode root =
+            parseTex(
+                  r'\textcolor[RGB]{220,20,60}{\alpha}'
+                  r' + \textcolor[rgb]{0,0.5,1}{x}'
+                  r' + \textcolor[HTML]{1e40af}{y}'
+                  r' + \textcolor[gray]{0.5}{z}',
+                )
+                as MathRootNode;
         final List<ColorNode> colors = root.children
             .whereType<ColorNode>()
             .toList();

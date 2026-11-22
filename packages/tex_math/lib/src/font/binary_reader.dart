@@ -177,12 +177,16 @@ final class FontByteReader {
 /// to contiguous coverage indices.
 final class CoverageTable {
   CoverageTable._({
-    required this._singleGlyphs,
-    required this._rangeStarts,
-    required this._rangeEnds,
-    required this._rangeStartIndices,
-    required this._isFormat2,
-  });
+    required Uint16List singleGlyphs,
+    required Uint16List rangeStarts,
+    required Uint16List rangeEnds,
+    required Uint16List rangeStartIndices,
+    required bool isFormat2,
+  }) : _singleGlyphs = singleGlyphs,
+       _rangeStarts = rangeStarts,
+       _rangeEnds = rangeEnds,
+       _rangeStartIndices = rangeStartIndices,
+       _isFormat2 = isFormat2;
 
   /// Empty coverage matching no glyphs.
   static final CoverageTable empty = CoverageTable._(

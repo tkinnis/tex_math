@@ -46,14 +46,20 @@ final class CffOutlineDecoder {
   CffOutlineDecoder._({
     required this.isCff2,
     required this.unitsPerEm,
-    required this._charStrings,
-    required this._globalSubrs,
-    required this._fontDicts,
-    required this._fdSelect,
-    required this._variationStore,
-    required this._topFontMatrix,
-    required this._maxStack,
-  });
+    required CffIndex charStrings,
+    required CffIndex globalSubrs,
+    required List<_FontDictInfo> fontDicts,
+    required FdSelectTable fdSelect,
+    required ItemVariationStore? variationStore,
+    required List<double>? topFontMatrix,
+    required int maxStack,
+  }) : _charStrings = charStrings,
+       _globalSubrs = globalSubrs,
+       _fontDicts = fontDicts,
+       _fdSelect = fdSelect,
+       _variationStore = variationStore,
+       _topFontMatrix = topFontMatrix,
+       _maxStack = maxStack;
 
   final bool isCff2;
   final int unitsPerEm;

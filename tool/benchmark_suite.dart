@@ -325,7 +325,8 @@ List<_BenchmarkResult> _executeBenchmarks(List<CorpusCase> corpus) {
 
   final _BenchmarkResult fontLoad = _measure(
     id: 'math_font_from_bytes',
-    description: 'Decode NewCMMath-Regular.otf SFNT, MATH, cmap, GSUB, and CFF tables via MathFont.fromBytes',
+    description:
+        'Decode NewCMMath-Regular.otf SFNT, MATH, cmap, GSUB, and CFF tables via MathFont.fromBytes',
     warmupSamples: 5,
     samples: 20,
     batchIterations: 20,
@@ -337,7 +338,8 @@ List<_BenchmarkResult> _executeBenchmarks(List<CorpusCase> corpus) {
 
   final _BenchmarkResult coldFontDecode = _measure(
     id: 'cold_font_glyph_decode',
-    description: 'Cold MathFont.fromBytes plus initial glyph outline, metrics, and MATH layout decode via TexMathEngine.render',
+    description:
+        'Cold MathFont.fromBytes plus initial glyph outline, metrics, and MATH layout decode via TexMathEngine.render',
     warmupSamples: 5,
     samples: 20,
     batchIterations: 15,
@@ -357,7 +359,8 @@ List<_BenchmarkResult> _executeBenchmarks(List<CorpusCase> corpus) {
   int inlineCursor = 0;
   final _BenchmarkResult inlineLayout = _measure(
     id: 'inline_expression_layout',
-    description: 'Parse and lay out representative inline math expressions via TexMathEngine.render',
+    description:
+        'Parse and lay out representative inline math expressions via TexMathEngine.render',
     warmupSamples: 4,
     samples: 20,
     batchIterations: 1600,
@@ -390,7 +393,8 @@ List<_BenchmarkResult> _executeBenchmarks(List<CorpusCase> corpus) {
   int cacheCursor = 0;
   final _BenchmarkResult cachedLookup = _measure(
     id: 'cached_display_list_lookup',
-    description: 'Retrieve 128 cached RenderResult entries by (source, TexMathOptions, fontSignature) LRU key with zero re-layout',
+    description:
+        'Retrieve 128 cached RenderResult entries by (source, TexMathOptions, fontSignature) LRU key with zero re-layout',
     warmupSamples: 4,
     samples: 20,
     batchIterations: 16000,
@@ -407,7 +411,8 @@ List<_BenchmarkResult> _executeBenchmarks(List<CorpusCase> corpus) {
   int tailCursor = 0;
   final _BenchmarkResult lruMixed = _measure(
     id: 'lru_cache_mixed_eviction',
-    description: 'Run mixed hit, cold miss (TexMathEngine.render), and bounded 32-entry LRU eviction across varied TexMathOptions',
+    description:
+        'Run mixed hit, cold miss (TexMathEngine.render), and bounded 32-entry LRU eviction across varied TexMathOptions',
     warmupSamples: 4,
     samples: 20,
     batchIterations: 200,
@@ -537,7 +542,8 @@ List<_BenchmarkResult> _executeBenchmarks(List<CorpusCase> corpus) {
 
   final _BenchmarkResult budgetOk = _measure(
     id: 'budget_input_check_valid',
-    description: 'Validate input budgets, parse, and lay out quadratic formula via TexMathEngine.render',
+    description:
+        'Validate input budgets, parse, and lay out quadratic formula via TexMathEngine.render',
     warmupSamples: 4,
     samples: 20,
     batchIterations: 1500,

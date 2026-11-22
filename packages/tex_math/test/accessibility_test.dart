@@ -50,52 +50,49 @@ void main() {
       expect(colorMml, contains('mathcolor="#FF0000"'));
     });
 
-    test(
-      'emits columnalign on <mtd> for multline, multline*, and multlined',
-      () {
-        final String multlineMml = engine.toMathMl(
-          r'\begin{multline}\shoveleft{a + b} \\ c + d \\ \shoveright{e + f}\end{multline}',
-        );
-        expect(multlineMml, contains('<mtr><mtd columnalign="left">'));
-        expect(
-          multlineMml,
-          contains(
-            '<mtr><mtd><mrow><mi>c</mi><mo>+</mo><mi>d</mi></mrow></mtd></mtr>',
-          ),
-        );
-        expect(multlineMml, contains('<mtr><mtd columnalign="right">'));
+    test('emits columnalign on <mtd> for multline, multline*, and multlined', () {
+      final String multlineMml = engine.toMathMl(
+        r'\begin{multline}\shoveleft{a + b} \\ c + d \\ \shoveright{e + f}\end{multline}',
+      );
+      expect(multlineMml, contains('<mtr><mtd columnalign="left">'));
+      expect(
+        multlineMml,
+        contains(
+          '<mtr><mtd><mrow><mi>c</mi><mo>+</mo><mi>d</mi></mrow></mtd></mtr>',
+        ),
+      );
+      expect(multlineMml, contains('<mtr><mtd columnalign="right">'));
 
-        final String multlineLabelMml = engine.toMathMl(
-          r'\begin{multline*} a \\ \shoveleft{b}\label{eq:1} \\ c \end{multline*}',
-        );
-        expect(
-          multlineLabelMml,
-          contains('<mtr><mtd columnalign="left"><mi>a</mi></mtd></mtr>'),
-        );
-        expect(
-          multlineLabelMml,
-          contains(
-            '<mtr><mtd columnalign="left"><mrow><mi>b</mi><mspace id="eq:1"/></mrow></mtd></mtr>',
-          ),
-        );
-        expect(
-          multlineLabelMml,
-          contains('<mtr><mtd columnalign="right"><mi>c</mi></mtd></mtr>'),
-        );
+      final String multlineLabelMml = engine.toMathMl(
+        r'\begin{multline*} a \\ \shoveleft{b}\label{eq:1} \\ c \end{multline*}',
+      );
+      expect(
+        multlineLabelMml,
+        contains('<mtr><mtd columnalign="left"><mi>a</mi></mtd></mtr>'),
+      );
+      expect(
+        multlineLabelMml,
+        contains(
+          '<mtr><mtd columnalign="left"><mrow><mi>b</mi><mspace id="eq:1"/></mrow></mtd></mtr>',
+        ),
+      );
+      expect(
+        multlineLabelMml,
+        contains('<mtr><mtd columnalign="right"><mi>c</mi></mtd></mtr>'),
+      );
 
-        final String multlinedMml = engine.toMathMl(
-          r'\begin{multlined} x \\ y \end{multlined}',
-        );
-        expect(
-          multlinedMml,
-          contains('<mtr><mtd columnalign="left"><mi>x</mi></mtd></mtr>'),
-        );
-        expect(
-          multlinedMml,
-          contains('<mtr><mtd columnalign="right"><mi>y</mi></mtd></mtr>'),
-        );
-      },
-    );
+      final String multlinedMml = engine.toMathMl(
+        r'\begin{multlined} x \\ y \end{multlined}',
+      );
+      expect(
+        multlinedMml,
+        contains('<mtr><mtd columnalign="left"><mi>x</mi></mtd></mtr>'),
+      );
+      expect(
+        multlinedMml,
+        contains('<mtr><mtd columnalign="right"><mi>y</mi></mtd></mtr>'),
+      );
+    });
   });
 
   group('Spoken-text accessibility exporter', () {

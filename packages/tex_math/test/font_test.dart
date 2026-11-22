@@ -207,85 +207,88 @@ void main() {
   });
 
   group('Extended CFF1 Type 2, CID FDSelect, cmap, and glyf edge cases', () {
-    test('decodes CFF1 CID font with FDArray/FDSelect, subrs, flex, curves, and arithmetic', () {
-      final Uint8List cff1Font = _buildSyntheticCff1CidFont();
-      final MathFont font = MathFont.fromBytes(cff1Font);
+    test(
+      'decodes CFF1 CID font with FDArray/FDSelect, subrs, flex, curves, and arithmetic',
+      () {
+        final Uint8List cff1Font = _buildSyntheticCff1CidFont();
+        final MathFont font = MathFont.fromBytes(cff1Font);
 
-      expect(font.glyphIdForCodePoint(0x1D44E), 1); // Format 12 SMP
-      expect(font.glyphIdForCodePoint(0x03B1), 2); // Format 4 idRangeOffset
-      expect(font.xHeight, 440);
-      expect(font.capHeight, 690);
+        expect(font.glyphIdForCodePoint(0x1D44E), 1); // Format 12 SMP
+        expect(font.glyphIdForCodePoint(0x03B1), 2); // Format 4 idRangeOffset
+        expect(font.xHeight, 440);
+        expect(font.capHeight, 690);
 
-      // Glyph 1 exercises callgsubr, callsubr, hflex, flex, hflex1, flex1,
-      // hhcurveto, vvcurveto, hvcurveto, vhcurveto, rcurveline, rlinecurve,
-      // cntrmask, and arithmetic ops.
-      final GlyphOutline? g1 = font.outlineForGlyph(1);
-      expect(g1, isNotNull);
-      expect(g1!.commands, contains(isA<CubicTo>()));
-      expect(g1.commands, contains(isA<LineTo>()));
-      expect(g1.commands.last, const ClosePath());
+        // Glyph 1 exercises callgsubr, callsubr, hflex, flex, hflex1, flex1,
+        // hhcurveto, vvcurveto, hvcurveto, vhcurveto, rcurveline, rlinecurve,
+        // cntrmask, and arithmetic ops.
+        final GlyphOutline? g1 = font.outlineForGlyph(1);
+        expect(g1, isNotNull);
+        expect(g1!.commands, contains(isA<CubicTo>()));
+        expect(g1.commands, contains(isA<LineTo>()));
+        expect(g1.commands.last, const ClosePath());
 
-      // Glyph 2 uses FD index 1 via FDSelect Format 3
-      final GlyphOutline? g2 = font.outlineForGlyph(2);
-      expect(g2, isNotNull);
-      expect(g2!.advanceWidth, 650.0);
-      final GlyphMetrics m2 = font.metricsForGlyph(2);
-      expect(m2.xMax, closeTo(300.0, 1e-6));
-      expect(m2.yMax, closeTo(400.0, 1e-6));
-    });
+        // Glyph 2 uses FD index 1 via FDSelect Format 3
+        final GlyphOutline? g2 = font.outlineForGlyph(2);
+        expect(g2, isNotNull);
+        expect(g2!.advanceWidth, 650.0);
+        final GlyphMetrics m2 = font.metricsForGlyph(2);
+        expect(m2.xMax, closeTo(300.0, 1e-6));
+        expect(m2.yMax, closeTo(400.0, 1e-6));
+      },
+    );
 
-    test('decodes all-off-curve TrueType contour and 2x2/point-matched composite', () {
-      final Uint8List ttf = _buildExtendedTrueTypeFont();
-      final MathFont font = MathFont.fromBytes(ttf);
+    test(
+      'decodes all-off-curve TrueType contour and 2x2/point-matched composite',
+      () {
+        final Uint8List ttf = _buildExtendedTrueTypeFont();
+        final MathFont font = MathFont.fromBytes(ttf);
 
-      // Glyph 1: all-off-curve 4-point contour produces 4 QuadTo segments
-      final GlyphOutline? g1 = font.outlineForGlyph(1);
-      expect(g1, isNotNull);
-      expect(g1!.commands.whereType<QuadTo>(), hasLength(4));
-      expect(g1.commands.first, const MoveTo(100.0, 0.0));
+        // Glyph 1: all-off-curve 4-point contour produces 4 QuadTo segments
+        final GlyphOutline? g1 = font.outlineForGlyph(1);
+        expect(g1, isNotNull);
+        expect(g1!.commands.whereType<QuadTo>(), hasLength(4));
+        expect(g1.commands.first, const MoveTo(100.0, 0.0));
 
-      // Glyph 2: composite with 2x2 transform (90 deg CCW) + point-matched part
-      final GlyphOutline? g2 = font.outlineForGlyph(2);
-      expect(g2, isNotNull);
-      expect(g2!.commands.whereType<QuadTo>(), hasLength(8));
-    });
+        // Glyph 2: composite with 2x2 transform (90 deg CCW) + point-matched part
+        final GlyphOutline? g2 = font.outlineForGlyph(2);
+        expect(g2, isNotNull);
+        expect(g2!.commands.whereType<QuadTo>(), hasLength(8));
+      },
+    );
   });
 
   group('TrueType glyf/loca simple & composite outlines', () {
-    test(
-      'decodes simple implicit-midpoint QuadTo and composite transforms',
-      () {
-        final Uint8List ttfBytes = _buildSyntheticTrueTypeFont(longLoca: false);
-        final MathFont font = MathFont.fromBytes(ttfBytes);
+    test('decodes simple implicit-midpoint QuadTo and composite transforms', () {
+      final Uint8List ttfBytes = _buildSyntheticTrueTypeFont(longLoca: false);
+      final MathFont font = MathFont.fromBytes(ttfBytes);
 
-        expect(font.familyName, 'SynthTT');
-        expect(font.unitsPerEm, 1000);
-        expect(font.indexToLocFormat, 0);
-        expect(font.glyphIdForCodePoint(0x0041), 1); // 'A'
-        expect(font.glyphIdForCodePoint(0x00C0), 2); // Composite glyph
+      expect(font.familyName, 'SynthTT');
+      expect(font.unitsPerEm, 1000);
+      expect(font.indexToLocFormat, 0);
+      expect(font.glyphIdForCodePoint(0x0041), 1); // 'A'
+      expect(font.glyphIdForCodePoint(0x00C0), 2); // Composite glyph
 
-        // Simple glyph 1: triangle + off-curve midpoint quadratic spline
-        final GlyphOutline? g1 = font.outlineForGlyph(1);
-        expect(g1, isNotNull);
-        expect(g1!.commands, contains(isA<QuadTo>()));
-        // Two consecutive off-curve points (100,200) & (200,200) -> midpoint (150,200)
-        expect(g1.commands, contains(const QuadTo(100.0, 200.0, 150.0, 200.0)));
-        final GlyphMetrics m1 = font.metricsForGlyph(1);
-        expect(m1.xMin, 0.0);
-        expect(m1.yMin, 0.0);
-        expect(m1.xMax, 300.0);
-        expect(m1.yMax, 200.0);
+      // Simple glyph 1: triangle + off-curve midpoint quadratic spline
+      final GlyphOutline? g1 = font.outlineForGlyph(1);
+      expect(g1, isNotNull);
+      expect(g1!.commands, contains(isA<QuadTo>()));
+      // Two consecutive off-curve points (100,200) & (200,200) -> midpoint (150,200)
+      expect(g1.commands, contains(const QuadTo(100.0, 200.0, 150.0, 200.0)));
+      final GlyphMetrics m1 = font.metricsForGlyph(1);
+      expect(m1.xMin, 0.0);
+      expect(m1.yMin, 0.0);
+      expect(m1.xMax, 300.0);
+      expect(m1.yMax, 200.0);
 
-        // Composite glyph 2: component 1 scaled 0.5x and shifted (+50, +100)
-        final GlyphOutline? g2 = font.outlineForGlyph(2);
-        expect(g2, isNotNull);
-        final GlyphMetrics m2 = font.metricsForGlyph(2);
-        expect(m2.xMin, closeTo(50.0, 1e-6));
-        expect(m2.yMin, closeTo(100.0, 1e-6));
-        expect(m2.xMax, closeTo(200.0, 1e-6));
-        expect(m2.yMax, closeTo(200.0, 1e-6));
-      },
-    );
+      // Composite glyph 2: component 1 scaled 0.5x and shifted (+50, +100)
+      final GlyphOutline? g2 = font.outlineForGlyph(2);
+      expect(g2, isNotNull);
+      final GlyphMetrics m2 = font.metricsForGlyph(2);
+      expect(m2.xMin, closeTo(50.0, 1e-6));
+      expect(m2.yMin, closeTo(100.0, 1e-6));
+      expect(m2.xMax, closeTo(200.0, 1e-6));
+      expect(m2.yMax, closeTo(200.0, 1e-6));
+    });
 
     test('supports long loca offsets and rejects composite glyph cycles', () {
       final Uint8List longTtf = _buildSyntheticTrueTypeFont(longLoca: true);

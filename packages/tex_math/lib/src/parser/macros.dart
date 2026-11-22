@@ -341,8 +341,9 @@ final class TexMacroTable {
 
   /// Registers a macro in the current scope or root/sandbox scope when [global].
   void defineMacro(String name, TexMacroEntry entry, {bool global = false}) {
-    final Map<String, TexMacroEntry> macros = _targetScope(global: global)
-        .macros;
+    final Map<String, TexMacroEntry> macros = _targetScope(
+      global: global,
+    ).macros;
     final int prevLength = macros.length;
     macros[name] = entry;
     _macroCount += macros.length - prevLength;
@@ -354,8 +355,9 @@ final class TexMacroTable {
     TexUserEnvDef def, {
     bool global = false,
   }) {
-    final Map<String, TexUserEnvDef> environments = _targetScope(global: global)
-        .environments;
+    final Map<String, TexUserEnvDef> environments = _targetScope(
+      global: global,
+    ).environments;
     final int prevLength = environments.length;
     environments[name] = def;
     _envCount += environments.length - prevLength;

@@ -256,8 +256,9 @@ String? _computeFileSha256(String path) {
       final ProcessResult result = Process.runSync(cmd.first, cmd.sublist(1));
       if (result.exitCode == 0) {
         final String output = (result.stdout as String).trim();
-        final RegExpMatch? match = RegExp(r'([0-9a-fA-F]{64})')
-            .firstMatch(output);
+        final RegExpMatch? match = RegExp(
+          r'([0-9a-fA-F]{64})',
+        ).firstMatch(output);
         if (match != null) {
           return match.group(1)!.toLowerCase();
         }

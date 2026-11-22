@@ -48,8 +48,8 @@ final class MathFont {
   const MathFont._({
     required this.familyName,
     required this.unitsPerEm,
-    required this._data,
-  });
+    required _LoadedFontData? data,
+  }) : _data = data;
 
   /// Creates a placeholder font descriptor for unit tests without font table
   /// decoding.
