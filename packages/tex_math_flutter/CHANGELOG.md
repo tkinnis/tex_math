@@ -1,3 +1,4 @@
-## 0.1.0-dev
+## 0.1.0
 
-- Flutter `TexMath` and `TexMathSpan` widgets with `TexMathTheme` / Material `ColorScheme` color and font-size inheritance, bundled `NewCMMath-Regular.otf` off-thread decoding via `TexMathFontBundle`, unified `(fontSignature, glyphId)` `TexMathPathCache` with bounded fallback `TextPainter` caching, `TexMathOverflow` policies with scaled baseline proxy, `SelectionArea` AST sub-expression selection, spoken-text semantics and `TexMathErrorWidget`, and persistent worker `TexMathIsolateLayouter` with worker-side font caching and crash recovery.
+- Initial release of `TexMath` and `TexMathSpan` widgets with `TexMathTheme` / Material `ColorScheme` inheritance, bundled `NewCMMath-Regular.otf` (`8.1.1`) font asset loading (`TexMathFontBundle`), unified `(fontSignature, glyphId)` `TexMathPathCache` (including synthetic `glyphId == 0` stroke isolation), `TexMathOverflow` baseline-preserving policies, `SelectionArea` AST copy-as-LaTeX support, spoken-text `Semantics`, and `TexMathErrorWidget` span/position diagnostics.
+- Persistent worker-isolate layout and off-thread font decoding (`TexMathIsolateLayouter` and `TexMathFontBundle`) on native platforms with seamless conditional-import Web/Wasm fallbacks across all 6 Flutter platforms.
