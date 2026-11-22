@@ -1,3 +1,7 @@
+## 0.1.1
+
+- Added live pub.dev version badges, `dart pub add` install commands, and pub.dev package and API reference links across the repository README, package README, and API manual.
+
 ## 0.1.0
 
 - Initial release of the pure-Dart five-stage TeX math engine (`TexMathEngine`), OpenType `MATH`/CFF/CFF2/`glyf` parser (`MathFont`), Appendix G layout engine, immutable AST and display-list models, SVG/MathML/spoken-text exporters, and safety budgets (`TexMathBudgets`).

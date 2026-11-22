@@ -1,6 +1,6 @@
 name: tex_math
 description: Pure-Dart TeX math-mode parser, OpenType MATH layout engine, and SVG/MathML/spoken-text renderer aligned to MathJax TeX input.
-version: 0.1.0
+version: 0.1.1
 homepage: https://tkinnis.github.io/tex_math/
 repository: https://github.com/tkinnis/tex_math/tree/main/packages/tex_math
 issue_tracker: https://github.com/tkinnis/tex_math/issues
