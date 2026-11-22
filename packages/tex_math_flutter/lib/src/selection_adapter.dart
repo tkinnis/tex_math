@@ -1,8 +1,10 @@
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart' show SelectionArea;
 import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:tex_math/tex_math.dart';
 
@@ -421,6 +423,7 @@ final class TexMathRenderLeaf extends LeafRenderObjectWidget {
     required this.pathCache,
     required this.registrar,
     this.allowVisualOverflow = false,
+    this.onLinkTap,
   });
 
   /// Laid-out display list to paint.
@@ -454,6 +457,9 @@ final class TexMathRenderLeaf extends LeafRenderObjectWidget {
   /// expanding hit-testing and selection [RenderTexMath.boundingBoxes] to the visual bounds.
   final bool allowVisualOverflow;
 
+  /// Optional callback invoked when a user taps a safe `\href` link hitbox.
+  final ValueChanged<String>? onLinkTap;
+
   @override
   RenderObject createRenderObject(BuildContext context) {
     return RenderTexMath(
@@ -467,6 +473,7 @@ final class TexMathRenderLeaf extends LeafRenderObjectWidget {
       pathCache,
       registrar: registrar,
       allowVisualOverflow: allowVisualOverflow,
+      onLinkTap: onLinkTap,
     );
   }
 
@@ -485,6 +492,7 @@ final class TexMathRenderLeaf extends LeafRenderObjectWidget {
       ..font = font
       ..pathCache = pathCache
       ..allowVisualOverflow = allowVisualOverflow
+      ..onLinkTap = onLinkTap
       ..registrar = registrar;
   }
 }
@@ -501,13 +509,26 @@ final class _SelectableAtom {
   final bool isHorizontalRule;
 }
 
+final class _LinkRegion extends MouseTrackerAnnotation
+    implements HitTestTarget {
+  const _LinkRegion({required this.rect, required this.uri})
+    : super(cursor: SystemMouseCursors.click);
+
+  final Rect rect;
+  final String uri;
+
+  @override
+  void handleEvent(PointerEvent event, HitTestEntry<HitTestTarget> entry) {}
+}
+
 /// Custom [RenderBox] painting [DisplayList] items via [TexMathDisplayPainter],
 /// exposing baseline metrics ([TextBaseline.alphabetic] for the math baseline
 /// and [TextBaseline.ideographic] for the bottom of the bounding box), and
 /// implementing [Selectable] with AST-expanded `"copy as LaTeX"` sub-expression
 /// selection.
 final class RenderTexMath extends RenderBox
-    with Selectable, SelectionRegistrant {
+    with Selectable, SelectionRegistrant
+    implements MouseTrackerAnnotation {
   /// Creates a math render box.
   RenderTexMath(
     this._displayList,
@@ -520,8 +541,12 @@ final class RenderTexMath extends RenderBox
     this._pathCache, {
     required SelectionRegistrar? registrar,
     bool allowVisualOverflow = false,
+    ValueChanged<String>? onLinkTap,
     // ignore: prefer_initializing_formals
-  }) : _allowVisualOverflow = allowVisualOverflow {
+  }) : _allowVisualOverflow = allowVisualOverflow,
+       // ignore: prefer_initializing_formals
+       _onLinkTap = onLinkTap {
+    _rebuildLinkRegions();
     _selectionGeometry = _buildSelectionGeometry();
     this.registrar = registrar;
   }
@@ -537,6 +562,12 @@ final class RenderTexMath extends RenderBox
   MathFont? _font;
   TexMathPathCache _pathCache;
   bool _allowVisualOverflow;
+  ValueChanged<String>? _onLinkTap;
+
+  List<_LinkRegion> _linkRegions = const <_LinkRegion>[];
+  int? _downPointer;
+  Offset? _downPosition;
+  _LinkRegion? _downRegion;
 
   List<_SelectableAtom> _atoms = const <_SelectableAtom>[];
   bool _atomsDirty = true;
@@ -570,6 +601,8 @@ final class RenderTexMath extends RenderBox
       return;
     }
     _displayList = value;
+    _resetLinkTap();
+    _rebuildLinkRegions();
     _clearSelectionState(notify: false);
     _invalidateAtoms();
     markNeedsLayout();
@@ -605,7 +638,12 @@ final class RenderTexMath extends RenderBox
     if (_theme == value) {
       return;
     }
+    final double previousEffectiveFontSize = _effectiveFontSize;
     _theme = value;
+    if (_effectiveFontSize != previousEffectiveFontSize) {
+      _resetLinkTap();
+      _rebuildLinkRegions();
+    }
     markNeedsPaint();
   }
 
@@ -616,6 +654,8 @@ final class RenderTexMath extends RenderBox
       return;
     }
     _fontSize = value;
+    _resetLinkTap();
+    _rebuildLinkRegions();
     _invalidateAtoms();
     markNeedsLayout();
     _updateSelectionGeometry();
@@ -667,6 +707,18 @@ final class RenderTexMath extends RenderBox
     _updateSelectionGeometry();
   }
 
+  /// Optional callback invoked when the user taps a safe `\href` link hitbox.
+  ValueChanged<String>? get onLinkTap => _onLinkTap;
+  set onLinkTap(ValueChanged<String>? value) {
+    if (_onLinkTap == value) {
+      return;
+    }
+    _onLinkTap = value;
+    _resetLinkTap();
+    _rebuildLinkRegions();
+    markNeedsPaint();
+  }
+
   String get _effectiveSource =>
       _source.isNotEmpty ? _source : (_displayList.source ?? '');
 
@@ -709,6 +761,66 @@ final class RenderTexMath extends RenderBox
   void _invalidateAtoms() {
     _atomsDirty = true;
     _atoms = const <_SelectableAtom>[];
+  }
+
+  void _rebuildLinkRegions() {
+    if (_onLinkTap == null) {
+      _linkRegions = const <_LinkRegion>[];
+      return;
+    }
+    final DisplayMetrics metrics = _displayList.metrics;
+    final double safeFontSize = _effectiveFontSize;
+    final List<_LinkRegion> regions = <_LinkRegion>[];
+    for (final AnchorItem item in _displayList.items.whereType<AnchorItem>()) {
+      final String? href = item.href;
+      if (href == null || item.widthEm <= 0.0) {
+        continue;
+      }
+      final Rect rect = Rect.fromLTWH(
+        item.xEm * safeFontSize,
+        (metrics.baselineEm - (item.yEm + item.heightEm)) * safeFontSize,
+        item.widthEm * safeFontSize,
+        (item.heightEm + item.depthEm) * safeFontSize,
+      );
+      regions.add(_LinkRegion(rect: rect, uri: href));
+    }
+    _linkRegions = regions.isEmpty
+        ? const <_LinkRegion>[]
+        : List<_LinkRegion>.unmodifiable(regions);
+  }
+
+  _LinkRegion? _linkRegionAt(Offset position) {
+    for (int i = _linkRegions.length - 1; i >= 0; i--) {
+      final _LinkRegion region = _linkRegions[i];
+      if (region.rect.contains(position)) {
+        return region;
+      }
+    }
+    return null;
+  }
+
+  void _resetLinkTap() {
+    _downPointer = null;
+    _downPosition = null;
+    _downRegion = null;
+  }
+
+  @override
+  PointerEnterEventListener? get onEnter => null;
+
+  @override
+  PointerExitEventListener? get onExit => null;
+
+  @override
+  MouseCursor get cursor => MouseCursor.defer;
+
+  @override
+  bool get validForMouseTracker => attached;
+
+  @override
+  void detach() {
+    _resetLinkTap();
+    super.detach();
   }
 
   @override
@@ -760,6 +872,10 @@ final class RenderTexMath extends RenderBox
         ? _selectionBounds
         : (Offset.zero & size);
     if (hitBounds.contains(position) && hitTestSelf(position)) {
+      final _LinkRegion? link = _linkRegionAt(position);
+      if (link != null) {
+        result.add(HitTestEntry(link));
+      }
       result.add(BoxHitTestEntry(this, position));
       return true;
     }
@@ -767,7 +883,56 @@ final class RenderTexMath extends RenderBox
   }
 
   @override
-  bool hitTestSelf(Offset position) => registrar != null && contentLength > 0;
+  bool hitTestSelf(Offset position) =>
+      (registrar != null && contentLength > 0) ||
+      _linkRegionAt(position) != null;
+
+  @override
+  void handleEvent(PointerEvent event, BoxHitTestEntry entry) {
+    assert(debugHandleEvent(event, entry));
+    if (_onLinkTap == null || _linkRegions.isEmpty) {
+      _resetLinkTap();
+      return;
+    }
+    if (event is PointerDownEvent) {
+      if (event.buttons != kPrimaryButton) {
+        _resetLinkTap();
+        return;
+      }
+      final _LinkRegion? link = _linkRegionAt(event.localPosition);
+      if (link != null) {
+        _downPointer = event.pointer;
+        _downPosition = event.localPosition;
+        _downRegion = link;
+      } else {
+        _resetLinkTap();
+      }
+    } else if (event is PointerMoveEvent) {
+      if (_downPointer == event.pointer && _downPosition != null) {
+        if ((event.localPosition - _downPosition!).distance > kTouchSlop) {
+          _resetLinkTap();
+        }
+      }
+    } else if (event is PointerUpEvent) {
+      if (_downPointer == event.pointer &&
+          _downPosition != null &&
+          _downRegion != null) {
+        final _LinkRegion downRegion = _downRegion!;
+        final Offset downPos = _downPosition!;
+        _resetLinkTap();
+        if ((event.localPosition - downPos).distance <= kTouchSlop) {
+          final _LinkRegion? link = _linkRegionAt(event.localPosition);
+          if (identical(link, downRegion)) {
+            _onLinkTap?.call(downRegion.uri);
+          }
+        }
+      }
+    } else if (event is PointerCancelEvent) {
+      if (_downPointer == event.pointer) {
+        _resetLinkTap();
+      }
+    }
+  }
 
   @override
   Size computeDryLayout(BoxConstraints constraints) {

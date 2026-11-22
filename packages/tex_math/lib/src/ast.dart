@@ -619,6 +619,7 @@ final class MatrixNode extends MathNode {
     required this.environment,
     this._columnAlignments = const <String>[],
     this.verticalAlignment,
+    this.explicitWidthEm,
     this.leftDelimiter,
     this.rightDelimiter,
     this.isNumbered = false,
@@ -649,6 +650,9 @@ final class MatrixNode extends MathNode {
 
   /// Optional vertical table alignment (`t`, `b`, `c`).
   final String? verticalAlignment;
+
+  /// Optional explicit table width in ems (e.g. `\begin{multlined}[t][10em]`).
+  final double? explicitWidthEm;
 
   /// Optional left enclosing delimiter (e.g. `(` for `pmatrix`).
   final String? leftDelimiter;
@@ -682,6 +686,7 @@ final class MatrixNode extends MathNode {
           span == other.span &&
           environment == other.environment &&
           verticalAlignment == other.verticalAlignment &&
+          explicitWidthEm == other.explicitWidthEm &&
           leftDelimiter == other.leftDelimiter &&
           rightDelimiter == other.rightDelimiter &&
           isNumbered == other.isNumbered &&
@@ -697,6 +702,7 @@ final class MatrixNode extends MathNode {
     span,
     environment,
     verticalAlignment,
+    explicitWidthEm,
     leftDelimiter,
     rightDelimiter,
     isNumbered,
@@ -886,6 +892,7 @@ final class TagNode extends MathNode {
   const TagNode({
     required super.span,
     required this.label,
+    this.targetId,
     this.isStarred = false,
     this.body,
     this.isReference = false,
@@ -894,6 +901,9 @@ final class TagNode extends MathNode {
 
   /// Tag text or label identifier.
   final String label;
+
+  /// Optional target label identifier referenced by `\ref` or `\eqref`.
+  final String? targetId;
 
   /// Whether `\tag*` or `\ref` suppressed enclosing parentheses.
   final bool isStarred;
@@ -913,14 +923,22 @@ final class TagNode extends MathNode {
       other is TagNode &&
           span == other.span &&
           label == other.label &&
+          targetId == other.targetId &&
           isStarred == other.isStarred &&
           body == other.body &&
           isReference == other.isReference &&
           isLabelDefinition == other.isLabelDefinition;
 
   @override
-  int get hashCode =>
-      Object.hash(span, label, isStarred, body, isReference, isLabelDefinition);
+  int get hashCode => Object.hash(
+    span,
+    label,
+    targetId,
+    isStarred,
+    body,
+    isReference,
+    isLabelDefinition,
+  );
 
   @override
   String toString() =>

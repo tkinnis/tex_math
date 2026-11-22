@@ -70,6 +70,7 @@ MathBox layoutMatrixNode({
   required TexMathStyle currentStyle,
   required MatrixCellLayouter layoutCell,
   double fontScale = 1.0,
+  double? multlineWidthEm,
 }) {
   final String env = node.environment;
   if (env == 'CD') {
@@ -143,9 +144,12 @@ MathBox layoutMatrixNode({
         columnIndex: c,
       );
       // AMS alignment left-columns prepend an implicit empty Ord so `&=`, `&+`
-      // preserve relation/binary spacing against the preceding column.
+      // preserve relation/binary spacing against the preceding column; multline
+      // continuation rows (`r > 0`) likewise prepend an implicit Ord so leading
+      // `+` / `-` retains binary spacing.
       final TexMathAtomClass? implicitPrev =
-          spec.prependImplicitOrdInLeftCol && colAlign == 'l' && c > 0
+          (spec.prependImplicitOrdInLeftCol && colAlign == 'l' && c > 0) ||
+              (spec.isMultline && r > 0)
           ? TexMathAtomClass.ord
           : null;
 
@@ -266,11 +270,40 @@ MathBox layoutMatrixNode({
         ? (hasRightBorderRule ? barSpansAtBoundary[colCount].$1 : bodyWidthEm)
         : barSpansAtBoundary[c + 1].$1;
   }
-  if (spec.isMultline && bodyWidthEm < 12.0 * scale) {
-    bodyWidthEm = math.max(
-      bodyWidthEm,
-      colWidths.isEmpty ? 0.0 : colWidths[0] + 2.0 * scale,
-    );
+  final double maxRowW = colWidths.isEmpty ? 0.0 : colWidths[0];
+  if (spec.isMultline && !spec.isMultlined) {
+    final double indent = 1.0 * scale;
+    if (multlineWidthEm != null) {
+      bodyWidthEm = math.max(multlineWidthEm * scale, maxRowW + 2.0 * indent);
+    } else {
+      final double minStagger = rowCount > 1 ? 2.0 * scale : 0.0;
+      bodyWidthEm = math.max(12.0 * scale, maxRowW + 2.0 * indent + minStagger);
+    }
+  } else if (spec.isMultlined) {
+    double naturalW = 0.0;
+    for (int r = 0; r < rowCount; r++) {
+      final double rowCellW = colCount > 0 ? cellBoxes[r][0].widthEm : 0.0;
+      final String? shove = colCount > 0 ? cellShoves[r][0] : null;
+      double rowW = rowCellW;
+      if (rowCount > 1) {
+        if (r == 0 && shove != 'shoveright') {
+          rowW += 1.0 * scale;
+        } else if (r == rowCount - 1 && shove != 'shoveleft') {
+          rowW += 1.0 * scale;
+        }
+      }
+      if (rowW > naturalW) {
+        naturalW = rowW;
+      }
+    }
+    if (node.explicitWidthEm != null) {
+      bodyWidthEm = math.max(node.explicitWidthEm! * scale, maxRowW);
+    } else {
+      bodyWidthEm = naturalW;
+    }
+  }
+  if (colCount > 0 && !hasRightBorderRule) {
+    colBgRight[colCount - 1] = bodyWidthEm;
   }
 
   // Compute row baseline Y offsets top-to-bottom (first row at top).
@@ -383,14 +416,15 @@ MathBox layoutMatrixNode({
       final double colW = colWidths[c];
       final double dx;
       if (spec.isMultline) {
+        final double indent = spec.isMultlined ? 0.0 : 1.0 * scale;
         final double innerW = bodyWidthEm - 2.0 * outerPadX;
         if (shove == 'shoveleft' || (shove == null && r == 0)) {
-          dx = 1.0 * scale;
+          dx = indent;
         } else if (shove == 'shoveright' ||
             (shove == null && r == rowCount - 1 && rowCount > 1)) {
-          dx = math.max(0.0, innerW - box.widthEm - 1.0 * scale);
+          dx = math.max(indent, innerW - box.widthEm - indent);
         } else {
-          dx = math.max(0.0, (innerW - box.widthEm) / 2.0);
+          dx = math.max(indent, (innerW - box.widthEm) / 2.0);
         }
       } else {
         final String align = _alignmentForColumn(
@@ -560,6 +594,7 @@ class _MatrixSpec {
     required this.repeatDefaultAlignments,
     required this.prependImplicitOrdInLeftCol,
     required this.isMultline,
+    this.isMultlined = false,
   });
 
   final TexMathStyle cellStyle;
@@ -574,6 +609,7 @@ class _MatrixSpec {
   final bool repeatDefaultAlignments;
   final bool prependImplicitOrdInLeftCol;
   final bool isMultline;
+  final bool isMultlined;
 }
 
 _MatrixSpec _specForEnvironment(String env, TexMathStyle enclosingStyle) {
@@ -751,12 +787,11 @@ _MatrixSpec _specForEnvironment(String env, TexMathStyle enclosingStyle) {
       );
     case 'multline':
     case 'multline*':
-    case 'multlined':
       return const _MatrixSpec(
         cellStyle: TexMathStyle.display,
         colGapEm: 0.0,
         pairGapEm: 0.0,
-        rowGapEm: 0.30,
+        rowGapEm: 0.50,
         minRowHeightEm: 0.75,
         minRowDepthEm: 0.25,
         outerPadEm: 0.0,
@@ -765,6 +800,23 @@ _MatrixSpec _specForEnvironment(String env, TexMathStyle enclosingStyle) {
         repeatDefaultAlignments: false,
         prependImplicitOrdInLeftCol: false,
         isMultline: true,
+        isMultlined: false,
+      );
+    case 'multlined':
+      return const _MatrixSpec(
+        cellStyle: TexMathStyle.display,
+        colGapEm: 0.0,
+        pairGapEm: 0.0,
+        rowGapEm: 0.50,
+        minRowHeightEm: 0.75,
+        minRowDepthEm: 0.25,
+        outerPadEm: 0.0,
+        outerPadYEm: 0.0,
+        defaultAlignments: <String>['l'],
+        repeatDefaultAlignments: false,
+        prependImplicitOrdInLeftCol: false,
+        isMultline: true,
+        isMultlined: true,
       );
     case 'lgathered':
     case 'rgathered':
@@ -858,6 +910,15 @@ String? _extractShoveRole(MathNode? node) {
   if (node is MathGroupNode) {
     if (node.role == 'shoveleft' || node.role == 'shoveright') {
       return node.role;
+    }
+    if (!node.isExplicitGroup) {
+      for (final MathNode child in node.children) {
+        if (child is TagNode && child.isLabelDefinition) {
+          continue;
+        }
+        return _extractShoveRole(child);
+      }
+      return null;
     }
     if (node.children.length == 1) {
       return _extractShoveRole(node.children.first);

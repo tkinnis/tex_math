@@ -5,6 +5,7 @@ import '../display_list.dart';
 import '../error.dart';
 import '../font.dart';
 import '../options.dart';
+import '../shared/colors.dart';
 import '../shared/layout_constants.dart';
 import '../shared/math_symbols.dart';
 import '../source_span.dart';
@@ -190,6 +191,7 @@ class _AppendixGLayoutEngine {
           mathTable: mathTable,
           currentStyle: state.style,
           fontScale: state.fontScale,
+          multlineWidthEm: options.multlineWidthEm,
           layoutCell:
               (
                 MathNode cell, {
@@ -847,6 +849,28 @@ class _AppendixGLayoutEngine {
             outerClass: node.atomClass ?? TexMathAtomClass.ord,
             preserveInnerBoundaryClass: true,
           );
+          if (role == 'href') {
+            if (attrVal != null && isSafeHrefUri(attrVal)) {
+              return HBox(
+                children: <MathBox>[
+                  AnchorBox(
+                    id: 'href:$attrVal',
+                    label: attrVal,
+                    hitboxWidthEm: body.widthEm,
+                    hitboxHeightEm: body.heightEm,
+                    hitboxDepthEm: body.depthEm,
+                    span: node.span,
+                  ),
+                  body,
+                ],
+                atomClass: body.atomClass,
+                colorRole: TexMathColorRole.accent,
+                inheritColor: false,
+                span: node.span,
+              );
+            }
+            return body;
+          }
           if (role == 'style' && attrVal != null && attrVal.isNotEmpty) {
             final ({int? fgArgb, int? bgArgb}) styleColors =
                 _parseCssStyleColors(attrVal);
@@ -3355,16 +3379,22 @@ class _AppendixGLayoutEngine {
         TextNode(span: node.span, text: text, styleCommand: 'textrm'),
         state,
       );
+      final String target = node.targetId ?? node.label;
       return HBox(
         children: <MathBox>[
           AnchorBox(
-            id: 'ref:${node.label}',
-            label: node.label,
+            id: 'ref:$target',
+            label: target,
+            hitboxWidthEm: textBox.widthEm,
+            hitboxHeightEm: textBox.heightEm,
+            hitboxDepthEm: textBox.depthEm,
             span: node.span,
           ),
           textBox,
         ],
         atomClass: TexMathAtomClass.ord,
+        colorRole: TexMathColorRole.accent,
+        inheritColor: false,
         span: node.span,
       );
     }

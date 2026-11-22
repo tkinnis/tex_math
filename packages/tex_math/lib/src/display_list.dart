@@ -231,6 +231,9 @@ final class AnchorItem extends DisplayItem {
     required this.id,
     required this.xEm,
     required this.yEm,
+    this.widthEm = 0.0,
+    this.heightEm = 0.0,
+    this.depthEm = 0.0,
     this.label,
     super.span,
     super.colorRole,
@@ -246,8 +249,25 @@ final class AnchorItem extends DisplayItem {
   /// Baseline-relative vertical anchor coordinate in ems (positive upward).
   final double yEm;
 
+  /// Optional hitbox advance width in ems for interactive anchors (`0.0` if
+  /// unmeasured).
+  final double widthEm;
+
+  /// Optional hitbox ascent above [yEm] in ems (`0.0` if unmeasured).
+  final double heightEm;
+
+  /// Optional hitbox descent below [yEm] in ems (`0.0` if unmeasured).
+  final double depthEm;
+
   /// Optional human-readable label attached to this anchor.
   final String? label;
+
+  /// Safe hyperlink URI when this anchor represents a validated `\href`, or
+  /// `null` otherwise.
+  String? get href =>
+      id.startsWith('href:') && label != null && isSafeHrefUri(label!)
+      ? label
+      : null;
 
   @override
   bool operator ==(Object other) =>
@@ -256,18 +276,33 @@ final class AnchorItem extends DisplayItem {
           id == other.id &&
           xEm == other.xEm &&
           yEm == other.yEm &&
+          widthEm == other.widthEm &&
+          heightEm == other.heightEm &&
+          depthEm == other.depthEm &&
           label == other.label &&
           span == other.span &&
           colorRole == other.colorRole &&
           customColor == other.customColor;
 
   @override
-  int get hashCode =>
-      Object.hash(id, xEm, yEm, label, span, colorRole, customColor);
+  int get hashCode => Object.hash(
+    id,
+    xEm,
+    yEm,
+    widthEm,
+    heightEm,
+    depthEm,
+    label,
+    span,
+    colorRole,
+    customColor,
+  );
 
   @override
   String toString() =>
-      'AnchorItem(id: $id, xEm: $xEm, yEm: $yEm, label: $label)';
+      'AnchorItem(id: $id, xEm: $xEm, yEm: $yEm, '
+      'widthEm: $widthEm, heightEm: $heightEm, depthEm: $depthEm, '
+      'label: $label)';
 }
 
 /// Bounding box and baseline metrics for a laid-out [DisplayList].
@@ -440,6 +475,7 @@ final class DisplayList {
       });
     }
 
+    List<AnchorItem>? hrefAnchors;
     for (final DisplayItem item in items) {
       switch (item) {
         case RuleItem(
@@ -482,6 +518,7 @@ final class DisplayList {
           :final String id,
           :final double xEm,
           :final double yEm,
+          :final double widthEm,
           :final String? label,
         ):
           final double ax = _finite(xEm * safeFontSize);
@@ -499,6 +536,9 @@ final class DisplayList {
           buffer.write(', ');
           writeFormattedNumber(buffer, ay);
           buffer.write(')"/>');
+          if (item.href != null && widthEm > 0) {
+            (hrefAnchors ??= <AnchorItem>[]).add(item);
+          }
 
         case GlyphItem(
           :final int glyphId,
@@ -579,6 +619,41 @@ final class DisplayList {
           limit: maxSvgLength,
           actual: buffer.length,
         );
+      }
+    }
+
+    if (hrefAnchors != null) {
+      for (final AnchorItem anchor in hrefAnchors) {
+        final String href = anchor.href!;
+        final double lx = _finite(anchor.xEm * safeFontSize);
+        final double ly = _finite(
+          (metrics.baselineEm - (anchor.yEm + anchor.heightEm)) * safeFontSize,
+        );
+        final double lw = _nonNegativeFinite(anchor.widthEm * safeFontSize);
+        final double lh = _nonNegativeFinite(
+          (anchor.heightEm + anchor.depthEm) * safeFontSize,
+        );
+        buffer.write('<a href="');
+        writeEscapedXmlAttr(buffer, href);
+        buffer.write('" data-href="');
+        writeEscapedXmlAttr(buffer, href);
+        buffer.write('"><rect x="');
+        writeFormattedNumber(buffer, lx);
+        buffer.write('" y="');
+        writeFormattedNumber(buffer, ly);
+        buffer.write('" width="');
+        writeFormattedNumber(buffer, lw);
+        buffer.write('" height="');
+        writeFormattedNumber(buffer, lh);
+        buffer.write('" fill="none" pointer-events="all"/></a>');
+        if (buffer.length > maxSvgLength) {
+          throw TexMathBudgetError(
+            'Generated SVG length ${buffer.length} exceeds limit $maxSvgLength.',
+            budgetName: 'maxSvgLength',
+            limit: maxSvgLength,
+            actual: buffer.length,
+          );
+        }
       }
     }
 

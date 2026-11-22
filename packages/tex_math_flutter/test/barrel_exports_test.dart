@@ -24,6 +24,15 @@ void main() {
         ),
         source: 'x',
       );
+      const AnchorItem anchor = AnchorItem(
+        id: 'href:https://example.org',
+        xEm: 0.0,
+        yEm: 0.0,
+        widthEm: 1.0,
+        heightEm: 0.7,
+        depthEm: 0.1,
+        label: 'https://example.org',
+      );
       const TexMathSyntaxError error = TexMathSyntaxError(
         'syntax error',
         errorClass: TexMathErrorClass.undefinedControlSequence,
@@ -32,6 +41,8 @@ void main() {
       expect(engine, const TexMathEngine(defaultOptions: options));
       expect(stubFont.familyName, 'NewComputerModernMath');
       expect(result.displayList, list);
+      expect(anchor.href, 'https://example.org');
+      expect(TexMathTagMode.ams, isNotNull);
       expect(error.errorClass, TexMathErrorClass.undefinedControlSequence);
       expect(TexMathColorRole.foreground, isNotNull);
     },

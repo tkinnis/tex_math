@@ -44,8 +44,62 @@ void main() {
       expect(options.requireAllowlist, isNot(contains('setoptions')));
       expect(options.macros, isEmpty);
       expect(options.strictErrors, isTrue);
+      expect(options.multlineWidthEm, isNull);
+      expect(options.tagMode, TexMathTagMode.none);
       expect(TexPackageRegistry.all, hasLength(42));
+      expect(TexMathTagMode.values, <TexMathTagMode>[
+        TexMathTagMode.none,
+        TexMathTagMode.ams,
+        TexMathTagMode.all,
+      ]);
     });
+
+    test(
+      'supports copyWith, equality, toString, and assertions on new fields',
+      () {
+        const TexMathOptions base = TexMathOptions();
+        final TexMathOptions updated = base.copyWith(
+          multlineWidthEm: 25.0,
+          tagMode: TexMathTagMode.ams,
+        );
+        expect(updated.multlineWidthEm, 25.0);
+        expect(updated.tagMode, TexMathTagMode.ams);
+        expect(updated, isNot(equals(base)));
+        expect(
+          updated,
+          equals(
+            const TexMathOptions(
+              multlineWidthEm: 25.0,
+              tagMode: TexMathTagMode.ams,
+            ),
+          ),
+        );
+        expect(
+          updated.hashCode,
+          equals(
+            const TexMathOptions(
+              multlineWidthEm: 25.0,
+              tagMode: TexMathTagMode.ams,
+            ).hashCode,
+          ),
+        );
+        expect(updated.toString(), contains('multlineWidthEm: 25.0'));
+        expect(updated.toString(), contains('tagMode: TexMathTagMode.ams'));
+
+        for (final double bad in <double>[
+          0.0,
+          -1.0,
+          double.infinity,
+          double.negativeInfinity,
+          double.nan,
+        ]) {
+          expect(
+            () => TexMathOptions(multlineWidthEm: bad),
+            throwsA(isA<AssertionError>()),
+          );
+        }
+      },
+    );
   });
 
   group('TexMathError sealed hierarchy', () {
@@ -421,6 +475,113 @@ void main() {
       expect(renderResult.toMathMl(), contains('<mfrac>'));
       expect(renderResult.toSpokenText(), 'x over y');
     });
+
+    test(
+      'AnchorItem exposes hitbox bounds, safe href getter, and SVG <a> hitbox',
+      () {
+        const AnchorItem safeAnchor = AnchorItem(
+          id: 'href:https://example.org/a&b',
+          xEm: 1.0,
+          yEm: 0.0,
+          widthEm: 2.5,
+          heightEm: 0.8,
+          depthEm: 0.2,
+          label: 'https://example.org/a&b',
+        );
+        const AnchorItem safeAnchorCopy = AnchorItem(
+          id: 'href:https://example.org/a&b',
+          xEm: 1.0,
+          yEm: 0.0,
+          widthEm: 2.5,
+          heightEm: 0.8,
+          depthEm: 0.2,
+          label: 'https://example.org/a&b',
+        );
+        const AnchorItem unsafeAnchor = AnchorItem(
+          id: 'href:javascript:alert(1)',
+          xEm: 0.0,
+          yEm: 0.0,
+          widthEm: 2.0,
+          heightEm: 1.0,
+          depthEm: 0.0,
+          label: 'javascript:alert(1)',
+        );
+        const AnchorItem refAnchor = AnchorItem(
+          id: 'ref:eq:1',
+          xEm: 0.0,
+          yEm: 0.0,
+          widthEm: 1.0,
+          heightEm: 0.7,
+          depthEm: 0.2,
+          label: 'eq:1',
+        );
+
+        expect(safeAnchor, equals(safeAnchorCopy));
+        expect(safeAnchor.hashCode, equals(safeAnchorCopy.hashCode));
+        expect(safeAnchor.toString(), contains('widthEm: 2.5'));
+        expect(safeAnchor.href, 'https://example.org/a&b');
+        expect(unsafeAnchor.href, isNull);
+        expect(refAnchor.href, isNull);
+
+        const DisplayList dl = DisplayList(
+          metrics: DisplayMetrics(
+            widthEm: 4.0,
+            heightEm: 1.0,
+            depthEm: 0.5,
+            baselineEm: 1.0,
+          ),
+          items: <DisplayItem>[safeAnchor, unsafeAnchor, refAnchor],
+        );
+        final String svg = dl.toSvg(fontSize: 10.0);
+        expect(svg, contains('id="href:https://example.org/a&amp;b"'));
+        expect(
+          svg,
+          endsWith(
+            '<a href="https://example.org/a&amp;b" '
+            'data-href="https://example.org/a&amp;b">'
+            '<rect x="10" y="2" width="25" height="10" '
+            'fill="none" pointer-events="all"/></a></svg>',
+          ),
+        );
+        expect(svg, isNot(contains('href="javascript:')));
+      },
+    );
+
+    test(
+      'MatrixNode.explicitWidthEm and TagNode.targetId participate in equality',
+      () {
+        const SourceSpan span = SourceSpan(0, 1);
+        const MatrixNode m1 = MatrixNode(
+          span: span,
+          rows: <List<MathNode>>[],
+          environment: 'multlined',
+          explicitWidthEm: 10.0,
+        );
+        const MatrixNode m2 = MatrixNode(
+          span: span,
+          rows: <List<MathNode>>[],
+          environment: 'multlined',
+          explicitWidthEm: 12.0,
+        );
+        expect(m1, isNot(equals(m2)));
+        expect(m1.explicitWidthEm, 10.0);
+
+        const TagNode t1 = TagNode(
+          span: span,
+          label: '1',
+          targetId: 'eq:a',
+          isReference: true,
+        );
+        const TagNode t2 = TagNode(
+          span: span,
+          label: '1',
+          targetId: 'eq:b',
+          isReference: true,
+        );
+        expect(t1, isNot(equals(t2)));
+        expect(t1.targetId, 'eq:a');
+      },
+    );
   });
 
   group('TexMathEngine budgets and Wave 1 layout boundary', () {

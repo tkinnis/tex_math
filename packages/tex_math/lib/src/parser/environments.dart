@@ -502,18 +502,36 @@ MathNode parseEnvironment({
   }
 
   String? vAlign;
-  if (spec.optionalVerticalAlign) {
+  double? explicitWidthEm;
+  if (envName == 'multlined') {
+    final String? firstOpt = host.readOptionalBracketText('begin{$envName}');
+    String? rawWidth;
+    if (firstOpt != null) {
+      final String trimmedFirst = firstOpt.trim();
+      if (trimmedFirst == 't' || trimmedFirst == 'b' || trimmedFirst == 'c') {
+        vAlign = trimmedFirst;
+        rawWidth = host.readOptionalBracketText('begin{$envName}');
+      } else {
+        rawWidth = firstOpt;
+      }
+    }
+    if (rawWidth != null) {
+      final String trimmedWidth = rawWidth.trim();
+      if (trimmedWidth.isNotEmpty) {
+        if (!isValidTexDimension(trimmedWidth)) {
+          throw TexMathSyntaxError(
+            'Width argument for \\begin{multlined} must be a valid TeX '
+            'dimension: "$trimmedWidth".',
+            span: beginSpan,
+          );
+        }
+        explicitWidthEm = parseTexDimensionToEm(trimmedWidth);
+      }
+    }
+  } else if (spec.optionalVerticalAlign) {
     final String? opt = host.readOptionalBracketText('begin{$envName}');
     if (opt != null && opt.trim().isNotEmpty) {
       vAlign = opt.trim();
-    }
-  }
-
-  // `multlined` also accepts an optional `[width]` bracket.
-  if (envName == 'multlined' && vAlign != null) {
-    final TexToken? next = host.cursor.peek();
-    if (next != null && next.text == '[') {
-      host.readOptionalBracketText('begin{multlined}');
     }
   }
 
@@ -557,39 +575,30 @@ MathNode parseEnvironment({
       envName: envName,
       allowAlignTab: false,
     );
-    final MathNode node = cell.node;
-    final TagNode? rowTag = cell.rowTag;
     final SourceSpan endSpan = host.consumeEndEnvironment(envName, beginSpan);
     final SourceSpan totalSpan = beginSpan.merge(endSpan);
-    if (rowTag != null) {
-      return TagNode(
-        span: totalSpan,
-        label: rowTag.label,
-        isStarred: rowTag.isStarred,
-        body: node,
-      );
-    }
-    if (spec.isInlineWrapper) {
-      return StyleNode(
-        span: totalSpan,
-        style: envName == 'math' ? TexMathStyle.text : TexMathStyle.display,
-        children: <MathNode>[node],
-      );
-    }
-    return MathGroupNode(
-      span: totalSpan,
-      isExplicitGroup: false,
-      role: envName,
-      children: <MathNode>[node],
+    return _buildSingleCellEnvNode(
+      host: host,
+      spec: spec,
+      envName: envName,
+      totalSpan: totalSpan,
+      node: cell.node,
+      rowTag: cell.rowTag,
+      rowHasNoTag: cell.rowHasNoTag,
+      rowLabel: cell.rowLabel,
     );
   }
 
   final List<List<MathNode>> rows = <List<MathNode>>[];
   final Map<int, String> rowLines = <int, String>{};
-  final Map<int, TagNode> rowTags = <int, TagNode>{};
   final Map<int, String> colBackgrounds = <int, String>{};
+  final _EnvTagTracker tagTracker = _EnvTagTracker(
+    host: host,
+    spec: spec,
+    isNumberedMultline: envName == 'multline',
+    fallbackSpan: beginSpan,
+  );
   List<MathNode> currentRow = <MathNode>[];
-  TagNode? pendingRowTag;
   String? currentRowBackground;
 
   while (true) {
@@ -625,7 +634,6 @@ MathNode parseEnvironment({
     );
     final String? stopReason = cell.stopReason;
     final SourceSpan span = cell.span;
-    final TagNode? rowTag = cell.rowTag;
 
     if (cell.rowBackground != null) {
       if (colIndex != 0) {
@@ -658,9 +666,12 @@ MathNode parseEnvironment({
           );
 
     currentRow.add(finalCellNode);
-    if (rowTag != null) {
-      pendingRowTag = rowTag;
-    }
+    tagTracker.recordCell(
+      span: span,
+      rowTag: cell.rowTag,
+      rowHasNoTag: cell.rowHasNoTag,
+      rowLabel: cell.rowLabel,
+    );
 
     if (maxCols != null && currentRow.length > maxCols) {
       throw TexMathSyntaxError(
@@ -675,10 +686,7 @@ MathNode parseEnvironment({
     }
 
     rows.add(currentRow);
-    if (pendingRowTag != null) {
-      rowTags[rows.length - 1] = pendingRowTag;
-      pendingRowTag = null;
-    }
+    tagTracker.finishRow(rows.length - 1);
     currentRow = <MathNode>[];
     currentRowBackground = null;
 
@@ -690,6 +698,7 @@ MathNode parseEnvironment({
 
   final SourceSpan endSpan = host.consumeEndEnvironment(envName, beginSpan);
   final SourceSpan totalSpan = beginSpan.merge(endSpan);
+  tagTracker.finishTable(rows.length, totalSpan);
 
   final MatrixNode matrix = MatrixNode(
     span: totalSpan,
@@ -699,13 +708,14 @@ MathNode parseEnvironment({
     environment: envName,
     columnAlignments: List<String>.unmodifiable(colAligns),
     verticalAlignment: vAlign,
+    explicitWidthEm: explicitWidthEm,
     leftDelimiter: spec.leftDelimiter,
     rightDelimiter: spec.rightDelimiter,
     isNumbered: spec.isNumbered,
     rowLines: Map<int, String>.unmodifiable(rowLines),
     columnLines: Map<int, String>.unmodifiable(colLines),
     columnSeparators: Map<int, MathNode>.unmodifiable(colSeparators),
-    rowTags: Map<int, TagNode>.unmodifiable(rowTags),
+    rowTags: Map<int, TagNode>.unmodifiable(tagTracker.rowTags),
   );
 
   if (casesLhs != null) {
@@ -941,6 +951,22 @@ MathNode _parseEmpheqEnvironment(TexParserHost host, SourceSpan beginSpan) {
   final SourceSpan totalSpan = beginSpan.merge(endSpan);
 
   if (leftDelim != null || rightDelim != null) {
+    if (innerNode is TagNode &&
+        !innerNode.isLabelDefinition &&
+        !innerNode.isReference) {
+      final MathNode delimited = DelimiterNode(
+        span: totalSpan,
+        leftDelimiter: leftDelim,
+        rightDelimiter: rightDelim,
+        children: <MathNode>[if (innerNode.body != null) innerNode.body!],
+      );
+      return TagNode(
+        span: totalSpan,
+        label: innerNode.label,
+        isStarred: innerNode.isStarred,
+        body: delimited,
+      );
+    }
     return DelimiterNode(
       span: totalSpan,
       leftDelimiter: leftDelim,
@@ -949,6 +975,149 @@ MathNode _parseEmpheqEnvironment(TexParserHost host, SourceSpan beginSpan) {
     );
   }
   return innerNode;
+}
+
+MathNode _buildSingleCellEnvNode({
+  required TexParserHost host,
+  required TexEnvironmentSpec spec,
+  required String envName,
+  required SourceSpan totalSpan,
+  required MathNode node,
+  required TagNode? rowTag,
+  required bool rowHasNoTag,
+  required String? rowLabel,
+}) {
+  if (rowTag != null) {
+    if (rowLabel != null) {
+      host.bindLabel(rowLabel, rowTag.label);
+    }
+    return TagNode(
+      span: totalSpan,
+      label: rowTag.label,
+      isStarred: rowTag.isStarred,
+      body: node,
+    );
+  }
+  if (!rowHasNoTag &&
+      spec.isNumbered &&
+      host.options.tagMode != TexMathTagMode.none) {
+    final String tagStr = '${host.nextAutoTag()}';
+    if (rowLabel != null) {
+      host.bindLabel(rowLabel, tagStr);
+    }
+    return TagNode(span: totalSpan, label: tagStr, body: node);
+  }
+  if (spec.isInlineWrapper) {
+    return StyleNode(
+      span: totalSpan,
+      style: envName == 'math' ? TexMathStyle.text : TexMathStyle.display,
+      children: <MathNode>[node],
+    );
+  }
+  return MathGroupNode(
+    span: totalSpan,
+    isExplicitGroup: false,
+    role: envName,
+    children: <MathNode>[node],
+  );
+}
+
+final class _EnvTagTracker {
+  _EnvTagTracker({
+    required this.host,
+    required this.spec,
+    required this.isNumberedMultline,
+    required this.fallbackSpan,
+  });
+
+  final TexParserHost host;
+  final TexEnvironmentSpec spec;
+  final bool isNumberedMultline;
+  final SourceSpan fallbackSpan;
+
+  final Map<int, TagNode> rowTags = <int, TagNode>{};
+  final List<String> _pendingRowLabels = <String>[];
+  final List<String> _unboundMultlineLabels = <String>[];
+  TagNode? _pendingRowTag;
+  bool _pendingRowHasNoTag = false;
+  SourceSpan? _pendingRowSpan;
+  bool _multlineHasNoTag = false;
+
+  void recordCell({
+    required SourceSpan span,
+    required TagNode? rowTag,
+    required bool rowHasNoTag,
+    required String? rowLabel,
+  }) {
+    _pendingRowSpan = _pendingRowSpan == null
+        ? span
+        : _pendingRowSpan!.merge(span);
+    if (rowTag != null) {
+      _pendingRowTag = rowTag;
+    }
+    if (rowHasNoTag) {
+      _pendingRowHasNoTag = true;
+    }
+    if (rowLabel != null) {
+      _pendingRowLabels.add(rowLabel);
+    }
+  }
+
+  void finishRow(int rowIdx) {
+    final TagNode? rowTag = _pendingRowTag;
+    if (isNumberedMultline) {
+      if (_pendingRowHasNoTag) {
+        _multlineHasNoTag = true;
+      }
+      if (rowTag != null) {
+        rowTags[rowIdx] = rowTag;
+        for (final String lbl in _pendingRowLabels) {
+          host.bindLabel(lbl, rowTag.label);
+        }
+      } else if (_pendingRowLabels.isNotEmpty) {
+        _unboundMultlineLabels.addAll(_pendingRowLabels);
+      }
+    } else if (rowTag != null) {
+      rowTags[rowIdx] = rowTag;
+      for (final String lbl in _pendingRowLabels) {
+        host.bindLabel(lbl, rowTag.label);
+      }
+    } else if (!_pendingRowHasNoTag &&
+        spec.isNumbered &&
+        host.options.tagMode != TexMathTagMode.none) {
+      final String tagStr = '${host.nextAutoTag()}';
+      rowTags[rowIdx] = TagNode(
+        span: _pendingRowSpan ?? fallbackSpan,
+        label: tagStr,
+      );
+      for (final String lbl in _pendingRowLabels) {
+        host.bindLabel(lbl, tagStr);
+      }
+    }
+    _pendingRowTag = null;
+    _pendingRowHasNoTag = false;
+    _pendingRowLabels.clear();
+    _pendingRowSpan = null;
+  }
+
+  void finishTable(int rowCount, SourceSpan tableSpan) {
+    if (!isNumberedMultline || rowCount <= 0) {
+      return;
+    }
+    if (rowTags.isNotEmpty) {
+      final String explicitTag = rowTags.values.first.label;
+      for (final String lbl in _unboundMultlineLabels) {
+        host.bindLabel(lbl, explicitTag);
+      }
+    } else if (!_multlineHasNoTag &&
+        host.options.tagMode != TexMathTagMode.none) {
+      final String tagStr = '${host.nextAutoTag()}';
+      rowTags[rowCount - 1] = TagNode(span: tableSpan, label: tagStr);
+      for (final String lbl in _unboundMultlineLabels) {
+        host.bindLabel(lbl, tagStr);
+      }
+    }
+  }
 }
 
 MathNode _parseEmpheqBody({
@@ -971,10 +1140,26 @@ MathNode _parseEmpheqBody({
       envName: outerEnv,
       allowAlignTab: false,
     );
-    return cell.node;
+    return _buildSingleCellEnvNode(
+      host: host,
+      spec: spec,
+      envName: innerEnv,
+      totalSpan: beginSpan,
+      node: cell.node,
+      rowTag: cell.rowTag,
+      rowHasNoTag: cell.rowHasNoTag,
+      rowLabel: cell.rowLabel,
+    );
   }
   final List<List<MathNode>> rows = <List<MathNode>>[];
+  final _EnvTagTracker tagTracker = _EnvTagTracker(
+    host: host,
+    spec: spec,
+    isNumberedMultline: innerEnv == 'multline',
+    fallbackSpan: beginSpan,
+  );
   List<MathNode> currentRow = <MathNode>[];
+
   while (true) {
     if (currentRow.isEmpty && _isAtEndEnv(host, outerEnv)) {
       break;
@@ -987,6 +1172,12 @@ MathNode _parseEmpheqBody({
     final String? stopReason = cell.stopReason;
     final SourceSpan span = cell.span;
     currentRow.add(node);
+    tagTracker.recordCell(
+      span: span,
+      rowTag: cell.rowTag,
+      rowHasNoTag: cell.rowHasNoTag,
+      rowLabel: cell.rowLabel,
+    );
     if (maxCols != null && currentRow.length > maxCols) {
       throw TexMathSyntaxError(
         'Too many alignment tabs (&) in \\begin{$innerEnv}.',
@@ -998,18 +1189,23 @@ MathNode _parseEmpheqBody({
       continue;
     }
     rows.add(currentRow);
+    tagTracker.finishRow(rows.length - 1);
     currentRow = <MathNode>[];
     if (stopReason == 'cr') {
       continue;
     }
     break;
   }
+  tagTracker.finishTable(rows.length, beginSpan);
   return MatrixNode(
     span: beginSpan,
-    rows: rows,
+    rows: List<List<MathNode>>.unmodifiable(
+      rows.map(List<MathNode>.unmodifiable),
+    ),
     environment: innerEnv,
     columnAlignments: spec.defaultAlignments,
     isNumbered: spec.isNumbered,
+    rowTags: Map<int, TagNode>.unmodifiable(tagTracker.rowTags),
   );
 }
 

@@ -532,6 +532,9 @@ final class AnchorBox extends MathBox {
   const AnchorBox({
     required this.id,
     this.label,
+    this.hitboxWidthEm = 0.0,
+    this.hitboxHeightEm = 0.0,
+    this.hitboxDepthEm = 0.0,
     super.widthEm = 0.0,
     super.heightEm = 0.0,
     super.depthEm = 0.0,
@@ -551,6 +554,15 @@ final class AnchorBox extends MathBox {
   /// Optional label text written to [AnchorItem.label].
   final String? label;
 
+  /// Non-layout hitbox width in ems written to [AnchorItem.widthEm].
+  final double hitboxWidthEm;
+
+  /// Non-layout hitbox ascent in ems written to [AnchorItem.heightEm].
+  final double hitboxHeightEm;
+
+  /// Non-layout hitbox descent in ems written to [AnchorItem.depthEm].
+  final double hitboxDepthEm;
+
   @override
   AnchorBox withMetadata({
     TexMathAtomClass? atomClass,
@@ -565,6 +577,9 @@ final class AnchorBox extends MathBox {
     return AnchorBox(
       id: id,
       label: label,
+      hitboxWidthEm: hitboxWidthEm,
+      hitboxHeightEm: hitboxHeightEm,
+      hitboxDepthEm: hitboxDepthEm,
       widthEm: widthEm,
       heightEm: heightEm,
       depthEm: depthEm,
@@ -600,6 +615,9 @@ final class AnchorBox extends MathBox {
         id: id,
         xEm: originXEm,
         yEm: originYEm,
+        widthEm: hitboxWidthEm,
+        heightEm: hitboxHeightEm,
+        depthEm: hitboxDepthEm,
         label: label,
         span: span,
         colorRole: role,
@@ -616,10 +634,20 @@ final class AnchorBox extends MathBox {
       other is AnchorBox &&
           _baseEquals(other) &&
           id == other.id &&
-          label == other.label;
+          label == other.label &&
+          hitboxWidthEm == other.hitboxWidthEm &&
+          hitboxHeightEm == other.hitboxHeightEm &&
+          hitboxDepthEm == other.hitboxDepthEm;
 
   @override
-  int get hashCode => Object.hash(_baseHash, id, label);
+  int get hashCode => Object.hash(
+    _baseHash,
+    id,
+    label,
+    hitboxWidthEm,
+    hitboxHeightEm,
+    hitboxDepthEm,
+  );
 }
 
 /// Horizontal box laying out [children] sequentially along the X axis.

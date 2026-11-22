@@ -5,6 +5,7 @@ library;
 
 export 'package:tex_math/tex_math.dart'
     show
+        AnchorItem,
         DisplayItem,
         DisplayList,
         DisplayMetrics,
@@ -26,6 +27,7 @@ export 'package:tex_math/tex_math.dart'
         TexMathMacroError,
         TexMathOptions,
         TexMathSyntaxError,
+        TexMathTagMode,
         TexMathUnsupportedError;
 
 export 'src/display_painter.dart' show TexMathDisplayPainter, TexMathPathCache;

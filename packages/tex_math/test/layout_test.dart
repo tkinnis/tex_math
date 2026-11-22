@@ -782,6 +782,481 @@ void main() {
       }
     });
   });
+
+  group('Multline, multlined, and shove alignment', () {
+    test(
+      'lays out ams_shove with 12em width, 4em span, and strict stagger',
+      () {
+        final DisplayList dl = engine
+            .render(
+              r'\begin{multline} \shoveleft{a + b} \\ c + d \\ \shoveright{e + f} \end{multline}',
+            )
+            .displayList;
+        expect(dl.metrics.widthEm, 12.0);
+        expect(dl.metrics.heightEm, closeTo(2.25, 1e-6));
+        expect(dl.metrics.depthEm, closeTo(1.75, 1e-6));
+
+        final List<GlyphItem> glyphs = dl.items.whereType<GlyphItem>().toList();
+        expect(glyphs, hasLength(9));
+        expect(glyphs[0].xEm, closeTo(1.0, 1e-6));
+        expect(glyphs[0].xEm, lessThan(glyphs[3].xEm));
+        expect(glyphs[3].xEm, lessThan(glyphs[6].xEm));
+        expect(glyphs[8].xEm + glyphs[8].advanceEm, closeTo(11.0, 1e-6));
+      },
+    );
+
+    test('lays out multline_basic with 0.50em row gap, stagger, and binary leading +', () {
+      final DisplayList dl = engine
+          .render(
+            r'\begin{multline} a + b + c + d \\ + e + f + g + h \end{multline}',
+          )
+          .displayList;
+      expect(dl.metrics.heightEm, closeTo(1.50, 1e-6));
+      expect(dl.metrics.depthEm, closeTo(1.00, 1e-6));
+
+      final List<GlyphItem> glyphs = dl.items.whereType<GlyphItem>().toList();
+      expect(glyphs, hasLength(15));
+      expect(glyphs[0].xEm, closeTo(1.0, 1e-6));
+      // Row 1 starts after row 0 and ends 1em from right edge.
+      expect(glyphs[7].xEm, greaterThan(glyphs[0].xEm));
+      expect(
+        glyphs[14].xEm + glyphs[14].advanceEm,
+        closeTo(dl.metrics.widthEm - 1.0, 1e-6),
+      );
+
+      // Compare `+ e` distance in continuation row against binary `a + e` vs unary `+e`.
+      final List<GlyphItem> binRef = engine
+          .render('a + e')
+          .displayList
+          .items
+          .whereType<GlyphItem>()
+          .toList();
+      final List<GlyphItem> unaryRef = engine
+          .render('+ e')
+          .displayList
+          .items
+          .whereType<GlyphItem>()
+          .toList();
+      final double multlinePlusToE = glyphs[8].xEm - glyphs[7].xEm;
+      final double binaryPlusToE = binRef[2].xEm - binRef[1].xEm;
+      final double unaryPlusToE = unaryRef[1].xEm - unaryRef[0].xEm;
+      expect(multlinePlusToE, closeTo(binaryPlusToE, 1e-6));
+      expect(multlinePlusToE, greaterThan(unaryPlusToE + 0.15));
+    });
+
+    test('prevents collapse/overflow/inversion on wide equal-length multline rows', () {
+      const String longLine = 'a + b + c + d + e + f + g + h + i + j + k + l';
+      final DisplayList dl = engine
+          .render(
+            '\\begin{multline} $longLine \\\\ $longLine \\\\ $longLine \\end{multline}',
+          )
+          .displayList;
+      expect(dl.metrics.widthEm, greaterThan(12.0));
+
+      final List<GlyphItem> glyphs = dl.items.whereType<GlyphItem>().toList();
+      final double row0Y = glyphs.first.yEm;
+      final double row2Y = glyphs.last.yEm;
+      final List<GlyphItem> row0 = glyphs
+          .where((GlyphItem g) => (g.yEm - row0Y).abs() < 1e-6)
+          .toList();
+      final List<GlyphItem> row2 = glyphs
+          .where((GlyphItem g) => (g.yEm - row2Y).abs() < 1e-6)
+          .toList();
+      final List<GlyphItem> row1 = glyphs
+          .where(
+            (GlyphItem g) =>
+                (g.yEm - row0Y).abs() > 0.1 && (g.yEm - row2Y).abs() > 0.1,
+          )
+          .toList();
+
+      expect(row0.first.xEm, closeTo(1.0, 1e-6));
+      expect(row0.first.xEm, lessThan(row1.first.xEm));
+      expect(row1.first.xEm, lessThan(row2.first.xEm));
+      expect(
+        row2.last.xEm + row2.last.advanceEm,
+        closeTo(dl.metrics.widthEm - 1.0, 1e-6),
+      );
+    });
+
+    test(
+      'honors TexMathOptions.multlineWidthEm and mathtools shove shifts',
+      () {
+        final DisplayList wideDl = engine
+            .render(
+              r'\begin{multline} \shoveleft{a + b} \\ c + d \\ \shoveright{e + f} \end{multline}',
+              options: const TexMathOptions(multlineWidthEm: 25.0),
+            )
+            .displayList;
+        expect(wideDl.metrics.widthEm, 25.0);
+        final List<GlyphItem> wideGlyphs = wideDl.items
+            .whereType<GlyphItem>()
+            .toList();
+        expect(wideGlyphs[0].xEm, closeTo(1.0, 1e-6));
+        expect(wideGlyphs[3].xEm, greaterThan(10.0));
+        expect(
+          wideGlyphs[8].xEm + wideGlyphs[8].advanceEm,
+          closeTo(24.0, 1e-6),
+        );
+
+        final DisplayList shiftedDl = engine
+            .render(
+              r'\begin{multline} \shoveleft[2em]{a + b} \\ \shoveright[2em]{e + f} \end{multline}',
+            )
+            .displayList;
+        final List<GlyphItem> shiftedGlyphs = shiftedDl.items
+            .whereType<GlyphItem>()
+            .toList();
+        expect(shiftedGlyphs[0].xEm, closeTo(3.0, 1e-6));
+        expect(
+          shiftedGlyphs[5].xEm + shiftedGlyphs[5].advanceEm,
+          closeTo(shiftedDl.metrics.widthEm - 3.0, 1e-6),
+        );
+
+        // Multi-child cells (`\shoveleft{a+b}\label{eq:1}` and `\shoveleft{a+b}+c`) preserve shove.
+        final RenderResult shoveLabeled = engine.render(
+          r'\begin{multline} a + b \\ \shoveleft{c + d}\label{eq:s1} \\ \shoveleft{e + f} + g \end{multline}',
+          options: const TexMathOptions(tagMode: TexMathTagMode.ams),
+        );
+        expect((shoveLabeled.syntaxTree as MathRootNode).labels['eq:s1'], '1');
+        final List<GlyphItem> shoveGlyphs = shoveLabeled.displayList.items
+            .whereType<GlyphItem>()
+            .toList();
+        // `c` (index 3) and `e` (index 6) are both shoved left to x == 1.0.
+        expect(shoveGlyphs[3].xEm, closeTo(1.0, 1e-6));
+        expect(shoveGlyphs[6].xEm, closeTo(1.0, 1e-6));
+      },
+    );
+
+    test(
+      'lays out multlined compact natural width and optional [pos][width] args',
+      () {
+        final DisplayList autoDl = engine
+            .render(r'\begin{multlined} a + b \\ a + b \end{multlined}')
+            .displayList;
+        expect(autoDl.metrics.widthEm, lessThan(12.0));
+        final List<GlyphItem> autoGlyphs = autoDl.items
+            .whereType<GlyphItem>()
+            .toList();
+        expect(autoGlyphs[0].xEm, closeTo(0.0, 1e-6));
+        expect(
+          autoGlyphs[5].xEm + autoGlyphs[5].advanceEm,
+          closeTo(autoDl.metrics.widthEm, 1e-6),
+        );
+        expect(autoGlyphs[3].xEm, closeTo(1.0, 1e-6));
+
+        final DisplayList unequalDl = engine
+            .render(r'\begin{multlined} a + b \\ c + d \end{multlined}')
+            .displayList;
+        final List<GlyphItem> unequalGlyphs = unequalDl.items
+            .whereType<GlyphItem>()
+            .toList();
+        expect(unequalGlyphs[0].xEm, closeTo(0.0, 1e-6));
+        expect(unequalGlyphs[3].xEm, greaterThanOrEqualTo(1.0 - 1e-6));
+        expect(
+          unequalGlyphs[5].xEm + unequalGlyphs[5].advanceEm,
+          closeTo(unequalDl.metrics.widthEm, 1e-6),
+        );
+
+        final RenderResult topWidth = engine.render(
+          r'\begin{multlined}[t][10em] a + b \\ c + d \end{multlined}',
+        );
+        final MatrixNode topMatrix =
+            (topWidth.syntaxTree as MathRootNode).children.single as MatrixNode;
+        expect(topMatrix.verticalAlignment, 't');
+        expect(topMatrix.explicitWidthEm, 10.0);
+        expect(topWidth.displayList.metrics.widthEm, 10.0);
+        final List<GlyphItem> topGlyphs = topWidth.displayList.items
+            .whereType<GlyphItem>()
+            .toList();
+        expect(topGlyphs[0].yEm, closeTo(0.0, 1e-6));
+        expect(topGlyphs[5].xEm + topGlyphs[5].advanceEm, closeTo(10.0, 1e-6));
+
+        final RenderResult widthOnly = engine.render(
+          r'\begin{multlined}[10em] a + b \\ c + d \end{multlined}',
+        );
+        final MatrixNode widthMatrix =
+            (widthOnly.syntaxTree as MathRootNode).children.single
+                as MatrixNode;
+        expect(widthMatrix.verticalAlignment, isNull);
+        expect(widthMatrix.explicitWidthEm, 10.0);
+        expect(widthOnly.displayList.metrics.widthEm, 10.0);
+
+        for (final String bad in const <String>[
+          r'\begin{multlined}[bad] a \\ b \end{multlined}',
+          r'\begin{multlined}[t][bad] a \\ b \end{multlined}',
+        ]) {
+          expect(
+            () => engine.render(bad),
+            throwsA(isA<TexMathSyntaxError>()),
+            reason: bad,
+          );
+        }
+      },
+    );
+  });
+
+  group('Tag modes, label/ref/eqref, and href links', () {
+    test('implements TexMathTagMode none, ams, and all consistently', () {
+      const String labelEqrefTex =
+          r'\begin{equation} E = mc^2 \label{eq:einstein} \end{equation}\quad \text{see }\eqref{eq:einstein}, \ref{eq:einstein}';
+
+      // Default / none: no auto-tag, unresolved `???` and `(???)`, targetId preserved.
+      final RenderResult noneRes = engine.render(labelEqrefTex);
+      final MathRootNode noneRoot = noneRes.syntaxTree as MathRootNode;
+      expect(noneRoot.labels, isEmpty);
+      final List<AnchorItem> noneRefs = noneRes.displayList.items
+          .whereType<AnchorItem>()
+          .where((AnchorItem a) => a.id.startsWith('ref:'))
+          .toList();
+      expect(noneRefs, hasLength(2));
+      expect(noneRefs[0].id, 'ref:eq:einstein');
+      expect(noneRefs[0].label, 'eq:einstein');
+      expect(noneRefs[0].widthEm, greaterThan(0.0));
+      expect(noneRes.toMathMl(), contains('<mtext>(???)</mtext>'));
+      expect(noneRes.toMathMl(), contains('<mtext>???</mtext>'));
+
+      // AMS: numbered equation gets (1) and resolves \eqref and \ref.
+      final RenderResult amsRes = engine.render(
+        labelEqrefTex,
+        options: const TexMathOptions(tagMode: TexMathTagMode.ams),
+      );
+      final MathRootNode amsRoot = amsRes.syntaxTree as MathRootNode;
+      expect(amsRoot.labels['eq:einstein'], '1');
+      expect(amsRes.toMathMl(), contains('<mtext>(1)</mtext>'));
+      expect(amsRes.toMathMl(), contains('<mtext>1</mtext>'));
+
+      // Unresolved ref/eqref in math mode and text mode both produce `???` and targetId.
+      final MathRootNode missingRefs = engine.parse(
+        r'\eqref{missing} + \ref{missing2} + \text{\eqref{tmissing} \ref{tmissing2}}',
+      ) as MathRootNode;
+      final List<TagNode> refNodes = <TagNode>[
+        missingRefs.children[0] as TagNode,
+        missingRefs.children[2] as TagNode,
+        ...((missingRefs.children[4] as TextNode).children
+            .whereType<TagNode>()),
+      ];
+      expect(refNodes, hasLength(4));
+      expect(refNodes.map((TagNode t) => t.label).toList(), <String>[
+        '???',
+        '???',
+        '???',
+        '???',
+      ]);
+      expect(refNodes.map((TagNode t) => t.targetId).toList(), <String>[
+        'missing',
+        'missing2',
+        'tmissing',
+        'tmissing2',
+      ]);
+
+      // Multline single auto-tag on last row, \notag suppression, and explicit \tag override.
+      final RenderResult multlineAms = engine.render(
+        r'\begin{multline} a \label{m1} \\ b \\ c \end{multline}\quad\eqref{m1}',
+        options: const TexMathOptions(tagMode: TexMathTagMode.ams),
+      );
+      final MatrixNode multMatrix =
+          (multlineAms.syntaxTree as MathRootNode).children.first as MatrixNode;
+      expect(multMatrix.rowTags.keys, <int>[2]);
+      expect(multMatrix.rowTags[2]!.label, '1');
+      expect((multlineAms.syntaxTree as MathRootNode).labels['m1'], '1');
+
+      final RenderResult multlineNoTag = engine.render(
+        r'\begin{multline} a \label{m2} \\ b \notag \\ c \end{multline}\quad\eqref{m2}',
+        options: const TexMathOptions(tagMode: TexMathTagMode.ams),
+      );
+      final MatrixNode multNoTagMatrix =
+          (multlineNoTag.syntaxTree as MathRootNode).children.first
+              as MatrixNode;
+      expect(multNoTagMatrix.rowTags, isEmpty);
+      expect((multlineNoTag.syntaxTree as MathRootNode).labels, isEmpty);
+
+      final RenderResult multlineExplicit = engine.render(
+        r'\begin{multline} a \tag{*} \label{m3} \\ b \end{multline}\quad\eqref{m3}',
+      );
+      final MatrixNode multExplicitMatrix =
+          (multlineExplicit.syntaxTree as MathRootNode).children.first
+              as MatrixNode;
+      expect(multExplicitMatrix.rowTags.keys, <int>[0]);
+      expect(multExplicitMatrix.rowTags[0]!.label, '*');
+      expect((multlineExplicit.syntaxTree as MathRootNode).labels['m3'], '*');
+
+      // Align & gather \notag + cross-row label isolation + order-independent label/tag.
+      final MathRootNode alignAms = engine.parse(
+        r'\begin{align} a &= b \label{a1} \\ c &= d \notag \\ e &= f \label{a2} \end{align}',
+        options: const TexMathOptions(tagMode: TexMathTagMode.ams),
+      ) as MathRootNode;
+      final MatrixNode alignMatrix = alignAms.children.single as MatrixNode;
+      expect(alignMatrix.rowTags.keys, <int>[0, 2]);
+      expect(alignMatrix.rowTags[0]!.label, '1');
+      expect(alignMatrix.rowTags[2]!.label, '2');
+      expect(alignAms.labels['a1'], '1');
+      expect(alignAms.labels['a2'], '2');
+
+      final MathRootNode gatherAms = engine.parse(
+        r'\begin{gather} x \notag \\ y \label{g1} \end{gather}',
+        options: const TexMathOptions(tagMode: TexMathTagMode.ams),
+      ) as MathRootNode;
+      final MatrixNode gatherMatrix = gatherAms.children.single as MatrixNode;
+      expect(gatherMatrix.rowTags.keys, <int>[1]);
+      expect(gatherMatrix.rowTags[1]!.label, '1');
+      expect(gatherAms.labels['g1'], '1');
+
+      final MathRootNode noLeakNone = engine.parse(
+        r'\begin{align} a &= b \label{leak} \\ c &= d \tag{*} \end{align}',
+      ) as MathRootNode;
+      expect(noLeakNone.labels.containsKey('leak'), isFalse);
+
+      final MathRootNode bothOrders = engine.parse(
+        r'\begin{align} a &= b \label{x1}\tag{A} \\ c &= d \tag{B}\label{x2} \end{align}',
+      ) as MathRootNode;
+      expect(bothOrders.labels['x1'], 'A');
+      expect(bothOrders.labels['x2'], 'B');
+
+      // TexMathTagMode.all: wraps top-level display math without double-wrapping display envs.
+      final MathRootNode allTop = engine.parse(
+        r'E = mc^2 \label{top}',
+        options: const TexMathOptions(tagMode: TexMathTagMode.all),
+      ) as MathRootNode;
+      expect(allTop.children.single, isA<TagNode>());
+      expect((allTop.children.single as TagNode).label, '1');
+      expect(allTop.labels['top'], '1');
+
+      final MathRootNode allInline = engine.parse(
+        r'E = mc^2',
+        options: const TexMathOptions(
+          displayMode: TexMathDisplayMode.inline,
+          tagMode: TexMathTagMode.all,
+        ),
+      ) as MathRootNode;
+      expect(allInline.children, hasLength(4));
+      expect(allInline.children.whereType<TagNode>(), isEmpty);
+
+      final MathRootNode allNotag = engine.parse(
+        r'E = mc^2 \notag',
+        options: const TexMathOptions(tagMode: TexMathTagMode.all),
+      ) as MathRootNode;
+      expect(allNotag.children, hasLength(4));
+      expect(allNotag.children.whereType<TagNode>(), isEmpty);
+
+      final MathRootNode allEqStar = engine.parse(
+        r'\begin{equation*} E = mc^2 \end{equation*}',
+        options: const TexMathOptions(tagMode: TexMathTagMode.all),
+      ) as MathRootNode;
+      expect(allEqStar.children.single, isA<MathGroupNode>());
+
+      final MathRootNode allPmatrix = engine.parse(
+        r'\begin{pmatrix} 1 \\ 2 \end{pmatrix}',
+        options: const TexMathOptions(tagMode: TexMathTagMode.all),
+      ) as MathRootNode;
+      expect(allPmatrix.children.single, isA<TagNode>());
+
+      final MathRootNode allAligned = engine.parse(
+        r'\begin{aligned} a &= b \\ c &= d \end{aligned}',
+        options: const TexMathOptions(tagMode: TexMathTagMode.all),
+      ) as MathRootNode;
+      expect(allAligned.children.single, isA<TagNode>());
+
+      final MathRootNode allMultlineStar = engine.parse(
+        r'\begin{multline*} a \\ b \end{multline*}',
+        options: const TexMathOptions(tagMode: TexMathTagMode.all),
+      ) as MathRootNode;
+      expect(allMultlineStar.children.single, isA<MatrixNode>());
+
+      final MathRootNode allEmpheqEq = engine.parse(
+        r'\begin{empheq}[left=\empheqlangle,right=\empheqrangle]{equation} x = 1 \end{empheq}',
+        options: const TexMathOptions(tagMode: TexMathTagMode.all),
+      ) as MathRootNode;
+      expect(allEmpheqEq.children.single, isA<TagNode>());
+      expect((allEmpheqEq.children.single as TagNode).label, '1');
+      expect(
+        (allEmpheqEq.children.single as TagNode).body,
+        isA<DelimiterNode>(),
+      );
+    });
+
+    test('styles \\href and \\ref with accent color, hitbox bounds, SVG <a>, and safe URI checks', () {
+      final RenderResult hrefRes = engine.render(
+        r'\href{https://example.org}{E = mc^2}',
+      );
+      final DisplayList dl = hrefRes.displayList;
+      final List<GlyphItem> glyphs = dl.items.whereType<GlyphItem>().toList();
+      expect(glyphs, isNotEmpty);
+      for (final GlyphItem g in glyphs) {
+        expect(g.colorRole, TexMathColorRole.accent);
+      }
+
+      final AnchorItem anchor = dl.items.whereType<AnchorItem>().single;
+      expect(anchor.id, 'href:https://example.org');
+      expect(anchor.label, 'https://example.org');
+      expect(anchor.href, 'https://example.org');
+      expect(anchor.widthEm, closeTo(dl.metrics.widthEm, 1e-6));
+      expect(anchor.heightEm, closeTo(dl.metrics.heightEm, 1e-6));
+      expect(anchor.depthEm, closeTo(dl.metrics.depthEm, 1e-6));
+
+      final String svg = hrefRes.toSvg();
+      expect(svg, contains('id="href:https://example.org"'));
+      expect(svg, contains('data-anchor="true"'));
+      expect(svg, contains('<a href="https://example.org"'));
+      expect(svg, contains('pointer-events="all"/></a></svg>'));
+
+      // Inner \color overrides accent while outer href parts keep accent.
+      final DisplayList fullOverride = engine
+          .render(r'\href{https://example.org}{\color{red} E = mc^2}')
+          .displayList;
+      for (final GlyphItem g in fullOverride.items.whereType<GlyphItem>()) {
+        expect(g.colorRole, TexMathColorRole.custom);
+        expect(g.customColor, 0xFFFF0000);
+      }
+
+      final DisplayList partialOverride = engine
+          .render(r'\href{https://example.org}{E + \textcolor{red}{x}}')
+          .displayList;
+      final List<GlyphItem> partialGlyphs = partialOverride.items
+          .whereType<GlyphItem>()
+          .toList();
+      expect(partialGlyphs[0].colorRole, TexMathColorRole.accent);
+      expect(partialGlyphs[1].colorRole, TexMathColorRole.accent);
+      expect(partialGlyphs[2].colorRole, TexMathColorRole.custom);
+      expect(partialGlyphs[2].customColor, 0xFFFF0000);
+
+      // \eqref reference glyphs carry accent color and AnchorItem has no href.
+      final RenderResult refRes = engine.render(
+        r'\begin{equation} x \label{e} \end{equation}\quad\eqref{e}',
+        options: const TexMathOptions(tagMode: TexMathTagMode.ams),
+      );
+      final AnchorItem refAnchor = refRes.displayList.items
+          .whereType<AnchorItem>()
+          .firstWhere((AnchorItem a) => a.id == 'ref:e');
+      expect(refAnchor.href, isNull);
+      expect(refAnchor.widthEm, greaterThan(0.0));
+      expect(refAnchor.heightEm, greaterThan(0.0));
+      final List<GlyphItem> refGlyphs = refRes.displayList.items
+          .whereType<GlyphItem>()
+          .where((GlyphItem g) => g.colorRole == TexMathColorRole.accent)
+          .toList();
+      expect(refGlyphs, hasLength(3)); // (1)
+
+      // Manually constructed AST with unsafe href scheme is stripped in layout and SVG.
+      const MathRootNode unsafeAst = MathRootNode(
+        span: SourceSpan.zero,
+        children: <MathNode>[
+          MathGroupNode(
+            span: SourceSpan.zero,
+            role: 'href',
+            attributes: <String, String>{'href': 'javascript:evil()'},
+            children: <MathNode>[SymbolNode(span: SourceSpan.zero, value: 'x')],
+          ),
+        ],
+      );
+      final DisplayList unsafeDl = engine.layout(unsafeAst);
+      expect(unsafeDl.items.whereType<AnchorItem>(), isEmpty);
+      expect(
+        unsafeDl.items.whereType<GlyphItem>().single.colorRole,
+        TexMathColorRole.foreground,
+      );
+      expect(unsafeDl.toSvg(), isNot(contains('<a ')));
+    });
+  });
 }
 
 File _locateBundledFont() {

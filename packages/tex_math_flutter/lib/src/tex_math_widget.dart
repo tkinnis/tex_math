@@ -38,6 +38,7 @@ final class TexMath extends StatefulWidget {
     this.errorBuilder,
     this.semanticsLabel,
     this.selectable = true,
+    this.onLinkTap,
     this.debugOnLayout,
   }) : displayList = null,
        _inheritAncestorSelection = false;
@@ -56,6 +57,7 @@ final class TexMath extends StatefulWidget {
     this.errorBuilder,
     this.semanticsLabel,
     this.selectable = true,
+    this.onLinkTap,
     this.debugOnLayout,
   }) : displayMode = TexMathDisplayMode.inline,
        displayList = null,
@@ -75,6 +77,7 @@ final class TexMath extends StatefulWidget {
     this.errorBuilder,
     this.semanticsLabel,
     this.selectable = true,
+    this.onLinkTap,
     this.debugOnLayout,
   }) : displayMode = TexMathDisplayMode.display,
        displayList = null,
@@ -96,6 +99,7 @@ final class TexMath extends StatefulWidget {
     this.errorBuilder,
     this.semanticsLabel,
     this.selectable = true,
+    this.onLinkTap,
     this.debugOnLayout,
   }) : _inheritAncestorSelection = false;
 
@@ -111,6 +115,7 @@ final class TexMath extends StatefulWidget {
     this.textStyle,
     this.errorBuilder,
     this.semanticsLabel,
+    this.onLinkTap,
     required this.selectable,
   }) : displayMode = TexMathDisplayMode.inline,
        displayList = null,
@@ -162,6 +167,10 @@ final class TexMath extends StatefulWidget {
 
   /// Optional pre-laid-out [DisplayList] painted without invoking [engine].
   final DisplayList? displayList;
+
+  /// Optional callback invoked with the target URI when a safe `\href` link
+  /// inside the rendered math expression is tapped.
+  final ValueChanged<String>? onLinkTap;
 
   /// Optional diagnostic callback invoked whenever TeX layout executes.
   @visibleForTesting
@@ -598,6 +607,7 @@ final class _TexMathState extends State<TexMath> {
       pathCache: pathCache,
       registrar: registrar,
       allowVisualOverflow: overflowPolicy == TexMathOverflow.visible,
+      onLinkTap: widget.onLinkTap,
     );
 
     final Widget baselineAligned = Baseline(
@@ -679,6 +689,7 @@ final class TexMathSpan extends WidgetSpan {
     TexMathErrorBuilder? errorBuilder,
     String? semanticsLabel,
     bool? selectable,
+    this.onLinkTap,
     super.alignment = PlaceholderAlignment.baseline,
     super.baseline = TextBaseline.alphabetic,
   }) : super(
@@ -694,7 +705,12 @@ final class TexMathSpan extends WidgetSpan {
            textStyle: style,
            errorBuilder: errorBuilder,
            semanticsLabel: semanticsLabel,
+           onLinkTap: onLinkTap,
            selectable: selectable ?? false,
          ),
        );
+
+  /// Optional callback invoked with the target URI when a safe `\href` link
+  /// inside this inline math span is tapped.
+  final ValueChanged<String>? onLinkTap;
 }

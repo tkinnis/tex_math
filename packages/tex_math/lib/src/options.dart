@@ -14,6 +14,23 @@ enum TexMathDisplayMode {
   display,
 }
 
+/// Equation auto-numbering policy matching MathJax's `tex.tags` option.
+enum TexMathTagMode {
+  /// Disable automatic equation numbering; only explicit `\tag` / `\tag*`
+  /// commands produce tags (default, matching MathJax's `tags: 'none'`).
+  none,
+
+  /// Automatically number numbered AMS/LaTeX environments (`equation`,
+  /// `align`, `gather`, `multline`, `flalign`, `alignat`, `xalignat`,
+  /// `eqnarray`, `eqalignno`, `leqalignno`, `numcases`, `subnumcases`),
+  /// matching MathJax's `tags: 'ams'`.
+  ams,
+
+  /// Automatically number both numbered environments and untagged top-level
+  /// display math expressions, matching MathJax's `tags: 'all'`.
+  all,
+}
+
 /// Semantic color role assigned to layout items and theme overrides.
 enum TexMathColorRole {
   /// Primary glyph and rule foreground color.
@@ -166,12 +183,19 @@ final class TexMathOptions {
     this.budgets = const TexMathBudgets(),
     this.strictErrors = true,
     this.useOpticalScriptVariants = false,
+    this.multlineWidthEm,
+    this.tagMode = TexMathTagMode.none,
     // ignore: prefer_initializing_formals
   }) : _packages = packages,
        // ignore: prefer_initializing_formals
        _requireAllowlist = requireAllowlist,
        // ignore: prefer_initializing_formals
-       _macros = macros;
+       _macros = macros,
+       assert(
+         multlineWidthEm == null ||
+             (multlineWidthEm > 0 && multlineWidthEm < double.infinity),
+         'multlineWidthEm must be positive and finite when provided',
+       );
 
   /// Default active TeX package list matching JupyterLab defaults without
   /// `noerrors` or `noundefined`.
@@ -292,6 +316,13 @@ final class TexMathOptions {
   /// rather than relying solely on `MATH` scale-down factors.
   final bool useOpticalScriptVariants;
 
+  /// Optional target line width in ems for `multline` / `multline*`
+  /// environments; when `null`, defaults to a compact 12em minimum width.
+  final double? multlineWidthEm;
+
+  /// Automatic equation numbering policy (`none`, `ams`, or `all`).
+  final TexMathTagMode tagMode;
+
   /// Returns a copy of these options with the given fields replaced.
   TexMathOptions copyWith({
     TexMathDisplayMode? displayMode,
@@ -301,6 +332,8 @@ final class TexMathOptions {
     TexMathBudgets? budgets,
     bool? strictErrors,
     bool? useOpticalScriptVariants,
+    double? multlineWidthEm,
+    TexMathTagMode? tagMode,
   }) {
     return TexMathOptions(
       displayMode: displayMode ?? this.displayMode,
@@ -323,6 +356,8 @@ final class TexMathOptions {
       strictErrors: strictErrors ?? this.strictErrors,
       useOpticalScriptVariants:
           useOpticalScriptVariants ?? this.useOpticalScriptVariants,
+      multlineWidthEm: multlineWidthEm ?? this.multlineWidthEm,
+      tagMode: tagMode ?? this.tagMode,
     );
   }
 
@@ -343,7 +378,9 @@ final class TexMathOptions {
           _stringMapEquals(_macros, other._macros) &&
           budgets == other.budgets &&
           strictErrors == other.strictErrors &&
-          useOpticalScriptVariants == other.useOpticalScriptVariants;
+          useOpticalScriptVariants == other.useOpticalScriptVariants &&
+          multlineWidthEm == other.multlineWidthEm &&
+          tagMode == other.tagMode;
 
   @override
   int get hashCode {
@@ -376,6 +413,8 @@ final class TexMathOptions {
       budgets,
       strictErrors,
       useOpticalScriptVariants,
+      multlineWidthEm,
+      tagMode,
     );
     if (hasCustom) {
       _customHashCache[this] = computed;
@@ -392,7 +431,9 @@ final class TexMathOptions {
       'macros: $_macros, '
       'budgets: $budgets, '
       'strictErrors: $strictErrors, '
-      'useOpticalScriptVariants: $useOpticalScriptVariants)';
+      'useOpticalScriptVariants: $useOpticalScriptVariants, '
+      'multlineWidthEm: $multlineWidthEm, '
+      'tagMode: $tagMode)';
 }
 
 bool _stringListEquals(List<String> a, List<String> b) {

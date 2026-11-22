@@ -79,7 +79,9 @@ final class _TexParser implements TexParserHost {
     required this.activePackages,
     required this.options,
     Map<String, String>? labels,
-  }) : _labels = labels ?? <String, String>{};
+    _AutoTagCounter? tagCounter,
+  }) : _labels = labels ?? <String, String>{},
+       _tagCounter = tagCounter ?? _AutoTagCounter();
 
   final String source;
 
@@ -96,16 +98,23 @@ final class _TexParser implements TexParserHost {
   final TexMathOptions options;
 
   final Map<String, String> _labels;
+  final _AutoTagCounter _tagCounter;
   final List<_OpenEnvFrame> _envStack = <_OpenEnvFrame>[];
   final List<_OpenEnvFrame> _openUserEnvs = <_OpenEnvFrame>[];
   int _nestingDepth = 0;
-  int _autoTagCounter = 0;
   TexMathFontVariant? _fontVariant;
   bool _inBoldSymbol = false;
-  String? _currentLabelId;
 
   @override
   TexMathFontVariant? get currentFontVariant => _fontVariant;
+
+  @override
+  int nextAutoTag() => _tagCounter.next();
+
+  @override
+  void bindLabel(String labelName, String tag) {
+    _labels[labelName] = tag;
+  }
 
   TexMathFontVariant? _resolveSymbolVariant(
     TexMathFontVariant? baseVariant,
@@ -163,10 +172,50 @@ final class _TexParser implements TexParserHost {
           span: unclosed.span,
         );
       }
+      List<MathNode> finalNodes = result.nodes;
+      if (result.rowTag != null) {
+        final TagNode rt = result.rowTag!;
+        if (result.rowLabel != null) {
+          _labels[result.rowLabel!] = rt.label;
+        }
+        final MathNode bodyNode = finalNodes.length == 1
+            ? finalNodes.first
+            : MathGroupNode(
+                span: _mergeSpanList(fullSpan, finalNodes),
+                isExplicitGroup: false,
+                children: _unmodifiableNodes(finalNodes),
+              );
+        finalNodes = <MathNode>[
+          TagNode(
+            span: fullSpan,
+            label: rt.label,
+            isStarred: rt.isStarred,
+            body: bodyNode,
+          ),
+        ];
+      } else if (options.tagMode == TexMathTagMode.all &&
+          options.displayMode == TexMathDisplayMode.display &&
+          !result.rowHasNoTag &&
+          !_containsTaggableDisplayEnvironment(finalNodes)) {
+        final String tagStr = '${nextAutoTag()}';
+        if (result.rowLabel != null) {
+          _labels[result.rowLabel!] = tagStr;
+        }
+        final MathNode bodyNode = finalNodes.length == 1
+            ? finalNodes.first
+            : MathGroupNode(
+                span: _mergeSpanList(fullSpan, finalNodes),
+                isExplicitGroup: false,
+                children: _unmodifiableNodes(finalNodes),
+              );
+        finalNodes = <MathNode>[
+          TagNode(span: fullSpan, label: tagStr, body: bodyNode),
+        ];
+      }
       return MathRootNode(
         span: fullSpan,
         displayMode: options.displayMode,
-        children: _unmodifiableNodes(result.nodes),
+        children: _unmodifiableNodes(finalNodes),
         labels: Map<String, String>.unmodifiable(_labels),
       );
     } finally {
@@ -187,6 +236,7 @@ final class _TexParser implements TexParserHost {
     SourceSpan? infixSpan;
     bool rowHasNoTag = false;
     TagNode? rowTag;
+    String? rowLabel;
     String? cellBackground;
     String? rowBackground;
     String? columnBackground;
@@ -202,6 +252,7 @@ final class _TexParser implements TexParserHost {
           stopReason: stopReason,
           rowHasNoTag: rowHasNoTag || (rest?.rowHasNoTag ?? false),
           rowTag: rowTag ?? rest?.rowTag,
+          rowLabel: rest?.rowLabel ?? rowLabel,
           cellBackground: rest?.cellBackground ?? cellBackground,
           rowBackground: rest?.rowBackground ?? rowBackground,
           columnBackground: rest?.columnBackground ?? columnBackground,
@@ -568,16 +619,17 @@ final class _TexParser implements TexParserHost {
             label: tagText,
             isStarred: starred,
           );
-          if (_currentLabelId != null) {
-            _labels[_currentLabelId!] = tagText;
+          if (rowLabel != null) {
+            _labels[rowLabel] = tagText;
           }
           continue;
         }
         if (cs == 'label') {
           final String labelName = readArgumentText('label').trim();
-          _currentLabelId = labelName;
-          final String boundTag = rowTag?.label ?? '${++_autoTagCounter}';
-          _labels[labelName] = boundTag;
+          rowLabel = labelName;
+          if (rowTag != null) {
+            _labels[labelName] = rowTag.label;
+          }
           appendNode(
             TagNode(
               span: token.span,
@@ -608,6 +660,7 @@ final class _TexParser implements TexParserHost {
     required String? stopReason,
     required bool rowHasNoTag,
     required TagNode? rowTag,
+    String? rowLabel,
     String? cellBackground,
     String? rowBackground,
     String? columnBackground,
@@ -618,6 +671,7 @@ final class _TexParser implements TexParserHost {
         stopReason: stopReason,
         rowHasNoTag: rowHasNoTag,
         rowTag: rowTag,
+        rowLabel: rowLabel,
         cellBackground: cellBackground,
         rowBackground: rowBackground,
         columnBackground: columnBackground,
@@ -653,6 +707,7 @@ final class _TexParser implements TexParserHost {
       stopReason: stopReason,
       rowHasNoTag: rowHasNoTag,
       rowTag: rowTag,
+      rowLabel: rowLabel,
       cellBackground: cellBackground,
       rowBackground: rowBackground,
       columnBackground: columnBackground,
@@ -1972,21 +2027,37 @@ final class _TexParser implements TexParserHost {
         if (!activePackages.has('ams')) {
           break;
         }
+        final String? rawShift = activePackages.has('mathtools')
+            ? readOptionalBracketText(cs)
+            : null;
+        final double shiftEm = rawShift != null && rawShift.trim().isNotEmpty
+            ? parseTexDimensionToEm(rawShift)
+            : 0.0;
         final MathNode arg = _parseRequiredArgNode(cs);
+        final List<MathNode> children;
+        if (shiftEm != 0.0) {
+          final SpaceNode spacer = SpaceNode(span: span, widthEm: shiftEm);
+          children = cs == 'shoveleft'
+              ? <MathNode>[spacer, arg]
+              : <MathNode>[arg, spacer];
+        } else {
+          children = <MathNode>[arg];
+        }
         return MathGroupNode(
           span: span.merge(arg.span),
           isExplicitGroup: false,
           role: cs,
-          children: <MathNode>[arg],
+          children: children,
         );
 
       case 'ref':
       case 'eqref':
         final String labelName = readArgumentText(cs).trim();
-        final String resolvedTag = _labels[labelName] ?? '??';
+        final String resolvedTag = _labels[labelName] ?? '???';
         return TagNode(
           span: span,
           label: resolvedTag,
+          targetId: labelName,
           isStarred: cs == 'ref',
           isReference: true,
         );
@@ -3665,6 +3736,7 @@ final class _TexParser implements TexParserHost {
                 ? options
                 : options.copyWith(displayMode: displayMode),
             labels: _labels,
+            tagCounter: _tagCounter,
           )
           .._nestingDepth = _nestingDepth
           .._fontVariant = effectiveFontVariant ?? _fontVariant
@@ -3755,8 +3827,9 @@ final class _TexParser implements TexParserHost {
     MathNode node,
     String? stopReason,
     SourceSpan span,
-    bool rowHasTag,
+    bool rowHasNoTag,
     TagNode? rowTag,
+    String? rowLabel,
     String? cellBackground,
     String? rowBackground,
     String? columnBackground,
@@ -3787,8 +3860,9 @@ final class _TexParser implements TexParserHost {
       node: node,
       stopReason: result.stopReason,
       span: cellSpan,
-      rowHasTag: result.rowHasNoTag,
+      rowHasNoTag: result.rowHasNoTag,
       rowTag: result.rowTag,
+      rowLabel: result.rowLabel,
       cellBackground: result.cellBackground,
       rowBackground: result.rowBackground,
       columnBackground: result.columnBackground,
@@ -3799,8 +3873,9 @@ final class _TexParser implements TexParserHost {
     MathNode node,
     String? stopReason,
     SourceSpan span,
-    bool rowHasTag,
+    bool rowHasNoTag,
     TagNode? rowTag,
+    String? rowLabel,
     String? cellBackground,
     String? rowBackground,
     String? columnBackground,
@@ -3864,8 +3939,9 @@ final class _TexParser implements TexParserHost {
       node: node,
       stopReason: stopReason,
       span: cellSpan,
-      rowHasTag: false,
+      rowHasNoTag: false,
       rowTag: null,
+      rowLabel: null,
       cellBackground: null,
       rowBackground: null,
       columnBackground: null,
@@ -4646,7 +4722,8 @@ final class _TextModeParser {
           items.add(
             TagNode(
               span: tok.span,
-              label: host._labels[lbl] ?? '??',
+              label: host._labels[lbl] ?? '???',
+              targetId: lbl,
               isStarred: cs == 'ref',
               isReference: true,
             ),
@@ -4734,12 +4811,19 @@ final class _TextModeParser {
 
 enum _StopMode { eof, closeBrace, rightDelim, envCell }
 
+final class _AutoTagCounter {
+  int value = 0;
+
+  int next() => ++value;
+}
+
 final class _SeqResult {
   const _SeqResult({
     required this.nodes,
     required this.stopReason,
     required this.rowHasNoTag,
     required this.rowTag,
+    this.rowLabel,
     this.cellBackground,
     this.rowBackground,
     this.columnBackground,
@@ -4749,9 +4833,71 @@ final class _SeqResult {
   final String? stopReason;
   final bool rowHasNoTag;
   final TagNode? rowTag;
+  final String? rowLabel;
   final String? cellBackground;
   final String? rowBackground;
   final String? columnBackground;
+}
+
+const Set<String> _taggableDisplayEnvironments = <String>{
+  'equation',
+  'equation*',
+  'align',
+  'align*',
+  'gather',
+  'gather*',
+  'multline',
+  'multline*',
+  'flalign',
+  'flalign*',
+  'alignat',
+  'alignat*',
+  'xalignat',
+  'xalignat*',
+  'xxalignat',
+  'eqnarray',
+  'eqnarray*',
+  'eqalignno',
+  'leqalignno',
+  'numcases',
+  'subnumcases',
+};
+
+bool _containsTaggableDisplayEnvironment(List<MathNode> nodes) {
+  for (final MathNode node in nodes) {
+    if (_nodeContainsTaggableDisplayEnvironment(node)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+bool _nodeContainsTaggableDisplayEnvironment(MathNode node) {
+  switch (node) {
+    case MatrixNode(:final String environment):
+      return _taggableDisplayEnvironments.contains(environment);
+    case MathGroupNode(:final String? role, :final List<MathNode> children):
+      if (role != null && _taggableDisplayEnvironments.contains(role)) {
+        return true;
+      }
+      return _containsTaggableDisplayEnvironment(children);
+    case TagNode(
+      :final bool isLabelDefinition,
+      :final bool isReference,
+      :final MathNode? body,
+    ):
+      if (!isLabelDefinition && !isReference) {
+        return true;
+      }
+      return body != null && _nodeContainsTaggableDisplayEnvironment(body);
+    case MathRootNode(:final List<MathNode> children):
+    case DelimiterNode(:final List<MathNode> children):
+    case StyleNode(:final List<MathNode> children):
+    case ColorNode(:final List<MathNode> children):
+      return _containsTaggableDisplayEnvironment(children);
+    default:
+      return false;
+  }
 }
 
 final class _OpenEnvFrame {

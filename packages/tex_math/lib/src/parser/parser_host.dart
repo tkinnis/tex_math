@@ -84,8 +84,9 @@ abstract interface class TexParserHost {
     MathNode node,
     String? stopReason,
     SourceSpan span,
-    bool rowHasTag,
+    bool rowHasNoTag,
     TagNode? rowTag,
+    String? rowLabel,
     String? cellBackground,
     String? rowBackground,
     String? columnBackground,
@@ -95,6 +96,12 @@ abstract interface class TexParserHost {
     required bool allowAlignTab,
     bool textMode = false,
   });
+
+  /// Allocates and returns the next 1-based automatic equation tag number.
+  int nextAutoTag();
+
+  /// Binds [labelName] to resolved equation tag text [tag].
+  void bindLabel(String labelName, String tag);
 
   /// Checks whether the next non-ignorable token is `\hline` or `\hdashline`
   /// and consumes it, returning its rule style (`solid` or `dashed`), or `null`.

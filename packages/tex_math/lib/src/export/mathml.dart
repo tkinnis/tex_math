@@ -386,12 +386,17 @@ void _writeMathMlNode(StringBuffer out, MathNode node) {
 
     case MatrixNode(
       :final List<List<MathNode>> rows,
+      :final String environment,
       :final String? leftDelimiter,
       :final String? rightDelimiter,
     ):
       final bool hasLeft = leftDelimiter != null && leftDelimiter.isNotEmpty;
       final bool hasRight = rightDelimiter != null && rightDelimiter.isNotEmpty;
       final bool wrapRow = leftDelimiter != null || rightDelimiter != null;
+      final bool isMultlineEnv =
+          environment == 'multline' ||
+          environment == 'multline*' ||
+          environment == 'multlined';
       if (wrapRow) {
         out.write('<mrow>');
         if (hasLeft) {
@@ -401,10 +406,30 @@ void _writeMathMlNode(StringBuffer out, MathNode node) {
         }
       }
       out.write('<mtable>');
-      for (final List<MathNode> row in rows) {
+      for (int r = 0; r < rows.length; r++) {
+        final List<MathNode> row = rows[r];
         out.write('<mtr>');
         for (final MathNode cell in row) {
-          out.write('<mtd>');
+          String? colAlign;
+          if (isMultlineEnv) {
+            final String? shove = _extractMultlineShoveRole(cell);
+            if (shove == 'shoveleft') {
+              colAlign = 'left';
+            } else if (shove == 'shoveright') {
+              colAlign = 'right';
+            } else if (r == 0) {
+              colAlign = 'left';
+            } else if (r == rows.length - 1 && rows.length > 1) {
+              colAlign = 'right';
+            }
+          }
+          if (colAlign != null) {
+            out.write('<mtd columnalign="');
+            out.write(colAlign);
+            out.write('">');
+          } else {
+            out.write('<mtd>');
+          }
           _writeMathMlNode(out, cell);
           out.write('</mtd>');
         }
@@ -628,3 +653,24 @@ bool _isSymbolOperator(String value) =>
     value.length == 1 && value.codeUnitAt(0) > 0x7F;
 
 String _formatNumber(double value) => formatTrimmedNumber(value);
+
+String? _extractMultlineShoveRole(MathNode node) {
+  if (node is MathGroupNode) {
+    if (node.role == 'shoveleft' || node.role == 'shoveright') {
+      return node.role;
+    }
+    if (!node.isExplicitGroup) {
+      for (final MathNode child in node.children) {
+        if (child is TagNode && child.isLabelDefinition) {
+          continue;
+        }
+        return _extractMultlineShoveRole(child);
+      }
+      return null;
+    }
+    if (node.children.length == 1) {
+      return _extractMultlineShoveRole(node.children.first);
+    }
+  }
+  return null;
+}
