@@ -10,10 +10,10 @@ This document defines the architectural invariants, monorepo boundaries, referen
 
 | Path | Role | SDK / Publishing |
 | :--- | :--- | :--- |
-| `packages/tex_math/` | Pure-Dart TeX tokenizer, macro expander, AST parser, Appendix G layout engine, OpenType `MATH` reader, display list, SVG/MathML/spoken-text exporters. | Pure Dart (`^3.13.0`), `meta` only, published to pub.dev. |
-| `packages/tex_math_flutter/` | Flutter `TexMath` / `TexMathSpan` widgets, theme color roles, glyph `Path` cache, `SelectionArea` / `Semantics` hooks, background isolate layouter, bundled `NewCMMath-Regular.otf`. | Flutter (`>=3.47.0`), depends on `tex_math`, published to pub.dev. |
-| `packages/tex_math_flutter/example/` | Standalone Flutter example app exercising `TexMath` and `TexMathSpan`. | `publish_to: none`. |
-| `studio/` | macOS desktop comparison workbench (`studio/macos/`) comparing `tex_math`, MathJax, and KaTeX side by side. | `publish_to: none`. |
+| `packages/tex_math/` | Pure-Dart TeX tokenizer, macro expander, AST parser, Appendix G layout engine, OpenType `MATH` reader, display list, SVG/MathML/spoken-text exporters. | Pure Dart (`^3.8.0`), `meta` only, published to pub.dev. |
+| `packages/tex_math_flutter/` | Flutter `TexMath` / `TexMathSpan` widgets, theme color roles, glyph `Path` cache, `SelectionArea` / `Semantics` hooks, background isolate layouter, bundled `NewCMMath-Regular.otf`. | Flutter (`>=3.32.0`, Dart `^3.8.0`), depends on `tex_math`, published to pub.dev. |
+| `packages/tex_math_flutter/example/` | Standalone Flutter example app exercising `TexMath` and `TexMathSpan`. | Flutter (`>=3.32.0`), `publish_to: none`. |
+| `studio/` | macOS desktop comparison workbench (`studio/macos/`) comparing `tex_math`, MathJax, and KaTeX side by side. | Flutter (`>=3.47.0`, Dart `^3.13.0`), `publish_to: none`. |
 | `tool/` | Differential MathJax oracle (`tool/oracle/`), version lockstep checks, coverage/benchmark generators, reference sync checker, and doc image generator. | Dart CLI + Node.js dev tooling. |
 | `corpus/` | Categorized `.tex` verification corpus across Tiers 1–3, stretchy delimiters, notebook equations, and error cases, plus `expectations.json`. | Verification fixtures. |
 | `doc/` | Engineering documentation and Docsify portal (`ARCHITECTURE.md`, `API_MANUAL.md`, `COVERAGE.md`, `BENCHMARKS.md`, `STUDIO_GUIDE.md`, `REFERENCE_SYNC.md`, `RELEASING.md`). | GitHub Pages site source. |

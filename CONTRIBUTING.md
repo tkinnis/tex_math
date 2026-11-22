@@ -19,7 +19,7 @@ Before opening an issue or submitting a pull request, review the architectural i
 
 ### Prerequisites
 
-* **Flutter & Dart SDK**: Flutter `>=3.47.0` with Dart `^3.13.0` (`pub` workspace support).
+* **Flutter & Dart SDK**: Flutter `>=3.32.0` with Dart `^3.8.0` for `packages/tex_math` and `packages/tex_math_flutter` (full `pub` workspace resolution including `studio/` requires Flutter `>=3.47.0` and Dart `^3.13.0`).
 * **Node.js** *(for oracle verification)*: Required to run `tool/oracle/render.mjs` and `tool/verify_against_mathjax.dart`.
 
 ### Installing Dependencies

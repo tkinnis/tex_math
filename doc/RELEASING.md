@@ -57,7 +57,7 @@ Run dry-run publishing validation for both publishable packages:
 (cd packages/tex_math_flutter && flutter pub publish --dry-run)
 ```
 
-Verify that both `packages/tex_math` and `packages/tex_math_flutter` pass `dart pub publish --dry-run` / `flutter pub publish --dry-run` cleanly inside the workspace with zero errors or warnings, validating package layout, `.pubignore` exclusions, screenshots, and bundled font/license assets. Because `packages/tex_math_flutter` depends on `tex_math: ^X.Y.Z`, **`tex_math` `X.Y.Z` still must be published to pub.dev before publishing `tex_math_flutter` `X.Y.Z`**, and tag CI only enforces `dart pub publish --dry-run` against `tex_math` when releasing a lockstep bump.
+Verify that both `packages/tex_math` and `packages/tex_math_flutter` pass `dart pub publish --dry-run` / `flutter pub publish --dry-run` cleanly inside the workspace with zero errors or warnings, validating package layout, `.pubignore` exclusions, screenshots, and bundled font/license assets. On release tags, `.github/workflows/ci.yml` enforces both `dart pub publish --dry-run` in `packages/tex_math` and `flutter pub publish --dry-run` in `packages/tex_math_flutter` (alongside `dart doc --dry-run` for each package), while **`tex_math` `X.Y.Z` still must be published to pub.dev before publishing `tex_math_flutter` `X.Y.Z`** because `packages/tex_math_flutter` depends on `tex_math: ^X.Y.Z`.
 
 ---
 

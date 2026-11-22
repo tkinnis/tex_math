@@ -8,7 +8,7 @@ All parsing and OpenType `MATH` layout runs synchronously in pure Dart via `tex_
 
 ## Installation
 
-Install `tex_math_flutter` with the Flutter CLI (requires Dart `^3.13.0` and Flutter `>=3.47.0`):
+Install `tex_math_flutter` with the Flutter CLI (requires Dart `^3.8.0` and Flutter `>=3.32.0`):
 
 ```bash
 flutter pub add tex_math_flutter

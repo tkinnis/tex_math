@@ -85,7 +85,7 @@ flowchart LR
 
 ### Prerequisites & Headless Tests
 
-Install workspace packages and oracle JavaScript assets from the repository root, then run the Studio test suite (headless runs use `HeadlessOraclePaneController` when no native WebView platform is attached):
+Install workspace packages and oracle JavaScript assets from the repository root (`studio/` requires Flutter `>=3.47.0` and Dart `^3.13.0`), then run the Studio test suite (headless runs use `HeadlessOraclePaneController` when no native WebView platform is attached):
 
 ```bash
 flutter pub get

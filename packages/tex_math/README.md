@@ -8,7 +8,7 @@ Every stage of tokenization, macro expansion, syntax-tree parsing, Appendix G la
 
 ## Installation
 
-Install `tex_math` with the Dart CLI (requires Dart `^3.13.0`):
+Install `tex_math` with the Dart CLI (requires Dart `^3.8.0`):
 
 ```bash
 dart pub add tex_math
