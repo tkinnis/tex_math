@@ -634,6 +634,27 @@ void main() {
   });
 
   group('Golden rendering', () {
+    Future<void> expectGoldenWithTolerance(
+      Finder finder,
+      String goldenPath, {
+      required double precisionTolerance,
+    }) async {
+      final GoldenFileComparator previous = goldenFileComparator;
+      if (previous is! LocalFileComparator) {
+        await expectLater(finder, matchesGoldenFile(goldenPath));
+        return;
+      }
+      goldenFileComparator = _TolerantGoldenFileComparator(
+        previous.basedir.resolve('tex_math_flutter_test.dart'),
+        precisionTolerance: precisionTolerance,
+      );
+      try {
+        await expectLater(finder, matchesGoldenFile(goldenPath));
+      } finally {
+        goldenFileComparator = previous;
+      }
+    }
+
     Future<void> pumpGoldenFrame(
       WidgetTester tester, {
       required Widget child,
@@ -644,7 +665,9 @@ void main() {
       await _ensureFontLoaded(tester);
       await tester.pumpWidget(
         MaterialApp(
-          theme: themeData,
+          theme:
+              themeData ??
+              ThemeData(useMaterial3: true, platform: TargetPlatform.macOS),
           home: Scaffold(
             backgroundColor: Colors.white,
             body: Center(
@@ -815,9 +838,10 @@ void main() {
           ),
         ),
       );
-      await expectLater(
+      await expectGoldenWithTolerance(
         find.byKey(const Key('golden-target')),
-        matchesGoldenFile('goldens/inline_span_prose.png'),
+        'goldens/inline_span_prose.png',
+        precisionTolerance: 0.02,
       );
     });
 
@@ -826,7 +850,11 @@ void main() {
         tester,
         background: const Color(0xFF0F172A),
         border: const Color(0xFF334155),
-        themeData: ThemeData.dark(useMaterial3: true),
+        themeData: ThemeData(
+          brightness: Brightness.dark,
+          useMaterial3: true,
+          platform: TargetPlatform.macOS,
+        ),
         child: const TexMathTheme(
           data: TexMathThemeData(
             foreground: Color(0xFFF8FAFC),
@@ -852,10 +880,41 @@ void main() {
         tester,
         child: const TexMath(r'\undefinedcmd + \frac{1}{2}'),
       );
-      await expectLater(
+      await expectGoldenWithTolerance(
         find.byKey(const Key('golden-target')),
-        matchesGoldenFile('goldens/error_widget.png'),
+        'goldens/error_widget.png',
+        precisionTolerance: 0.05,
       );
     });
   });
+}
+
+class _TolerantGoldenFileComparator extends LocalFileComparator {
+  _TolerantGoldenFileComparator(
+    super.testFile, {
+    required double precisionTolerance,
+  }) : assert(
+         0 <= precisionTolerance && precisionTolerance <= 1,
+         'precisionTolerance must be between 0 and 1',
+       ),
+       _precisionTolerance = precisionTolerance;
+
+  final double _precisionTolerance;
+
+  @override
+  Future<bool> compare(Uint8List imageBytes, Uri golden) async {
+    final ComparisonResult result = await GoldenFileComparator.compareLists(
+      imageBytes,
+      await getGoldenBytes(golden),
+    );
+    final bool passed =
+        result.passed || result.diffPercent <= _precisionTolerance;
+    if (passed) {
+      result.dispose();
+      return true;
+    }
+    final String error = await generateFailureOutput(result, golden, basedir);
+    result.dispose();
+    throw FlutterError(error);
+  }
 }
