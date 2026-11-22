@@ -16,21 +16,35 @@ import 'package:tex_math_studio/webview_bridge.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
 final class _FakeWebPaneController implements StudioWebPaneController {
-  _FakeWebPaneController({required this.engineKind, this.captureImage})
-    : _telemetry = ValueNotifier<StudioWebRenderTelemetry>(
-        StudioWebRenderTelemetry(
-          engineKind: engineKind,
-          isReady: true,
-          statusSummary: 'Mock Ready',
-        ),
-      );
+  _FakeWebPaneController({
+    required this.engineKind,
+    this.captureImage,
+    this.captureBuilder,
+    this.deferRender = false,
+  }) : _telemetry = ValueNotifier<StudioWebRenderTelemetry>(
+         StudioWebRenderTelemetry(
+           engineKind: engineKind,
+           isReady: true,
+           statusSummary: 'Mock Ready',
+         ),
+       );
 
   @override
   final StudioEngineKind engineKind;
 
   final StudioCapturedImage? captureImage;
+  StudioCapturedImage? Function(
+    int targetWidth,
+    int targetHeight,
+    StudioWebRenderRequest? lastRequest,
+  )?
+  captureBuilder;
+  bool deferRender;
+
   final ValueNotifier<StudioWebRenderTelemetry> _telemetry;
   final List<StudioWebRenderRequest> requests = <StudioWebRenderRequest>[];
+  final List<({int targetWidth, int targetHeight})> captureRequests =
+      <({int targetWidth, int targetHeight})>[];
   bool initialized = false;
   bool disposed = false;
 
@@ -45,6 +59,35 @@ final class _FakeWebPaneController implements StudioWebPaneController {
   @override
   Future<void> render(StudioWebRenderRequest request) async {
     requests.add(request);
+    if (deferRender) {
+      _telemetry.value = _telemetry.value.copyWith(
+        isReady: true,
+        isRendering: true,
+        clearError: true,
+        statusSummary: 'Rendering…',
+      );
+      return;
+    }
+    _telemetry.value = _telemetry.value.copyWith(
+      isReady: true,
+      isRendering: false,
+      clearError: true,
+      renderTimeMs: 1.5,
+      statusSummary: 'Rendered',
+    );
+  }
+
+  void completeDeferredRender({String? errorMessage}) {
+    if (errorMessage != null) {
+      _telemetry.value = _telemetry.value.copyWith(
+        isReady: true,
+        isRendering: false,
+        clearSvg: true,
+        errorMessage: errorMessage,
+        statusSummary: 'Error',
+      );
+      return;
+    }
     _telemetry.value = _telemetry.value.copyWith(
       isReady: true,
       isRendering: false,
@@ -59,6 +102,14 @@ final class _FakeWebPaneController implements StudioWebPaneController {
     int targetWidth = 480,
     int targetHeight = 220,
   }) async {
+    captureRequests.add((targetWidth: targetWidth, targetHeight: targetHeight));
+    if (captureBuilder != null) {
+      return captureBuilder!(
+        targetWidth,
+        targetHeight,
+        requests.isEmpty ? null : requests.last,
+      );
+    }
     return captureImage;
   }
 
@@ -73,6 +124,38 @@ final class _FakeWebPaneController implements StudioWebPaneController {
     disposed = true;
     _telemetry.dispose();
   }
+}
+
+Future<void> _settleWithAsyncCaptures(WidgetTester tester) async {
+  for (int attempt = 0; attempt < 120; attempt++) {
+    await tester.pump();
+    final bool hasSpinner = find
+        .byType(CircularProgressIndicator)
+        .evaluate()
+        .isNotEmpty;
+    if (!hasSpinner && attempt >= 2) {
+      break;
+    }
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 10)),
+    );
+  }
+  await tester.pumpAndSettle();
+}
+
+StudioCapturedImage _solidCapture(int width, int height, Color color) {
+  final Uint8List bytes = Uint8List(width * height * 4);
+  final int r = (color.r * 255.0).round() & 0xFF;
+  final int g = (color.g * 255.0).round() & 0xFF;
+  final int b = (color.b * 255.0).round() & 0xFF;
+  final int a = (color.a * 255.0).round() & 0xFF;
+  for (int i = 0; i < bytes.length; i += 4) {
+    bytes[i] = r;
+    bytes[i + 1] = g;
+    bytes[i + 2] = b;
+    bytes[i + 3] = a;
+  }
+  return StudioCapturedImage(width: width, height: height, rgbaBytes: bytes);
 }
 
 final class _MockStudioWebViewDriver implements StudioWebViewDriver {
@@ -756,6 +839,8 @@ void main() {
       expect(mathJaxHtml, contains('MathJax.svgStylesheet'));
       expect(mathJaxHtml, contains('MJX-SVG-styles'));
       expect(mathJaxHtml, contains('vb[2] / 1000'));
+      expect(mathJaxHtml, contains('parseFloat(svg.style.width)'));
+      expect(mathJaxHtml, contains('parseFloat(svg.style.height)'));
 
       final String katexBodyCss = cssRuleBody(katexHtml, 'html, body');
       expect(katexBodyCss, contains('-webkit-font-smoothing: antialiased;'));
@@ -789,6 +874,26 @@ void main() {
       expect(mathNormalCss, contains('font-weight: 400;'));
       expect(mathNormalCss, contains('font-synthesis: none;'));
       expect(katexHtml, isNot(contains('.boldsymbol')));
+    });
+
+    test('StudioWebHarnessBuilder disables inline linebreaks and handles multi-SVG output', () {
+      final String mathJaxHtml = StudioWebHarnessBuilder.buildMathJaxHtml(
+        origin: 'http://127.0.0.1:9999',
+        sessionToken: 'tok123',
+      );
+
+      expect(mathJaxHtml, contains('linebreaks: { inline: false }'));
+      expect(mathJaxHtml, contains('querySelectorAll'));
+      expect(mathJaxHtml, contains("wrapper.querySelectorAll('svg')"));
+      expect(
+        mathJaxHtml,
+        contains("document.querySelectorAll('#math-out svg')"),
+      );
+      expect(
+        mathJaxHtml,
+        contains('svgs.length === 1 ? svgs[0] : (wrapper || out)'),
+      );
+      expect(mathJaxHtml, contains('scaledTotalW'));
     });
 
     test(
@@ -1144,7 +1249,7 @@ void main() {
 
         // Verify Pixel Diff capture callback & live error/ready state.
         await tester.tap(find.text('Pixel Diff'));
-        await tester.pumpAndSettle();
+        await _settleWithAsyncCaptures(tester);
         expect(find.text('Run Pixel Diff'), findsOneWidget);
 
         // Return to Side-by-Side mode before exiting.
@@ -1294,7 +1399,7 @@ void main() {
 
         // Selecting a corpus entry invalidates stale Pixel Diff captures (DF-9).
         await tester.tap(find.text('Pixel Diff'));
-        await tester.pumpAndSettle();
+        await _settleWithAsyncCaptures(tester);
         expect(find.text('Match: 75.00%'), findsNothing);
         expect(find.text('Run Pixel Diff'), findsOneWidget);
 
@@ -1360,13 +1465,13 @@ void main() {
 
         // Switching diffTarget invalidates _capturedPair cleanly.
         await tester.tap(find.text('KaTeX 0.19.1'));
-        await tester.pumpAndSettle();
+        await _settleWithAsyncCaptures(tester);
         expect(find.text('Match: 75.00%'), findsNothing);
         expect(find.text('Run Pixel Diff'), findsOneWidget);
 
         // Uncaptured Curtain Diff prompts cleanly without clipping live WebViews.
         await tester.tap(find.text('Curtain Diff'));
-        await tester.pumpAndSettle();
+        await _settleWithAsyncCaptures(tester);
         expect(find.text('Capture for Curtain Diff'), findsOneWidget);
         expect(find.byType(Slider), findsNothing);
 
@@ -1388,7 +1493,7 @@ void main() {
           find.widgetWithText(TextField, 'TeX Source'),
           'x + 1',
         );
-        await tester.pumpAndSettle();
+        await _settleWithAsyncCaptures(tester);
         expect(find.text('Match: 75.00%'), findsNothing);
         expect(find.text('Run Pixel Diff'), findsOneWidget);
 
@@ -1407,7 +1512,7 @@ void main() {
         expect(find.text('Match: 75.00%'), findsOneWidget);
 
         await tester.tap(find.text('Inline'));
-        await tester.pumpAndSettle();
+        await _settleWithAsyncCaptures(tester);
         expect(find.text('Match: 75.00%'), findsNothing);
 
         await tester.pumpWidget(
@@ -1424,7 +1529,7 @@ void main() {
         expect(find.text('Match: 75.00%'), findsOneWidget);
 
         await tester.tap(find.byTooltip('Toggle Light/Dark Theme'));
-        await tester.pumpAndSettle();
+        await _settleWithAsyncCaptures(tester);
         expect(find.text('Match: 75.00%'), findsNothing);
       },
     );
@@ -1859,6 +1964,436 @@ void main() {
           ),
           findsOneWidget,
         );
+      },
+    );
+
+    testWidgets(
+      r'tapping \href{https://example.org}{E = mc^2} in Studio shows Link tapped snackbar',
+      (WidgetTester tester) async {
+        tester.view.physicalSize = const Size(1280, 800);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        await tester.pumpWidget(
+          TexMathStudioApp(
+            corpusCatalog: StudioCorpusCatalog.embeddedFallback(),
+            initialFont: loadedFont,
+            initialSource: r'\href{https://example.org}{E = mc^2}',
+            webPaneControllerFactory: (StudioEngineKind kind, _) {
+              return _FakeWebPaneController(engineKind: kind);
+            },
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.byType(TexMath), findsOneWidget);
+        expect(find.byType(SnackBar), findsNothing);
+
+        final Finder texMathFinder = find.byType(TexMath);
+        await tester.tapAt(tester.getCenter(texMathFinder));
+        await tester.pumpAndSettle();
+
+        expect(find.byType(SnackBar), findsOneWidget);
+        expect(find.text('Link tapped: https://example.org'), findsOneWidget);
+
+        // Updating to two links and tapping the second replaces the snackbar.
+        await tester.enterText(
+          find.widgetWithText(TextField, 'TeX Source'),
+          r'\href{https://a.example}{A} + \href{https://b.example}{B}',
+        );
+        await tester.pumpAndSettle();
+
+        final Offset topRightInsideMath =
+            tester.getTopRight(texMathFinder) +
+            Offset(-6.0, tester.getSize(texMathFinder).height * 0.5);
+        await tester.tapAt(topRightInsideMath);
+        await tester.pumpAndSettle();
+
+        expect(find.text('Link tapped: https://example.org'), findsNothing);
+        expect(find.text('Link tapped: https://b.example'), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      'auto-renders Pixel Diff and Curtain Diff across corpus switches, '
+      'diffTarget/Display/Inline changes, and manual Capture & Diff / Run Pixel Diff',
+      (WidgetTester tester) async {
+        tester.view.physicalSize = const Size(1280, 900);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        late _FakeWebPaneController mathJaxCtrl;
+        late _FakeWebPaneController katexCtrl;
+        bool allowInitialCapture = false;
+
+        await tester.pumpWidget(
+          TexMathStudioApp(
+            corpusCatalog: StudioCorpusCatalog.embeddedFallback(),
+            initialFont: loadedFont,
+            webPaneControllerFactory: (StudioEngineKind kind, _) {
+              final _FakeWebPaneController ctrl = _FakeWebPaneController(
+                engineKind: kind,
+                captureBuilder: (int w, int h, StudioWebRenderRequest? req) {
+                  if (!allowInitialCapture) {
+                    return null;
+                  }
+                  final bool isAlt =
+                      req != null && req.source.contains('infty');
+                  return _solidCapture(
+                    w,
+                    h,
+                    isAlt ? const Color(0xFFF1F5F9) : Colors.white,
+                  );
+                },
+              );
+              if (kind == StudioEngineKind.mathJax) {
+                mathJaxCtrl = ctrl;
+              } else {
+                katexCtrl = ctrl;
+              }
+              return ctrl;
+            },
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        // Start in Pixel Diff while capture returns null -> shows Run Pixel Diff.
+        await tester.tap(find.text('Pixel Diff'));
+        await _settleWithAsyncCaptures(tester);
+        expect(find.text('Run Pixel Diff'), findsOneWidget);
+
+        // Enable capture and click "Run Pixel Diff" directly while in Pixel Diff.
+        allowInitialCapture = true;
+        await tester.tap(find.text('Run Pixel Diff'));
+        await _settleWithAsyncCaptures(tester);
+
+        expect(find.text('Run Pixel Diff'), findsNothing);
+        expect(find.textContaining('Match:'), findsOneWidget);
+        expect(find.textContaining('Diff Pixels:'), findsOneWidget);
+        expect(mathJaxCtrl.captureRequests.length, 2);
+        expect(mathJaxCtrl.captureRequests.last.targetWidth, greaterThan(100));
+        expect(mathJaxCtrl.captureRequests.last.targetHeight, greaterThan(100));
+
+        // Clicking "Capture & Diff" while already in Pixel Diff re-captures.
+        await tester.tap(find.text('Capture & Diff'));
+        await _settleWithAsyncCaptures(tester);
+        expect(mathJaxCtrl.captureRequests.length, 3);
+        expect(find.textContaining('Match:'), findsOneWidget);
+
+        // Switching corpus diagram while already in Pixel Diff auto-renders.
+        final String firstMatchText = tester
+            .widget<Text>(find.textContaining('Match:'))
+            .data!;
+        await tester.tap(find.text('gaussian_integral'));
+        await _settleWithAsyncCaptures(tester);
+
+        expect(find.text('Run Pixel Diff'), findsNothing);
+        expect(mathJaxCtrl.captureRequests.length, 4);
+        final String secondMatchText = tester
+            .widget<Text>(find.textContaining('Match:'))
+            .data!;
+        expect(secondMatchText, isNot(firstMatchText));
+
+        // Switching diffTarget to KaTeX while in Pixel Diff auto-recaptures.
+        await tester.tap(find.text('KaTeX 0.19.1'));
+        await _settleWithAsyncCaptures(tester);
+        expect(find.text('Run Pixel Diff'), findsNothing);
+        expect(find.text('KaTeX 0.19.1 Capture'), findsOneWidget);
+        expect(katexCtrl.captureRequests.length, 1);
+
+        // Toggling Inline while in Pixel Diff auto-recaptures.
+        await tester.tap(find.text('Inline'));
+        await _settleWithAsyncCaptures(tester);
+        expect(find.text('Run Pixel Diff'), findsNothing);
+        expect(katexCtrl.captureRequests.length, 2);
+
+        // Switching to Curtain Diff and picking another corpus diagram auto-renders.
+        await tester.tap(find.text('Curtain Diff'));
+        await _settleWithAsyncCaptures(tester);
+        expect(find.text('Capture for Curtain Diff'), findsNothing);
+        expect(find.text('Curtain: 50%'), findsOneWidget);
+        expect(find.byType(Slider), findsOneWidget);
+
+        await tester.tap(find.text('identity_matrix'));
+        await _settleWithAsyncCaptures(tester);
+        expect(find.text('Capture for Curtain Diff'), findsNothing);
+        expect(find.text('Curtain: 50%'), findsOneWidget);
+        expect(katexCtrl.captureRequests.length, 3);
+      },
+    );
+
+    testWidgets(
+      'displays spinner during target rendering and diagnostic error + Retry when target fails',
+      (WidgetTester tester) async {
+        tester.view.physicalSize = const Size(1280, 900);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        late _FakeWebPaneController katexCtrl;
+
+        await tester.pumpWidget(
+          TexMathStudioApp(
+            corpusCatalog: StudioCorpusCatalog.embeddedFallback(),
+            initialFont: loadedFont,
+            webPaneControllerFactory: (StudioEngineKind kind, _) {
+              final _FakeWebPaneController ctrl = _FakeWebPaneController(
+                engineKind: kind,
+                deferRender: kind == StudioEngineKind.katex,
+                captureBuilder: (int w, int h, _) =>
+                    _solidCapture(w, h, Colors.white),
+              );
+              if (kind == StudioEngineKind.katex) {
+                katexCtrl = ctrl;
+              }
+              return ctrl;
+            },
+          ),
+        );
+        await tester.pump();
+        katexCtrl.completeDeferredRender();
+        await tester.pumpAndSettle();
+
+        // Switch to Pixel Diff and KaTeX target.
+        await tester.tap(find.text('Pixel Diff'));
+        await _settleWithAsyncCaptures(tester);
+        await tester.tap(find.text('KaTeX 0.19.1'));
+        await _settleWithAsyncCaptures(tester);
+        expect(find.textContaining('Match:'), findsOneWidget);
+
+        // Trigger a deferred render error while in Pixel Diff.
+        await tester.tap(find.text('gaussian_integral'));
+        await tester.pump();
+
+        // While target is rendering, spinner shows instead of Run Pixel Diff.
+        expect(find.text('Capturing & computing diff…'), findsOneWidget);
+        expect(find.text('Run Pixel Diff'), findsNothing);
+
+        // Target finishes with error -> diagnostic message + Retry button shown.
+        katexCtrl.completeDeferredRender(
+          errorMessage: 'KaTeX parse error: No such environment: multline',
+        );
+        await tester.pumpAndSettle();
+        expect(
+          find.text(
+            'Cannot compute diff: KaTeX 0.19.1 reported an error: '
+            'KaTeX parse error: No such environment: multline',
+          ),
+          findsOneWidget,
+        );
+        expect(find.text('Retry'), findsOneWidget);
+        expect(find.text('Run Pixel Diff'), findsNothing);
+
+        // Also verify diagnostic message appears in Curtain Diff when errored.
+        await tester.tap(find.text('Curtain Diff'));
+        await tester.pumpAndSettle();
+        expect(
+          find.text(
+            'Cannot compute diff: KaTeX 0.19.1 reported an error: '
+            'KaTeX parse error: No such environment: multline',
+          ),
+          findsOneWidget,
+        );
+        expect(find.text('Retry'), findsOneWidget);
+
+        // Clearing error and tapping Retry recovers and captures Curtain Diff.
+        katexCtrl.completeDeferredRender();
+        await tester.tap(find.text('Retry'));
+        await _settleWithAsyncCaptures(tester);
+        expect(find.text('Curtain: 50%'), findsOneWidget);
+        expect(find.byType(Slider), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      'tex_math pane scrolls horizontally on wide expressions, displays Scrollbars in sideBySide, resets offset on switch, and wraps TexMathErrorWidget',
+      (WidgetTester tester) async {
+        tester.view.physicalSize = const Size(1280, 800);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        final String wideExpr = List<String>.generate(
+          25,
+          (int i) => 'x_{$i}',
+        ).join(' + ');
+
+        await tester.pumpWidget(
+          TexMathStudioApp(
+            corpusCatalog: StudioCorpusCatalog.embeddedFallback(),
+            initialFont: loadedFont,
+            initialSource: wideExpr,
+            webPaneControllerFactory: (StudioEngineKind kind, _) {
+              return _FakeWebPaneController(engineKind: kind);
+            },
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.byType(TexMath), findsOneWidget);
+        expect(find.byType(TexMathErrorWidget), findsNothing);
+        expect(
+          find.descendant(
+            of: find.byType(TexMath),
+            matching: find.byType(SingleChildScrollView),
+          ),
+          findsNothing,
+        );
+
+        final Finder hScrollFinder = find.ancestor(
+          of: find.byType(TexMath),
+          matching: find.byWidgetPredicate(
+            (Widget w) =>
+                w is SingleChildScrollView &&
+                w.scrollDirection == Axis.horizontal,
+          ),
+        );
+        final Finder vScrollFinder = find.ancestor(
+          of: find.byType(TexMath),
+          matching: find.byWidgetPredicate(
+            (Widget w) =>
+                w is SingleChildScrollView &&
+                w.scrollDirection == Axis.vertical,
+          ),
+        );
+        expect(hScrollFinder, findsOneWidget);
+        expect(vScrollFinder, findsOneWidget);
+
+        final Finder scrollbarsFinder = find.ancestor(
+          of: find.byType(TexMath),
+          matching: find.byType(Scrollbar),
+        );
+        expect(scrollbarsFinder, findsNWidgets(2));
+        final List<Scrollbar> sideBySideScrollbars = tester
+            .widgetList<Scrollbar>(scrollbarsFinder)
+            .toList();
+        expect(
+          sideBySideScrollbars.every(
+            (Scrollbar s) => s.thumbVisibility == true,
+          ),
+          isTrue,
+        );
+
+        final SingleChildScrollView hScroll = tester
+            .widget<SingleChildScrollView>(hScrollFinder);
+        final ScrollController hController = hScroll.controller!;
+        expect(hController.hasClients, isTrue);
+        expect(hController.position.maxScrollExtent, greaterThan(0.0));
+        expect(hController.offset, 0.0);
+
+        final Rect hScrollRect = tester.getRect(hScrollFinder);
+        await tester.dragFrom(
+          Offset(hScrollRect.center.dx, hScrollRect.top + 16.0),
+          const Offset(-150.0, 0.0),
+        );
+        await tester.pumpAndSettle();
+        expect(hController.offset, greaterThan(0.0));
+
+        // Scrollbars hide outside sideBySide diff mode.
+        await tester.tap(find.text('Pixel Diff'));
+        await _settleWithAsyncCaptures(tester);
+        final List<Scrollbar> diffScrollbars = tester
+            .widgetList<Scrollbar>(scrollbarsFinder)
+            .toList();
+        expect(
+          diffScrollbars.every((Scrollbar s) => s.thumbVisibility == false),
+          isTrue,
+        );
+
+        await tester.tap(find.text('Side-by-Side'));
+        await tester.pumpAndSettle();
+
+        // Switching expression resets scroll offset back to 0.0.
+        await tester.tap(find.text('fraction_basic'));
+        await tester.pumpAndSettle();
+        expect(hController.offset, 0.0);
+
+        // Error widget wraps inside pane width rather than expanding horizontally.
+        final String longErrorExpr =
+            '\\undefinedcmd ${List<String>.generate(24, (int i) => 'token$i').join(' ')}';
+        await tester.enterText(
+          find.widgetWithText(TextField, 'TeX Source'),
+          longErrorExpr,
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.byType(TexMathErrorWidget), findsOneWidget);
+        final Finder errorHScrollFinder = find.ancestor(
+          of: find.byType(TexMathErrorWidget),
+          matching: find.byWidgetPredicate(
+            (Widget w) =>
+                w is SingleChildScrollView &&
+                w.scrollDirection == Axis.horizontal,
+          ),
+        );
+        expect(errorHScrollFinder, findsOneWidget);
+        final SingleChildScrollView errorHScroll = tester
+            .widget<SingleChildScrollView>(errorHScrollFinder);
+        expect(errorHScroll.controller!.position.maxScrollExtent, 0.0);
+
+        final Size paneSize = tester.getSize(errorHScrollFinder);
+        final Size errorSize = tester.getSize(find.byType(TexMathErrorWidget));
+        expect(errorSize.width, lessThanOrEqualTo(paneSize.width - 24.0 + 0.5));
+      },
+    );
+
+    testWidgets(
+      'tex_math pane scrolls vertically on tall expressions and resets vertical scroll offset on switch',
+      (WidgetTester tester) async {
+        tester.view.physicalSize = const Size(1280, 720);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        final String tallExpr =
+            r'\begin{pmatrix} ' +
+            List<String>.generate(
+              16,
+              (int i) => 'a_{$i} & b_{$i}',
+            ).join(r' \\ ') +
+            r' \end{pmatrix}';
+
+        await tester.pumpWidget(
+          TexMathStudioApp(
+            corpusCatalog: StudioCorpusCatalog.embeddedFallback(),
+            initialFont: loadedFont,
+            initialSource: tallExpr,
+            webPaneControllerFactory: (StudioEngineKind kind, _) {
+              return _FakeWebPaneController(engineKind: kind);
+            },
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.byType(TexMath), findsOneWidget);
+        expect(find.byType(TexMathErrorWidget), findsNothing);
+
+        final Finder vScrollFinder = find.ancestor(
+          of: find.byType(TexMath),
+          matching: find.byWidgetPredicate(
+            (Widget w) =>
+                w is SingleChildScrollView &&
+                w.scrollDirection == Axis.vertical,
+          ),
+        );
+        expect(vScrollFinder, findsOneWidget);
+
+        final SingleChildScrollView vScroll = tester
+            .widget<SingleChildScrollView>(vScrollFinder);
+        final ScrollController vController = vScroll.controller!;
+        expect(vController.hasClients, isTrue);
+        expect(vController.position.maxScrollExtent, greaterThan(0.0));
+        expect(vController.offset, 0.0);
+
+        await tester.drag(vScrollFinder, const Offset(0.0, -120.0));
+        await tester.pumpAndSettle();
+        expect(vController.offset, greaterThan(0.0));
+
+        await tester.tap(find.text('fraction_basic'));
+        await tester.pumpAndSettle();
+        expect(vController.offset, 0.0);
       },
     );
   });

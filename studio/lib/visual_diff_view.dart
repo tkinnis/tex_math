@@ -629,14 +629,34 @@ final class _StudioComparisonViewState extends State<StudioComparisonView> {
 
   @override
   Widget build(BuildContext context) {
-    switch (widget.mode) {
-      case StudioComparisonMode.sideBySide:
-        return _buildSideBySide(context);
-      case StudioComparisonMode.pixelDiff:
-        return _buildPixelDiff(context);
-      case StudioComparisonMode.curtainDiff:
-        return _buildCurtainDiff(context);
+    if (widget.mode == StudioComparisonMode.sideBySide) {
+      return _buildSideBySide(context);
     }
+    return Stack(
+      fit: StackFit.expand,
+      children: <Widget>[
+        IgnorePointer(
+          child: ExcludeSemantics(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: <Widget>[
+                Expanded(child: _buildTexMathCapturePane(context)),
+                const SizedBox(width: 10.0),
+                const Expanded(child: SizedBox.shrink()),
+                const SizedBox(width: 10.0),
+                const Expanded(child: SizedBox.shrink()),
+              ],
+            ),
+          ),
+        ),
+        ColoredBox(
+          color: Theme.of(context).colorScheme.surface,
+          child: widget.mode == StudioComparisonMode.pixelDiff
+              ? _buildPixelDiff(context)
+              : _buildCurtainDiff(context),
+        ),
+      ],
+    );
   }
 
   Color _paneCanvasBackground(BuildContext context) {
@@ -645,24 +665,31 @@ final class _StudioComparisonViewState extends State<StudioComparisonView> {
         : Colors.white;
   }
 
+  StudioWebPaneController get _activeTargetController =>
+      widget.diffTarget == StudioDiffTarget.mathJax
+      ? widget.mathJaxController
+      : widget.katexController;
+
+  Widget _buildTexMathCapturePane(BuildContext context) {
+    return _PaneCard(
+      title: 'tex_math (Pure Dart)',
+      child: RepaintBoundary(
+        key: widget.texMathBoundaryKey,
+        child: Container(
+          width: double.infinity,
+          height: double.infinity,
+          color: _paneCanvasBackground(context),
+          child: widget.texMathPane,
+        ),
+      ),
+    );
+  }
+
   Widget _buildSideBySide(BuildContext context) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
-        Expanded(
-          child: _PaneCard(
-            title: 'tex_math (Pure Dart)',
-            child: RepaintBoundary(
-              key: widget.texMathBoundaryKey,
-              child: Container(
-                width: double.infinity,
-                height: double.infinity,
-                color: _paneCanvasBackground(context),
-                child: widget.texMathPane,
-              ),
-            ),
-          ),
-        ),
+        Expanded(child: _buildTexMathCapturePane(context)),
         const SizedBox(width: 10.0),
         Expanded(child: _WebPaneCard(controller: widget.mathJaxController)),
         const SizedBox(width: 10.0),
@@ -806,31 +833,84 @@ final class _StudioComparisonViewState extends State<StudioComparisonView> {
               )
             else
               Expanded(
-                child: Center(
-                  child: SingleChildScrollView(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: <Widget>[
-                        const Text(
-                          'Capture live panes to compute per-pixel RGBA diff.',
-                          textAlign: TextAlign.center,
-                        ),
-                        const SizedBox(height: 8.0),
-                        OutlinedButton.icon(
-                          onPressed: widget.isCapturing
-                              ? null
-                              : widget.onCaptureRequested,
-                          icon: const Icon(Icons.compare),
-                          label: const Text('Run Pixel Diff'),
-                        ),
-                      ],
-                    ),
-                  ),
+                child: _buildDiffEmptyState(
+                  context,
+                  idleMessage:
+                      'Capture live panes to compute per-pixel RGBA diff.',
+                  actionButtonLabel: 'Run Pixel Diff',
                 ),
               ),
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildDiffEmptyState(
+    BuildContext context, {
+    required String idleMessage,
+    required String actionButtonLabel,
+  }) {
+    return ValueListenableBuilder<StudioWebRenderTelemetry>(
+      valueListenable: _activeTargetController.telemetry,
+      builder: (BuildContext context, StudioWebRenderTelemetry targetTelemetry, _) {
+        if (widget.isCapturing || targetTelemetry.isRendering) {
+          return const Center(
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  CircularProgressIndicator(),
+                  SizedBox(height: 8.0),
+                  Text('Capturing & computing diff…'),
+                ],
+              ),
+            ),
+          );
+        }
+        final String? errorMessage = targetTelemetry.errorMessage;
+        if (errorMessage != null) {
+          return Center(
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  Text(
+                    'Cannot compute diff: ${widget.diffTarget.label} reported an error: $errorMessage',
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 8.0),
+                  OutlinedButton.icon(
+                    onPressed: widget.isCapturing
+                        ? null
+                        : widget.onCaptureRequested,
+                    icon: const Icon(Icons.refresh),
+                    label: const Text('Retry'),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }
+        return Center(
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                Text(idleMessage, textAlign: TextAlign.center),
+                const SizedBox(height: 8.0),
+                OutlinedButton.icon(
+                  onPressed: widget.isCapturing
+                      ? null
+                      : widget.onCaptureRequested,
+                  icon: const Icon(Icons.compare),
+                  label: Text(actionButtonLabel),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -847,26 +927,11 @@ final class _StudioComparisonViewState extends State<StudioComparisonView> {
               _buildTargetBar(context),
               const Divider(height: 12.0),
               Expanded(
-                child: Center(
-                  child: SingleChildScrollView(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: <Widget>[
-                        const Text(
-                          'Capture live panes to inspect interactive curtain diff.',
-                          textAlign: TextAlign.center,
-                        ),
-                        const SizedBox(height: 8.0),
-                        OutlinedButton.icon(
-                          onPressed: widget.isCapturing
-                              ? null
-                              : widget.onCaptureRequested,
-                          icon: const Icon(Icons.compare),
-                          label: const Text('Capture for Curtain Diff'),
-                        ),
-                      ],
-                    ),
-                  ),
+                child: _buildDiffEmptyState(
+                  context,
+                  idleMessage:
+                      'Capture live panes to inspect interactive curtain diff.',
+                  actionButtonLabel: 'Capture for Curtain Diff',
                 ),
               ),
             ],

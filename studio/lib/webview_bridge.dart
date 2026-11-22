@@ -629,7 +629,8 @@ window.MathJax = {
     formatError: (jax, err) => { throw err; }
   },
   svg: {
-    fontCache: 'local'
+    fontCache: 'local',
+    linebreaks: { inline: false }
   },
   startup: {
     typeset: false,
@@ -705,9 +706,9 @@ window.studioRender = async function(req) {
       return;
     }
     syncMathJaxStylesheet();
-    const svg = wrapper.querySelector('svg');
+    const svgs = Array.from(wrapper.querySelectorAll('svg'));
     const pxSize = req.fontSize || 22;
-    if (svg) {
+    for (const svg of svgs) {
       const vb = (svg.getAttribute('viewBox') || '').trim().split(/\\s+/).map(Number);
       if (vb.length === 4 && Number.isFinite(vb[2]) && Number.isFinite(vb[3]) && vb[2] > 0 && vb[3] > 0) {
         svg.style.width = ((vb[2] / 1000) * pxSize) + 'px';
@@ -719,8 +720,11 @@ window.studioRender = async function(req) {
     errBox.style.display = 'none';
     out.style.display = 'inline-block';
 
-    const rect = (svg || out).getBoundingClientRect();
-    const svgXml = svg ? new XMLSerializer().serializeToString(svg) : '';
+    const rect = (svgs.length === 1 ? svgs[0] : (wrapper || out)).getBoundingClientRect();
+    const serializer = new XMLSerializer();
+    const svgXml = svgs.length === 1
+      ? serializer.serializeToString(svgs[0])
+      : svgs.map((svg) => serializer.serializeToString(svg)).join('');
     postBridge({
       type: 'rendered',
       seq: seq,
@@ -755,49 +759,106 @@ window.studioRequestCapture = function(requestId, targetW, targetH) {
 
 window.studioCapturePng = function(targetW, targetH) {
   return new Promise((resolve) => {
-    const svg = document.querySelector('#math-out svg');
-    if (!svg) {
+    const svgs = Array.from(document.querySelectorAll('#math-out svg'));
+    if (svgs.length === 0) {
       resolve('');
       return;
     }
     const w = Math.max(1, targetW | 0);
     const h = Math.max(1, targetH | 0);
-    const clone = svg.cloneNode(true);
-    clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
     const mjStyle = document.getElementById('MJX-SVG-styles');
-    if (mjStyle && mjStyle.textContent) {
-      const styleEl = document.createElementNS('http://www.w3.org/2000/svg', 'style');
-      styleEl.textContent = mjStyle.textContent;
-      clone.insertBefore(styleEl, clone.firstChild);
+    const styleText = mjStyle && mjStyle.textContent ? mjStyle.textContent : '';
+    const serializer = new XMLSerializer();
+    const availW = Math.max(1, w - 24);
+    const availH = Math.max(1, h - 24);
+
+    const measureSvg = (svg) => {
+      const rect = svg.getBoundingClientRect();
+      const styleW = parseFloat(svg.style.width);
+      const styleH = parseFloat(svg.style.height);
+      const drawW = Math.max(1, (rect.width > 0 ? rect.width : (Number.isFinite(styleW) && styleW > 0 ? styleW : w)));
+      const drawH = Math.max(1, (rect.height > 0 ? rect.height : (Number.isFinite(styleH) && styleH > 0 ? styleH : h)));
+      return { drawW, drawH };
+    };
+
+    const serializeSvg = (svg, outW, outH) => {
+      const clone = svg.cloneNode(true);
+      clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+      if (styleText) {
+        const styleEl = document.createElementNS('http://www.w3.org/2000/svg', 'style');
+        styleEl.textContent = styleText;
+        clone.insertBefore(styleEl, clone.firstChild);
+      }
+      clone.setAttribute('width', String(outW));
+      clone.setAttribute('height', String(outH));
+      const serialized = serializer.serializeToString(clone);
+      return serialized.replaceAll('currentColor', window.__currentFg || '#111827');
+    };
+
+    const loadSvgImage = (serialized) => new Promise((res, rej) => {
+      const img = new Image();
+      img.onload = () => res(img);
+      img.onerror = rej;
+      img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(serialized);
+    });
+
+    if (svgs.length === 1) {
+      const svg = svgs[0];
+      const { drawW, drawH } = measureSvg(svg);
+      const scale = Math.min(availW / drawW, availH / drawH, 2.0);
+      const outW = Math.max(1, drawW * scale);
+      const outH = Math.max(1, drawH * scale);
+      loadSvgImage(serializeSvg(svg, outW, outH))
+        .then((img) => {
+          const canvas = document.createElement('canvas');
+          canvas.width = w;
+          canvas.height = h;
+          const ctx = canvas.getContext('2d');
+          ctx.fillStyle = window.__currentBg || '#ffffff';
+          ctx.fillRect(0, 0, w, h);
+          const dx = Math.round((w - outW) / 2);
+          const dy = Math.round((h - outH) / 2);
+          ctx.drawImage(img, dx, dy, outW, outH);
+          resolve(canvas.toDataURL('image/png'));
+        })
+        .catch(() => resolve(''));
+      return;
     }
 
-    const rect = svg.getBoundingClientRect();
-    const drawW = Math.max(1, rect.width || w);
-    const drawH = Math.max(1, rect.height || h);
-    const scale = Math.min((w - 24) / drawW, (h - 24) / drawH, 2.0);
-    const outW = Math.max(1, drawW * scale);
-    const outH = Math.max(1, drawH * scale);
-    clone.setAttribute('width', String(outW));
-    clone.setAttribute('height', String(outH));
+    const measured = svgs.map((svg) => ({ svg, ...measureSvg(svg) }));
+    const totalW = Math.max(1, measured.reduce((sum, item) => sum + item.drawW, 0));
+    const maxH = Math.max(1, ...measured.map((item) => item.drawH));
+    const scale = Math.min(availW / totalW, availH / maxH, 2.0);
+    const items = measured.map((item) => {
+      const outW = Math.max(1, item.drawW * scale);
+      const outH = Math.max(1, item.drawH * scale);
+      return {
+        outW,
+        outH,
+        serialized: serializeSvg(item.svg, outW, outH)
+      };
+    });
+    const scaledTotalW = items.reduce((sum, item) => sum + item.outW, 0);
 
-    let serialized = new XMLSerializer().serializeToString(clone);
-    serialized = serialized.replaceAll('currentColor', window.__currentFg || '#111827');
-
-    const img = new Image();
-    img.onload = () => {
-      const canvas = document.createElement('canvas');
-      canvas.width = w;
-      canvas.height = h;
-      const ctx = canvas.getContext('2d');
-      ctx.fillStyle = window.__currentBg || '#ffffff';
-      ctx.fillRect(0, 0, w, h);
-      const dx = Math.round((w - outW) / 2);
-      const dy = Math.round((h - outH) / 2);
-      ctx.drawImage(img, dx, dy, outW, outH);
-      resolve(canvas.toDataURL('image/png'));
-    };
-    img.onerror = () => resolve('');
-    img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(serialized);
+    Promise.all(items.map((item) => loadSvgImage(item.serialized)))
+      .then((imgs) => {
+        const canvas = document.createElement('canvas');
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = window.__currentBg || '#ffffff';
+        ctx.fillRect(0, 0, w, h);
+        let curX = (w - scaledTotalW) / 2;
+        for (let i = 0; i < imgs.length; i++) {
+          const item = items[i];
+          const dx = Math.round(curX);
+          const dy = Math.round((h - item.outH) / 2);
+          ctx.drawImage(imgs[i], dx, dy, item.outW, item.outH);
+          curX += item.outW;
+        }
+        resolve(canvas.toDataURL('image/png'));
+      })
+      .catch(() => resolve(''));
   });
 };
 </script>

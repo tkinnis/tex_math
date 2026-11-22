@@ -1,9 +1,11 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show RenderRepaintBoundary;
 import 'package:flutter/services.dart';
 import 'package:tex_math_flutter/tex_math_flutter.dart';
 import 'package:webview_flutter/webview_flutter.dart';
@@ -161,6 +163,9 @@ final class _StudioWorkbenchPageState extends State<StudioWorkbenchPage> {
 
   final GlobalKey _texMathBoundaryKey = GlobalKey();
   final ScrollController _corpusScrollController = ScrollController();
+  final ScrollController _texMathHorizontalScrollController =
+      ScrollController();
+  final ScrollController _texMathVerticalScrollController = ScrollController();
   final FocusNode _corpusListFocusNode = FocusNode(debugLabel: 'CorpusList');
   GlobalKey _selectedCorpusRowKey = GlobalKey();
   late final TextEditingController _sourceController;
@@ -193,6 +198,9 @@ final class _StudioWorkbenchPageState extends State<StudioWorkbenchPage> {
 
   StudioCapturedPair? _capturedPair;
   bool _isCapturing = false;
+  int _diffGeneration = 0;
+  bool _recapturePending = false;
+  VoidCallback? _cancelActiveReadyWait;
 
   bool _hasInitializedInspection = false;
   Map<TexMathColorRole, String>? _cachedSvgColors;
@@ -641,6 +649,9 @@ final class _StudioWorkbenchPageState extends State<StudioWorkbenchPage> {
     if (oldWidget.isDarkTheme != widget.isDarkTheme) {
       _capturedPair = null;
       unawaited(_dispatchWebRender());
+      if (_comparisonMode != StudioComparisonMode.sideBySide) {
+        unawaited(_scheduleAutoDiff());
+      }
     }
     if (oldWidget.initialCapturedPair != widget.initialCapturedPair &&
         widget.initialCapturedPair != null) {
@@ -650,7 +661,11 @@ final class _StudioWorkbenchPageState extends State<StudioWorkbenchPage> {
 
   @override
   void dispose() {
+    _diffGeneration++;
+    _cancelActiveReadyWait?.call();
     _corpusScrollController.dispose();
+    _texMathHorizontalScrollController.dispose();
+    _texMathVerticalScrollController.dispose();
     _corpusListFocusNode.dispose();
     _sourceController.dispose();
     _searchController.dispose();
@@ -704,7 +719,16 @@ final class _StudioWorkbenchPageState extends State<StudioWorkbenchPage> {
       _capturedPair = null;
       _recomputeInspection();
     });
+    if (_texMathHorizontalScrollController.hasClients) {
+      _texMathHorizontalScrollController.jumpTo(0.0);
+    }
+    if (_texMathVerticalScrollController.hasClients) {
+      _texMathVerticalScrollController.jumpTo(0.0);
+    }
     unawaited(_dispatchWebRender());
+    if (_comparisonMode != StudioComparisonMode.sideBySide) {
+      unawaited(_scheduleAutoDiff());
+    }
   }
 
   void _selectCorpusEntry(
@@ -852,18 +876,111 @@ final class _StudioWorkbenchPageState extends State<StudioWorkbenchPage> {
     return KeyEventResult.handled;
   }
 
-  Future<void> _captureForDiff() async {
-    if (_isCapturing) {
+  Future<void> _waitForTargetReady(StudioWebPaneController controller) async {
+    bool isTargetReady(StudioWebRenderTelemetry value) =>
+        value.isReady && !value.isRendering;
+
+    if (isTargetReady(controller.telemetry.value)) {
       return;
+    }
+
+    _cancelActiveReadyWait?.call();
+    final Completer<void> completer = Completer<void>();
+    late final Timer timeoutTimer;
+    bool cleanedUp = false;
+
+    void onTelemetry() {
+      if (isTargetReady(controller.telemetry.value) && !completer.isCompleted) {
+        completer.complete();
+      }
+    }
+
+    void cleanup() {
+      if (cleanedUp) {
+        return;
+      }
+      cleanedUp = true;
+      timeoutTimer.cancel();
+      controller.telemetry.removeListener(onTelemetry);
+      if (!completer.isCompleted) {
+        completer.complete();
+      }
+    }
+
+    timeoutTimer = Timer(const Duration(seconds: 4), cleanup);
+    _cancelActiveReadyWait = cleanup;
+    controller.telemetry.addListener(onTelemetry);
+    try {
+      if (isTargetReady(controller.telemetry.value)) {
+        return;
+      }
+      await completer.future;
+    } finally {
+      cleanup();
+      if (identical(_cancelActiveReadyWait, cleanup)) {
+        _cancelActiveReadyWait = null;
+      }
+    }
+  }
+
+  Future<void> _scheduleAutoDiff() async {
+    final int gen = ++_diffGeneration;
+    _cancelActiveReadyWait?.call();
+    if (_comparisonMode == StudioComparisonMode.sideBySide) {
+      return;
+    }
+    await WidgetsBinding.instance.endOfFrame;
+    if (!mounted ||
+        gen != _diffGeneration ||
+        _comparisonMode == StudioComparisonMode.sideBySide) {
+      return;
+    }
+    final StudioWebPaneController targetController =
+        _diffTarget == StudioDiffTarget.mathJax
+        ? _mathJaxController
+        : _katexController;
+    await _waitForTargetReady(targetController);
+    if (!mounted ||
+        gen != _diffGeneration ||
+        _comparisonMode == StudioComparisonMode.sideBySide) {
+      return;
+    }
+    if (targetController.telemetry.value.errorMessage != null) {
+      return;
+    }
+    await _captureForDiff(expectedGeneration: gen);
+  }
+
+  Future<void> _captureForDiff({int? expectedGeneration}) async {
+    if (_isCapturing) {
+      _recapturePending = true;
+      return;
+    }
+    final int gen = expectedGeneration ?? ++_diffGeneration;
+    final bool startedInDiffMode =
+        _comparisonMode != StudioComparisonMode.sideBySide;
+    if (expectedGeneration == null) {
+      _cancelActiveReadyWait?.call();
     }
     setState(() {
       _isCapturing = true;
     });
     try {
+      final RenderObject? boundaryRenderObject = _texMathBoundaryKey
+          .currentContext
+          ?.findRenderObject();
+      if (boundaryRenderObject is! RenderRepaintBoundary ||
+          !boundaryRenderObject.attached ||
+          boundaryRenderObject.debugNeedsPaint) {
+        await WidgetsBinding.instance.endOfFrame;
+        if (!mounted || gen != _diffGeneration) {
+          return;
+        }
+      }
       final StudioCapturedImage? texMathImg = await captureRepaintBoundaryRgba(
         _texMathBoundaryKey,
       );
-      if (!mounted) {
+      if (!mounted || gen != _diffGeneration) {
         return;
       }
       final StudioWebPaneController targetController =
@@ -874,7 +991,10 @@ final class _StudioWorkbenchPageState extends State<StudioWorkbenchPage> {
         targetWidth: texMathImg?.width ?? 480,
         targetHeight: texMathImg?.height ?? 220,
       );
-      if (!mounted) {
+      if (!mounted ||
+          gen != _diffGeneration ||
+          (startedInDiffMode &&
+              _comparisonMode == StudioComparisonMode.sideBySide)) {
         return;
       }
       if (texMathImg != null && targetImg != null) {
@@ -891,8 +1011,28 @@ final class _StudioWorkbenchPageState extends State<StudioWorkbenchPage> {
         setState(() {
           _isCapturing = false;
         });
+      } else {
+        _isCapturing = false;
+      }
+      if (_recapturePending) {
+        _recapturePending = false;
+        if (mounted && _comparisonMode != StudioComparisonMode.sideBySide) {
+          unawaited(_scheduleAutoDiff());
+        }
       }
     }
+  }
+
+  void _handleMathLinkTap(String uri) {
+    final ScaffoldMessengerState? messenger = ScaffoldMessenger.maybeOf(
+      context,
+    );
+    if (messenger == null) {
+      return;
+    }
+    messenger
+      ..clearSnackBars()
+      ..showSnackBar(SnackBar(content: Text('Link tapped: $uri')));
   }
 
   @override
@@ -910,7 +1050,9 @@ final class _StudioWorkbenchPageState extends State<StudioWorkbenchPage> {
           options: _cachedOptions,
           engine: _cachedEngine,
           font: _mathFont,
+          overflow: TexMathOverflow.visible,
           textStyle: const TextStyle(fontSize: 22.0),
+          onLinkTap: _handleMathLinkTap,
         );
       case StudioInspectionFailure(:final TexMathError error):
         texMathLeaf = TexMathErrorWidget(
@@ -941,11 +1083,55 @@ final class _StudioWorkbenchPageState extends State<StudioWorkbenchPage> {
         }
     }
 
+    final bool showScrollbars =
+        !_isCapturing && _comparisonMode == StudioComparisonMode.sideBySide;
+    // Center relaxes tight parent constraints so LayoutBuilder avoids a Flutter
+    // relayout-boundary semantics assertion when RepaintBoundary reparents
+    // under ExcludeSemantics in diff modes.
     final Widget texMathPane = Center(
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.all(8.0),
-        child: texMathLeaf,
+      child: LayoutBuilder(
+        builder: (BuildContext context, BoxConstraints constraints) {
+          final Widget paneChild = inspection is StudioInspectionSuccess
+              ? texMathLeaf
+              : ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxWidth: math.max(0.0, constraints.maxWidth - 24.0),
+                  ),
+                  child: texMathLeaf,
+                );
+          return Scrollbar(
+            controller: _texMathVerticalScrollController,
+            thumbVisibility: showScrollbars,
+            notificationPredicate: (ScrollNotification notification) =>
+                notification.depth == 0,
+            child: SingleChildScrollView(
+              controller: _texMathVerticalScrollController,
+              scrollDirection: Axis.vertical,
+              child: Scrollbar(
+                controller: _texMathHorizontalScrollController,
+                thumbVisibility: showScrollbars,
+                notificationPredicate: (ScrollNotification notification) =>
+                    notification.depth == 0,
+                child: SingleChildScrollView(
+                  controller: _texMathHorizontalScrollController,
+                  scrollDirection: Axis.horizontal,
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                      minWidth: constraints.maxWidth,
+                      minHeight: constraints.maxHeight,
+                    ),
+                    child: Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(12.0),
+                        child: paneChild,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          );
+        },
       ),
     );
 
@@ -993,6 +1179,9 @@ final class _StudioWorkbenchPageState extends State<StudioWorkbenchPage> {
                   _recomputeInspection();
                 });
                 unawaited(_dispatchWebRender());
+                if (_comparisonMode != StudioComparisonMode.sideBySide) {
+                  unawaited(_scheduleAutoDiff());
+                }
               },
             ),
           ),
@@ -1048,6 +1237,10 @@ final class _StudioWorkbenchPageState extends State<StudioWorkbenchPage> {
                               _diffTarget = next;
                               _capturedPair = null;
                             });
+                            if (_comparisonMode !=
+                                StudioComparisonMode.sideBySide) {
+                              unawaited(_scheduleAutoDiff());
+                            }
                           },
                           texMathBoundaryKey: _texMathBoundaryKey,
                           texMathPane: texMathPane,
@@ -1097,9 +1290,11 @@ final class _StudioWorkbenchPageState extends State<StudioWorkbenchPage> {
               setState(() {
                 _comparisonMode = mode;
               });
-              if (mode != StudioComparisonMode.sideBySide &&
-                  _capturedPair == null) {
-                unawaited(_captureForDiff());
+              if (mode == StudioComparisonMode.sideBySide) {
+                _diffGeneration++;
+                _cancelActiveReadyWait?.call();
+              } else if (_capturedPair == null) {
+                unawaited(_scheduleAutoDiff());
               }
             },
           ),
